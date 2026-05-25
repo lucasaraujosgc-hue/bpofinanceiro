@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import express from 'express';
-import sqlite3 from 'sqlite3';
+import pkg from 'pg';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -11,6 +11,8 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import helmet from 'helmet';
 import { rateLimit } from 'express-rate-limit';
+
+const { Pool } = pkg;
 
 // --- CONFIGURAÇÃO DE SEGURANÇA E AMBIENTE ---
 const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(64).toString('hex');
@@ -81,28 +83,94 @@ app.use('/api/', apiLimiter);
 app.use(express.static(path.join(__dirname, 'dist')));
 
 // --- DATABASE SETUP ---
-const BACKUP_DIR = '/backup';
-let PERSISTENT_LOGO_DIR = './backup/logos';
-let dbPath = './backup/finance_v2.db';
-
-if (fs.existsSync(BACKUP_DIR)) {
-    try {
-        fs.accessSync(BACKUP_DIR, fs.constants.W_OK);
-        PERSISTENT_LOGO_DIR = path.join(BACKUP_DIR, 'logos');
-        dbPath = path.join(BACKUP_DIR, 'finance_v2.db');
-    } catch (e) {}
-}
-
-if (!fs.existsSync(path.dirname(dbPath))) fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+const PERSISTENT_LOGO_DIR = fs.existsSync('/backup') ? '/backup/logos' : './backup/logos';
 if (!fs.existsSync(PERSISTENT_LOGO_DIR)) fs.mkdirSync(PERSISTENT_LOGO_DIR, { recursive: true });
 
-const db = new sqlite3.Database(dbPath, (err) => {
-    if (err) console.error("ERRO CRÍTICO DB:", err.message);
-    else {
-        console.log(`Banco conectado: ${dbPath}`);
-        db.run('PRAGMA journal_mode = WAL;'); 
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+// Postgres mock for SQLite db interface to minimize file rewrites
+const db = {
+  _convertQuery: function(sql) {
+    let i = 1;
+    let converted = sql.replace(/\?/g, () => '$' + (i++));
+    converted = converted.replace(/INTEGER PRIMARY KEY AUTOINCREMENT/gi, 'SERIAL PRIMARY KEY');
+    return converted;
+  },
+  run: function(sql, params, callback) {
+    if (typeof params === 'function') {
+      callback = params;
+      params = [];
     }
+    let pgSql = this._convertQuery(sql);
+    let isInsert = pgSql.trim().toUpperCase().startsWith('INSERT');
+    if (isInsert && !pgSql.toUpperCase().includes('RETURNING')) {
+        pgSql += ' RETURNING id';
+    }
+    pool.query(pgSql, params || [])
+      .then(res => {
+         let context = {};
+         if (isInsert && res.rows && res.rows.length > 0 && res.rows[0].id) {
+             context.lastID = res.rows[0].id;
+         }
+         if (callback) callback.call(context, null);
+      })
+      .catch(err => {
+         console.error("DB Run Error:", err, pgSql);
+         if (callback) callback(err);
+      });
+  },
+  all: function(sql, params, callback) {
+    if (typeof params === 'function') {
+      callback = params;
+      params = [];
+    }
+    pool.query(this._convertQuery(sql), params || [])
+      .then(res => callback && callback(null, res.rows))
+      .catch(err => callback && callback(err, null));
+  },
+  get: function(sql, params, callback) {
+    if (typeof params === 'function') {
+      callback = params;
+      params = [];
+    }
+    pool.query(this._convertQuery(sql), params || [])
+      .then(res => {
+         let row = res.rows[0];
+         if (row && row.count !== undefined && typeof row.count === 'string') row.count = parseInt(row.count);
+         if (callback) callback(null, row);
+      })
+      .catch(err => callback && callback(err, null));
+  },
+  serialize: function(fn) {
+    fn();
+  },
+  prepare: function(sql) {
+    let pgSql = this._convertQuery(sql);
+    return {
+      run: function(...params) { pool.query(pgSql, params).catch(console.error); },
+      finalize: function() {}
+    };
+  }
+};
+
+pool.on('error', (err) => {
+  console.error("Unexpected error on idle client", err);
 });
+pool.query('SELECT NOW()', (err, res) => {
+    if (err) console.error("Database connection problem:", err);
+    else console.log("Database connected to Postgres.");
+});
+
+const ensureColumn = async (table, column, definition) => {
+    try {
+        const res = await pool.query(`SELECT column_name FROM information_schema.columns WHERE table_name=$1 AND column_name=$2`, [table, column]);
+        if (res.rows.length === 0) {
+            await pool.query(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition.replace('INTEGER', 'INT')}`);
+        }
+    } catch (e) {
+        console.error("Error adding column", e);
+    }
+};
 
 // Serve Logos
 app.use('/logo', (req, res, next) => {
@@ -220,17 +288,9 @@ const INITIAL_CATEGORIES_SEED = [
   { name: 'Transferências Internas (Saída)', type: 'despesa', group: 'nao_operacional' }
 ];
 
-const ensureColumn = (table, column, definition) => {
-    db.all(`PRAGMA table_info(${table})`, (err, rows) => {
-        if (!err && rows && !rows.some(r => r.name === column)) {
-            db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
-        }
-    });
-};
-
-db.serialize(() => {
-  db.run(`CREATE TABLE IF NOT EXISTS global_banks (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, logo TEXT)`);
-  db.run(`CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE, password TEXT, cnpj TEXT, razao_social TEXT, phone TEXT, reset_token TEXT, reset_token_expires INTEGER, role TEXT DEFAULT 'user', created_at TEXT, blocked INTEGER DEFAULT 0)`, (err) => {
+const db_init = () => {
+  db.run(`CREATE TABLE IF NOT EXISTS global_banks (id SERIAL PRIMARY KEY, name TEXT, logo TEXT)`);
+  db.run(`CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, email TEXT UNIQUE, password TEXT, cnpj TEXT, razao_social TEXT, phone TEXT, reset_token TEXT, reset_token_expires INTEGER, role TEXT DEFAULT 'user', created_at TEXT, blocked INTEGER DEFAULT 0)`, (err) => {
       if(!err) {
           ensureColumn('users', 'role', "TEXT DEFAULT 'user'");
           ensureColumn('users', 'created_at', "TEXT");
@@ -238,20 +298,20 @@ db.serialize(() => {
       }
   });
   db.run(`CREATE TABLE IF NOT EXISTS pending_signups (email TEXT PRIMARY KEY, token TEXT, cnpj TEXT, razao_social TEXT, phone TEXT, created_at INTEGER)`);
-  db.run(`CREATE TABLE IF NOT EXISTS banks (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, name TEXT, account_number TEXT, nickname TEXT, logo TEXT, active INTEGER DEFAULT 1, balance REAL DEFAULT 0, FOREIGN KEY(user_id) REFERENCES users(id))`);
-  db.run(`CREATE TABLE IF NOT EXISTS credit_cards (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, bank_id INTEGER, name TEXT, closing_day INTEGER, due_day INTEGER, limit_value REAL, FOREIGN KEY(user_id) REFERENCES users(id), FOREIGN KEY(bank_id) REFERENCES banks(id))`);
-  db.run(`CREATE TABLE IF NOT EXISTS categories (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, name TEXT, type TEXT, group_type TEXT, FOREIGN KEY(user_id) REFERENCES users(id))`, (err) => {
+  db.run(`CREATE TABLE IF NOT EXISTS banks (id SERIAL PRIMARY KEY, user_id INTEGER, name TEXT, account_number TEXT, nickname TEXT, logo TEXT, active INTEGER DEFAULT 1, balance REAL DEFAULT 0, FOREIGN KEY(user_id) REFERENCES users(id))`);
+  db.run(`CREATE TABLE IF NOT EXISTS credit_cards (id SERIAL PRIMARY KEY, user_id INTEGER, bank_id INTEGER, name TEXT, closing_day INTEGER, due_day INTEGER, limit_value REAL, FOREIGN KEY(user_id) REFERENCES users(id), FOREIGN KEY(bank_id) REFERENCES banks(id))`);
+  db.run(`CREATE TABLE IF NOT EXISTS categories (id SERIAL PRIMARY KEY, user_id INTEGER, name TEXT, type TEXT, group_type TEXT, FOREIGN KEY(user_id) REFERENCES users(id))`, (err) => {
       if(!err) ensureColumn('categories', 'group_type', 'TEXT');
   });
-  db.run(`CREATE TABLE IF NOT EXISTS ofx_imports (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, file_name TEXT, import_date TEXT, bank_id INTEGER, transaction_count INTEGER, content TEXT, FOREIGN KEY(user_id) REFERENCES users(id))`);
-  db.run(`CREATE TABLE IF NOT EXISTS transactions (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, date TEXT, description TEXT, value REAL, type TEXT, category_id INTEGER, bank_id INTEGER, credit_card_id INTEGER, reconciled INTEGER, ofx_import_id INTEGER, FOREIGN KEY(user_id) REFERENCES users(id))`, (err) => {
+  db.run(`CREATE TABLE IF NOT EXISTS ofx_imports (id SERIAL PRIMARY KEY, user_id INTEGER, file_name TEXT, import_date TEXT, bank_id INTEGER, transaction_count INTEGER, content TEXT, FOREIGN KEY(user_id) REFERENCES users(id))`);
+  db.run(`CREATE TABLE IF NOT EXISTS transactions (id SERIAL PRIMARY KEY, user_id INTEGER, date TEXT, description TEXT, value REAL, type TEXT, category_id INTEGER, bank_id INTEGER, credit_card_id INTEGER, reconciled INTEGER, ofx_import_id INTEGER, FOREIGN KEY(user_id) REFERENCES users(id))`, (err) => {
       if(!err) ensureColumn('transactions', 'credit_card_id', 'INTEGER');
   });
-  db.run(`CREATE TABLE IF NOT EXISTS forecasts (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, date TEXT, description TEXT, value REAL, type TEXT, category_id INTEGER, bank_id INTEGER, credit_card_id INTEGER, realized INTEGER, installment_current INTEGER, installment_total INTEGER, group_id TEXT, FOREIGN KEY(user_id) REFERENCES users(id))`, (err) => {
+  db.run(`CREATE TABLE IF NOT EXISTS forecasts (id SERIAL PRIMARY KEY, user_id INTEGER, date TEXT, description TEXT, value REAL, type TEXT, category_id INTEGER, bank_id INTEGER, credit_card_id INTEGER, realized INTEGER, installment_current INTEGER, installment_total INTEGER, group_id TEXT, FOREIGN KEY(user_id) REFERENCES users(id))`, (err) => {
       if(!err) ensureColumn('forecasts', 'credit_card_id', 'INTEGER');
   });
-  db.run(`CREATE TABLE IF NOT EXISTS keyword_rules (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, keyword TEXT, type TEXT, category_id INTEGER, bank_id INTEGER, FOREIGN KEY(user_id) REFERENCES users(id))`);
-  db.run(`CREATE TABLE IF NOT EXISTS audit_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, action TEXT, details TEXT, ip_address TEXT, created_at TEXT)`);
+  db.run(`CREATE TABLE IF NOT EXISTS keyword_rules (id SERIAL PRIMARY KEY, user_id INTEGER, keyword TEXT, type TEXT, category_id INTEGER, bank_id INTEGER, FOREIGN KEY(user_id) REFERENCES users(id))`);
+  db.run(`CREATE TABLE IF NOT EXISTS audit_logs (id SERIAL PRIMARY KEY, user_id TEXT, action TEXT, details TEXT, ip_address TEXT, created_at TEXT)`);
   
   // Seed Bancos Globais
   db.get("SELECT COUNT(*) as count FROM global_banks", [], (err, row) => {
@@ -261,7 +321,9 @@ db.serialize(() => {
           stmt.finalize();
       }
   });
-});
+};
+db_init();
+
 
 // --- ROTAS PÚBLICAS ---
 app.get('/api/global-banks', (req, res) => {
