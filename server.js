@@ -86,7 +86,21 @@ app.use(express.static(path.join(__dirname, 'dist')));
 const PERSISTENT_LOGO_DIR = fs.existsSync('/backup') ? '/backup/logos' : './backup/logos';
 if (!fs.existsSync(PERSISTENT_LOGO_DIR)) fs.mkdirSync(PERSISTENT_LOGO_DIR, { recursive: true });
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const pool = new Pool({ 
+    connectionString: process.env.DATABASE_URL,
+    max: 20,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 5000,
+    ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false
+});
+
+pool.on('error', (err) => {
+  console.error("Unexpected error on Postgres idle client", err.stack);
+});
+pool.query('SELECT NOW()', (err, res) => {
+    if (err) console.error("Database connection problem:", err.message);
+    else console.log("Database connected to Postgres.");
+});
 
 // Postgres mock for SQLite db interface to minimize file rewrites
 const db = {
@@ -94,6 +108,8 @@ const db = {
     let i = 1;
     let converted = sql.replace(/\?/g, () => '$' + (i++));
     converted = converted.replace(/INTEGER PRIMARY KEY AUTOINCREMENT/gi, 'SERIAL PRIMARY KEY');
+    converted = converted.replace(/\bINTEGER\b/g, 'INT');
+    converted = converted.replace(/\bREAL\b/g, 'NUMERIC(15,2)');
     return converted;
   },
   run: function(sql, params, callback) {
@@ -103,19 +119,25 @@ const db = {
     }
     let pgSql = this._convertQuery(sql);
     let isInsert = pgSql.trim().toUpperCase().startsWith('INSERT');
-    if (isInsert && !pgSql.toUpperCase().includes('RETURNING')) {
+    
+    // Explicit REPLACE statement mitigation for Postgres (ON CONFLICT)
+    if (isInsert && pgSql.includes('pending_signups')) {
+       pgSql = pgSql.replace(/INSERT OR REPLACE INTO/gi, 'INSERT INTO');
+       pgSql += ' ON CONFLICT (email) DO UPDATE SET token=EXCLUDED.token, cnpj=EXCLUDED.cnpj, razao_social=EXCLUDED.razao_social, phone=EXCLUDED.phone, created_at=EXCLUDED.created_at';
+    } else if (isInsert && !pgSql.toUpperCase().includes('RETURNING')) {
         pgSql += ' RETURNING id';
     }
+
     pool.query(pgSql, params || [])
       .then(res => {
-         let context = {};
+         let context = { changes: res.rowCount || 0 };
          if (isInsert && res.rows && res.rows.length > 0 && res.rows[0].id) {
              context.lastID = res.rows[0].id;
          }
          if (callback) callback.call(context, null);
       })
       .catch(err => {
-         console.error("DB Run Error:", err, pgSql);
+         console.error("DB Run Error:", err.message, "\nQuery:", pgSql, "\nParams:", params);
          if (callback) callback(err);
       });
   },
@@ -126,7 +148,10 @@ const db = {
     }
     pool.query(this._convertQuery(sql), params || [])
       .then(res => callback && callback(null, res.rows))
-      .catch(err => callback && callback(err, null));
+      .catch(err => {
+          console.error("DB All Error:", err.message, "\nQuery:", this._convertQuery(sql));
+          if(callback) callback(err, null);
+      });
   },
   get: function(sql, params, callback) {
     if (typeof params === 'function') {
@@ -136,39 +161,51 @@ const db = {
     pool.query(this._convertQuery(sql), params || [])
       .then(res => {
          let row = res.rows[0];
-         if (row && row.count !== undefined && typeof row.count === 'string') row.count = parseInt(row.count);
+         if (row && row.count !== undefined && typeof row.count === 'string') row.count = parseInt(row.count, 10);
          if (callback) callback(null, row);
       })
-      .catch(err => callback && callback(err, null));
+      .catch(err => {
+         console.error("DB Get Error:", err.message, "\nQuery:", this._convertQuery(sql));
+         if(callback) callback(err, null);
+      });
   },
   serialize: function(fn) {
+    // Deprecated adapter flow, bypassed by direct BEGIN/COMMIT logic below where critical.
     fn();
   },
   prepare: function(sql) {
     let pgSql = this._convertQuery(sql);
+    let isInsert = pgSql.trim().toUpperCase().startsWith('INSERT');
+    if (isInsert && !pgSql.toUpperCase().includes('RETURNING')) pgSql += ' RETURNING id';
     return {
-      run: function(...params) { pool.query(pgSql, params).catch(console.error); },
-      finalize: function() {}
+      run: function(...args) { 
+        let params = args;
+        let callback = null;
+        if(args.length > 0 && typeof args[args.length - 1] === 'function') {
+             callback = params.pop();
+        }
+        pool.query(pgSql, params)
+         .then(res => {
+            let context = { changes: res.rowCount || 0 };
+            if (isInsert && res.rows && res.rows.length > 0 && res.rows[0].id) context.lastID = res.rows[0].id;
+            if (callback) callback.call(context, null);
+         })
+         .catch(err => {
+            console.error("DB Prepare Error:", err.message, "\nQuery:", pgSql);
+            if(callback) callback(err);
+         });
+      },
+      finalize: function(cb) { if(cb) cb(); }
     };
   }
 };
 
-pool.on('error', (err) => {
-  console.error("Unexpected error on idle client", err);
-});
-pool.query('SELECT NOW()', (err, res) => {
-    if (err) console.error("Database connection problem:", err);
-    else console.log("Database connected to Postgres.");
-});
-
 const ensureColumn = async (table, column, definition) => {
     try {
-        const res = await pool.query(`SELECT column_name FROM information_schema.columns WHERE table_name=$1 AND column_name=$2`, [table, column]);
-        if (res.rows.length === 0) {
-            await pool.query(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition.replace('INTEGER', 'INT')}`);
-        }
+        let pgDef = definition.replace(/INTEGER/g, 'INT').replace(/REAL/g, 'NUMERIC(15,2)');
+        await pool.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${column} ${pgDef}`);
     } catch (e) {
-        console.error("Error adding column", e);
+        console.error("Error adding column", e.message);
     }
 };
 
@@ -247,72 +284,75 @@ const INITIAL_BANKS_SEED = [
   { name: 'Caixa Registradora', logo: '/logo/caixaf.png' },
 ];
 
-// LISTA DE CATEGORIAS ATUALIZADA CONFORME SOLICITADO
 const INITIAL_CATEGORIES_SEED = [
-  // RECEITAS OPERACIONAIS
   { name: 'Vendas de Mercadorias', type: 'receita', group: 'receita_bruta' },
   { name: 'Prestação de Serviços', type: 'receita', group: 'receita_bruta' },
   { name: 'Comissões Recebidas', type: 'receita', group: 'receita_bruta' },
-  // OUTRAS RECEITAS
   { name: 'Receita Financeira', type: 'receita', group: 'receita_financeira' },
   { name: 'Receita de Aluguel', type: 'receita', group: 'outras_receitas' },
   { name: 'Outras Receitas Operacionais', type: 'receita', group: 'outras_receitas' },
   { name: 'Reembolsos de Clientes', type: 'receita', group: 'outras_receitas' },
-  // RECEITAS NÃO OPERACIONAIS
   { name: 'Venda de Ativo Imobilizado', type: 'receita', group: 'receita_nao_operacional' },
   { name: 'Aportes de Sócios / Investimentos', type: 'receita', group: 'nao_operacional' },
   { name: 'Transferências Internas (Entrada)', type: 'receita', group: 'nao_operacional' },
-  // CUSTOS (CMV / CSP)
   { name: 'Compra de Mercadorias', type: 'despesa', group: 'custo_operacional' },
   { name: 'Custos de Serviços Prestados', type: 'despesa', group: 'custo_operacional' },
   { name: 'Fretes sobre Compras', type: 'despesa', group: 'custo_operacional' },
-  // DESPESAS COM PESSOAL
   { name: 'Salários e Ordenados', type: 'despesa', group: 'despesa_pessoal' },
   { name: 'Pró-Labore', type: 'despesa', group: 'despesa_pessoal' },
   { name: 'FGTS, INSS IRRF', type: 'despesa', group: 'despesa_pessoal' },
-  // DESPESAS ADMINISTRATIVAS
   { name: 'Aluguel e Condomínio', type: 'despesa', group: 'despesa_administrativa' },
   { name: 'Energia, Água e Internet', type: 'despesa', group: 'despesa_administrativa' },
   { name: 'Material de Escritório e Limpeza', type: 'despesa', group: 'despesa_administrativa' },
   { name: 'Seguros', type: 'despesa', group: 'despesa_administrativa' },
   { name: 'Serviços de Terceiros (Contabilidade, Admin e Jurídico)', type: 'despesa', group: 'despesa_administrativa' },
-  // DESPESAS OPERACIONAIS
   { name: 'Sistemas / Marketing e Publicidade', type: 'despesa', group: 'despesa_operacional' },
   { name: 'Combustível, Deslocamento / Manutenção e Reparos', type: 'despesa', group: 'despesa_operacional' },
-  // IMPOSTOS E DESPESAS FINANCEIRAS
   { name: 'Impostos sobre o Faturamento (DAS, ISS, ICMS)', type: 'despesa', group: 'impostos' },
   { name: 'Tarifas Bancárias/Juros e Multas Pagos', type: 'despesa', group: 'despesa_financeira' },
-  // NÃO OPERACIONAIS
   { name: 'Distribuição de Lucros', type: 'despesa', group: 'nao_operacional' },
   { name: 'Serviços Eventuais Não Operacionais', type: 'despesa', group: 'nao_operacional' },
   { name: 'Transferências Internas (Saída)', type: 'despesa', group: 'nao_operacional' }
 ];
 
-const db_init = () => {
+const db_init = async () => {
   db.run(`CREATE TABLE IF NOT EXISTS global_banks (id SERIAL PRIMARY KEY, name TEXT, logo TEXT)`);
-  db.run(`CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, email TEXT UNIQUE, password TEXT, cnpj TEXT, razao_social TEXT, phone TEXT, reset_token TEXT, reset_token_expires INTEGER, role TEXT DEFAULT 'user', created_at TEXT, blocked INTEGER DEFAULT 0)`, (err) => {
+  db.run(`CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, email TEXT UNIQUE, password TEXT, cnpj TEXT, razao_social TEXT, phone TEXT, reset_token TEXT, reset_token_expires BIGINT, role TEXT DEFAULT 'user', created_at TEXT, blocked INT DEFAULT 0)`, (err) => {
       if(!err) {
           ensureColumn('users', 'role', "TEXT DEFAULT 'user'");
           ensureColumn('users', 'created_at', "TEXT");
-          ensureColumn('users', 'blocked', "INTEGER DEFAULT 0");
+          ensureColumn('users', 'blocked', "INT DEFAULT 0");
       }
   });
-  db.run(`CREATE TABLE IF NOT EXISTS pending_signups (email TEXT PRIMARY KEY, token TEXT, cnpj TEXT, razao_social TEXT, phone TEXT, created_at INTEGER)`);
-  db.run(`CREATE TABLE IF NOT EXISTS banks (id SERIAL PRIMARY KEY, user_id INTEGER, name TEXT, account_number TEXT, nickname TEXT, logo TEXT, active INTEGER DEFAULT 1, balance REAL DEFAULT 0, FOREIGN KEY(user_id) REFERENCES users(id))`);
-  db.run(`CREATE TABLE IF NOT EXISTS credit_cards (id SERIAL PRIMARY KEY, user_id INTEGER, bank_id INTEGER, name TEXT, closing_day INTEGER, due_day INTEGER, limit_value REAL, FOREIGN KEY(user_id) REFERENCES users(id), FOREIGN KEY(bank_id) REFERENCES banks(id))`);
-  db.run(`CREATE TABLE IF NOT EXISTS categories (id SERIAL PRIMARY KEY, user_id INTEGER, name TEXT, type TEXT, group_type TEXT, FOREIGN KEY(user_id) REFERENCES users(id))`, (err) => {
+  db.run(`CREATE TABLE IF NOT EXISTS pending_signups (email TEXT PRIMARY KEY, token TEXT, cnpj TEXT, razao_social TEXT, phone TEXT, created_at BIGINT)`);
+  db.run(`CREATE TABLE IF NOT EXISTS banks (id SERIAL PRIMARY KEY, user_id INT, name TEXT, account_number TEXT, nickname TEXT, logo TEXT, active INT DEFAULT 1, balance NUMERIC(15,2) DEFAULT 0, FOREIGN KEY(user_id) REFERENCES users(id))`);
+  db.run(`CREATE TABLE IF NOT EXISTS credit_cards (id SERIAL PRIMARY KEY, user_id INT, bank_id INT, name TEXT, closing_day INT, due_day INT, limit_value NUMERIC(15,2), FOREIGN KEY(user_id) REFERENCES users(id), FOREIGN KEY(bank_id) REFERENCES banks(id))`);
+  db.run(`CREATE TABLE IF NOT EXISTS categories (id SERIAL PRIMARY KEY, user_id INT, name TEXT, type TEXT, group_type TEXT, FOREIGN KEY(user_id) REFERENCES users(id))`, (err) => {
       if(!err) ensureColumn('categories', 'group_type', 'TEXT');
   });
-  db.run(`CREATE TABLE IF NOT EXISTS ofx_imports (id SERIAL PRIMARY KEY, user_id INTEGER, file_name TEXT, import_date TEXT, bank_id INTEGER, transaction_count INTEGER, content TEXT, FOREIGN KEY(user_id) REFERENCES users(id))`);
-  db.run(`CREATE TABLE IF NOT EXISTS transactions (id SERIAL PRIMARY KEY, user_id INTEGER, date TEXT, description TEXT, value REAL, type TEXT, category_id INTEGER, bank_id INTEGER, credit_card_id INTEGER, reconciled INTEGER, ofx_import_id INTEGER, FOREIGN KEY(user_id) REFERENCES users(id))`, (err) => {
-      if(!err) ensureColumn('transactions', 'credit_card_id', 'INTEGER');
+  db.run(`CREATE TABLE IF NOT EXISTS ofx_imports (id SERIAL PRIMARY KEY, user_id INT, file_name TEXT, import_date TEXT, bank_id INT, transaction_count INT, content TEXT, FOREIGN KEY(user_id) REFERENCES users(id))`);
+  db.run(`CREATE TABLE IF NOT EXISTS transactions (id SERIAL PRIMARY KEY, user_id INT, date TEXT, description TEXT, value NUMERIC(15,2), type TEXT, category_id INT, bank_id INT, credit_card_id INT, reconciled INT, ofx_import_id INT, FOREIGN KEY(user_id) REFERENCES users(id))`, (err) => {
+      if(!err) ensureColumn('transactions', 'credit_card_id', 'INT');
   });
-  db.run(`CREATE TABLE IF NOT EXISTS forecasts (id SERIAL PRIMARY KEY, user_id INTEGER, date TEXT, description TEXT, value REAL, type TEXT, category_id INTEGER, bank_id INTEGER, credit_card_id INTEGER, realized INTEGER, installment_current INTEGER, installment_total INTEGER, group_id TEXT, FOREIGN KEY(user_id) REFERENCES users(id))`, (err) => {
-      if(!err) ensureColumn('forecasts', 'credit_card_id', 'INTEGER');
+  db.run(`CREATE TABLE IF NOT EXISTS forecasts (id SERIAL PRIMARY KEY, user_id INT, date TEXT, description TEXT, value NUMERIC(15,2), type TEXT, category_id INT, bank_id INT, credit_card_id INT, realized INT, installment_current INT, installment_total INT, group_id TEXT, FOREIGN KEY(user_id) REFERENCES users(id))`, (err) => {
+      if(!err) ensureColumn('forecasts', 'credit_card_id', 'INT');
   });
-  db.run(`CREATE TABLE IF NOT EXISTS keyword_rules (id SERIAL PRIMARY KEY, user_id INTEGER, keyword TEXT, type TEXT, category_id INTEGER, bank_id INTEGER, FOREIGN KEY(user_id) REFERENCES users(id))`);
+  db.run(`CREATE TABLE IF NOT EXISTS keyword_rules (id SERIAL PRIMARY KEY, user_id INT, keyword TEXT, type TEXT, category_id INT, bank_id INT, FOREIGN KEY(user_id) REFERENCES users(id))`);
   db.run(`CREATE TABLE IF NOT EXISTS audit_logs (id SERIAL PRIMARY KEY, user_id TEXT, action TEXT, details TEXT, ip_address TEXT, created_at TEXT)`);
   
+  // Automate Indexes Creation
+  try {
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_transactions_user_date ON transactions(user_id, date)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_transactions_bank ON transactions(bank_id)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category_id)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_forecasts_user_date ON forecasts(user_id, date)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_categories_user ON categories(user_id)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_keyword_rules_user ON keyword_rules(user_id)`);
+      console.log("Database indexes verified.");
+  } catch(e) {
+      console.error("Index creation error:", e.message);
+  }
+
   // Seed Bancos Globais
   db.get("SELECT COUNT(*) as count FROM global_banks", [], (err, row) => {
       if (!err && row && row.count === 0) {
@@ -323,7 +363,6 @@ const db_init = () => {
   });
 };
 db_init();
-
 
 // --- ROTAS PÚBLICAS ---
 app.get('/api/global-banks', (req, res) => {
@@ -337,7 +376,6 @@ app.post('/api/login', (req, res) => {
     const inputEmail = (email || '').trim();
     const inputPass = (password || '').trim();
 
-    // 1. Login ADMIN via ENV
     if (ADMIN_EMAIL && ADMIN_PASSWORD && inputEmail === ADMIN_EMAIL && inputPass === ADMIN_PASSWORD) {
         const token = jwt.sign({ id: 0, email: inputEmail, role: 'admin' }, JWT_SECRET, { expiresIn: '12h' });
         logAudit('0', 'LOGIN_ADMIN', 'Acesso Admin', req.ip);
@@ -347,12 +385,10 @@ app.post('/api/login', (req, res) => {
         });
     }
 
-    // 2. Login Usuário
     db.get('SELECT * FROM users WHERE email = ?', [inputEmail], (err, user) => {
         if (err || !user) return res.status(401).json({ error: "Credenciais inválidas" });
         if (!bcrypt.compareSync(inputPass, user.password)) return res.status(401).json({ error: "Credenciais inválidas" });
 
-        // Include blocked status in token or user object logic handled in frontend
         const token = jwt.sign({ id: user.id, email: user.email, role: user.role || 'user' }, JWT_SECRET, { expiresIn: '24h' });
         logAudit(user.id, 'LOGIN', 'Sucesso', req.ip);
         res.json({ 
@@ -363,7 +399,7 @@ app.post('/api/login', (req, res) => {
                 razaoSocial: decrypt(user.razao_social), 
                 cnpj: decrypt(user.cnpj), 
                 role: user.role,
-                blocked: user.blocked // Envia status de bloqueio
+                blocked: user.blocked
             } 
         });
     });
@@ -380,7 +416,7 @@ app.post('/api/request-signup', (req, res) => {
         const safeRazao = encrypt(razaoSocial);
         const safePhone = encrypt(phone);
 
-        db.run(`INSERT OR REPLACE INTO pending_signups (email, token, cnpj, razao_social, phone, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+        db.run(`INSERT INTO pending_signups (email, token, cnpj, razao_social, phone, created_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (email) DO UPDATE SET token=EXCLUDED.token, cnpj=EXCLUDED.cnpj, razao_social=EXCLUDED.razao_social, phone=EXCLUDED.phone, created_at=EXCLUDED.created_at`,
             [email, token, safeCnpj, safeRazao, safePhone, Date.now()],
             async function(err) {
                 if (err) return res.status(500).json({ error: err.message });
@@ -427,7 +463,6 @@ app.post('/api/complete-signup', (req, res) => {
                 if (err) return res.status(500).json({ error: err.message });
                 const userId = this.lastID;
                 
-                // Seed Categories (Lista Atualizada)
                 const stmtCat = db.prepare("INSERT INTO categories (user_id, name, type, group_type) VALUES (?, ?, ?, ?)");
                 INITIAL_CATEGORIES_SEED.forEach(c => stmtCat.run(userId, c.name, c.type, c.group));
                 stmtCat.finalize();
@@ -443,8 +478,8 @@ app.post('/api/complete-signup', (req, res) => {
 app.post('/api/recover-password', (req, res) => {
     const { email } = req.body;
     const token = crypto.randomBytes(32).toString('hex');
-    db.run("UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE email = ?", [token, Date.now()+3600000, email], function(err) {
-        if(this.changes > 0) {
+    db.run("UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE email = ?", [token, Date.now() + 3600000, email], function(err) {
+        if(this.changes && this.changes > 0) {
             const link = `${req.protocol}://${req.get('host')}/?action=reset&token=${token}`;
             const html = `<a href="${link}">Redefinir Senha</a>`;
             sendEmail(email, "Recuperação de Senha", html);
@@ -465,7 +500,7 @@ app.post('/api/reset-password-confirm', (req, res) => {
 
 // Bancos
 app.get('/api/banks', authenticateToken, (req, res) => {
-    db.all('SELECT * FROM banks WHERE user_id = ? ORDER BY active DESC, name', [req.userId], (err, rows) => res.json(rows));
+    db.all('SELECT * FROM banks WHERE user_id = ? ORDER BY active DESC, name', [req.userId], (err, rows) => res.json(rows || []));
 });
 app.post('/api/banks', authenticateToken, (req, res) => {
     const { name, accountNumber, nickname, logo } = req.body;
@@ -480,24 +515,31 @@ app.put('/api/banks/:id', authenticateToken, (req, res) => {
     db.run(`UPDATE banks SET nickname = COALESCE(?, nickname), active = COALESCE(?, active) WHERE id = ? AND user_id = ?`,
         [nickname, active, req.params.id, req.userId], (err) => res.json({success: !err}));
 });
-app.delete('/api/banks/:id', authenticateToken, (req, res) => {
-    db.serialize(() => {
-        db.run("DELETE FROM transactions WHERE bank_id = ? AND user_id = ?", [req.params.id, req.userId]);
-        db.run("DELETE FROM forecasts WHERE bank_id = ? AND user_id = ?", [req.params.id, req.userId]);
-        db.run("DELETE FROM banks WHERE id = ? AND user_id = ?", [req.params.id, req.userId], (err) => res.json({success: !err}));
-    });
+app.delete('/api/banks/:id', authenticateToken, async (req, res) => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        await client.query('DELETE FROM transactions WHERE bank_id = $1 AND user_id = $2', [req.params.id, req.userId]);
+        await client.query('DELETE FROM forecasts WHERE bank_id = $1 AND user_id = $2', [req.params.id, req.userId]);
+        await client.query('DELETE FROM credit_cards WHERE bank_id = $1 AND user_id = $2', [req.params.id, req.userId]);
+        await client.query('DELETE FROM banks WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]);
+        await client.query('COMMIT');
+        res.json({success: true});
+    } catch (e) {
+        await client.query('ROLLBACK');
+        console.error("Bank delete error:", e.stack);
+        res.status(500).json({success: false, error: e.message});
+    } finally {
+        client.release();
+    }
 });
 
 // Cartões de Crédito
 app.get('/api/credit-cards', authenticateToken, (req, res) => {
     db.all('SELECT * FROM credit_cards WHERE user_id = ? ORDER BY name', [req.userId], (err, rows) => {
-        res.json(rows.map(r => ({
-            id: r.id,
-            bankId: r.bank_id,
-            name: r.name,
-            closingDay: r.closing_day,
-            dueDay: r.due_day,
-            limitValue: r.limit_value
+        res.json((rows || []).map(r => ({
+            id: r.id, bankId: r.bank_id, name: r.name,
+            closingDay: r.closing_day, dueDay: r.due_day, limitValue: r.limit_value
         })));
     });
 });
@@ -514,14 +556,21 @@ app.put('/api/credit-cards/:id', authenticateToken, (req, res) => {
     db.run(`UPDATE credit_cards SET name = ?, closing_day = ?, due_day = ?, limit_value = ? WHERE id = ? AND user_id = ?`,
         [name, closingDay, dueDay, limitValue, req.params.id, req.userId], (err) => res.json({success: !err}));
 });
-app.delete('/api/credit-cards/:id', authenticateToken, (req, res) => {
-    db.serialize(() => {
-        // Remove transações associadas ou desvincula? Melhor remover para consistência ou impedir.
-        // Vamos desvincular por segurança, ou remover se for regra de negócio.
-        // Por enquanto, removemos as transações associadas a este cartão.
-        db.run("DELETE FROM transactions WHERE credit_card_id = ? AND user_id = ?", [req.params.id, req.userId]);
-        db.run("DELETE FROM credit_cards WHERE id = ? AND user_id = ?", [req.params.id, req.userId], (err) => res.json({success: !err}));
-    });
+app.delete('/api/credit-cards/:id', authenticateToken, async (req, res) => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        await client.query('DELETE FROM transactions WHERE credit_card_id = $1 AND user_id = $2', [req.params.id, req.userId]);
+        await client.query('DELETE FROM credit_cards WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]);
+        await client.query('COMMIT');
+        res.json({success: true});
+    } catch (e) {
+        await client.query('ROLLBACK');
+        console.error("Credit card delete delete error:", e.stack);
+        res.status(500).json({success: false, error: e.message});
+    } finally {
+        client.release();
+    }
 });
 
 // Categorias
@@ -536,7 +585,6 @@ app.get('/api/categories', authenticateToken, (req, res) => {
                 });
             });
         } else {
-            // CORREÇÃO: Mapeia group_type para groupType para o frontend
             res.json((rows || []).map(r => ({ ...r, groupType: r.group_type })));
         }
     });
@@ -556,10 +604,14 @@ app.delete('/api/categories/:id', authenticateToken, (req, res) => {
 });
 
 // Transações
-app.get('/api/transactions', authenticateToken, (req, res) => {
-    db.all(`SELECT * FROM transactions WHERE user_id = ? ORDER BY date DESC, id DESC LIMIT 5000`, [req.userId], (err, rows) => {
+app.get('/api/transactions', authenticateToken, async (req, res) => {
+    try {
+        const { rows } = await pool.query(`SELECT * FROM transactions WHERE user_id = $1 ORDER BY date DESC, id DESC LIMIT 5000`, [req.userId]);
         res.json(rows.map(r => ({...r, reconciled: !!r.reconciled, categoryId: r.category_id, bankId: r.bank_id, creditCardId: r.credit_card_id})));
-    });
+    } catch(err) {
+        console.error("GET /transactions error:", err.message);
+        res.status(500).json({error: "Server Error"});
+    }
 });
 app.post('/api/transactions', authenticateToken, (req, res) => {
     const { date, description, value, type, categoryId, bankId, creditCardId, reconciled, ofxImportId } = req.body;
@@ -567,7 +619,6 @@ app.post('/api/transactions', authenticateToken, (req, res) => {
         [req.userId, date, description, value, type, categoryId, bankId, creditCardId, reconciled?1:0, ofxImportId], function(err) {
             if(err) return res.status(500).json({error: err.message});
             
-            // Only update bank balance if NOT a credit card transaction
             if (!creditCardId) {
                 const modifier = type === 'credito' ? 1 : -1;
                 db.run(`UPDATE banks SET balance = balance + ? WHERE id = ?`, [value * modifier, bankId]);
@@ -581,7 +632,6 @@ app.put('/api/transactions/:id', authenticateToken, (req, res) => {
         if(!oldTx) return res.status(404).json({error: "Não encontrado"});
         db.run(`UPDATE transactions SET date=?, description=?, value=?, type=?, category_id=?, bank_id=?, credit_card_id=?, reconciled=? WHERE id=? AND user_id=?`,
             [date, description, value, type, categoryId, bankId, creditCardId, reconciled?1:0, req.params.id, req.userId], (err) => {
-                // Recalculate for both old and new banks/cards scenarios
                 if (!oldTx.credit_card_id) recalculateBankBalance(oldTx.bank_id);
                 if (!creditCardId) recalculateBankBalance(bankId);
                 
@@ -602,22 +652,37 @@ app.patch('/api/transactions/:id/reconcile', authenticateToken, (req, res) => {
     const { reconciled } = req.body;
     db.run(`UPDATE transactions SET reconciled = ? WHERE id = ? AND user_id = ?`, [reconciled?1:0, req.params.id, req.userId], (err) => res.json({success: !err}));
 });
-app.patch('/api/transactions/batch-update', authenticateToken, (req, res) => {
+app.patch('/api/transactions/batch-update', authenticateToken, async (req, res) => {
     const { transactionIds, categoryId } = req.body;
-    db.run(`UPDATE transactions SET category_id = ?, reconciled = 1 WHERE id IN (${transactionIds.join(',')}) AND user_id = ?`, [categoryId, req.userId], (err) => res.json({success: !err}));
+    if(!Array.isArray(transactionIds) || transactionIds.length === 0) return res.json({success: true});
+    try {
+        await pool.query(
+            `UPDATE transactions SET category_id = $1, reconciled = 1 WHERE id = ANY($2::int[]) AND user_id = $3`,
+            [categoryId, transactionIds, req.userId]
+        );
+        res.json({success: true});
+    } catch(e) {
+        console.error("Batch update error:", e.message);
+        res.status(500).json({success: false});
+    }
 });
 
 function recalculateBankBalance(bankId) {
-    // Exclude credit card transactions from bank balance
-    db.get(`SELECT SUM(CASE WHEN type = 'credito' THEN value ELSE -value END) as balance FROM transactions WHERE bank_id = ? AND credit_card_id IS NULL`, [bankId], (err, row) => {
-        db.run(`UPDATE banks SET balance = ? WHERE id = ?`, [row?.balance || 0, bankId]);
+    if (!bankId) return;
+    pool.query(`SELECT SUM(CASE WHEN type = 'credito' THEN value ELSE -value END) as balance FROM transactions WHERE bank_id = $1 AND credit_card_id IS NULL`, [bankId])
+    .then(res => {
+        let bal = res.rows[0]?.balance || 0;
+        pool.query(`UPDATE banks SET balance = $1 WHERE id = $2`, [bal, bankId]).catch(e => console.error("Update balance DB error:", e.message));
+    })
+    .catch(e => {
+        console.error("Balance recalculate DB error:", e.message);
     });
 }
 
 // Previsões
 app.get('/api/forecasts', authenticateToken, (req, res) => {
     db.all(`SELECT * FROM forecasts WHERE user_id = ? ORDER BY date`, [req.userId], (err, rows) => {
-        res.json(rows.map(r => ({...r, realized: !!r.realized, categoryId: r.category_id, bankId: r.bank_id, creditCardId: r.credit_card_id, installmentCurrent: r.installment_current, installmentTotal: r.installment_total, groupId: r.group_id})));
+        res.json((rows || []).map(r => ({...r, realized: !!r.realized, categoryId: r.category_id, bankId: r.bank_id, creditCardId: r.credit_card_id, installmentCurrent: r.installment_current, installmentTotal: r.installment_total, groupId: r.group_id})));
     });
 });
 app.post('/api/forecasts', authenticateToken, (req, res) => {
@@ -649,10 +714,10 @@ app.delete('/api/forecasts/:id', authenticateToken, (req, res) => {
     }
 });
 
-// OFX e Regras
+// OFX
 app.get('/api/ofx-imports', authenticateToken, (req, res) => {
     db.all(`SELECT id, file_name, import_date, bank_id, transaction_count FROM ofx_imports WHERE user_id = ? ORDER BY import_date DESC`, [req.userId], (err, rows) => {
-        res.json(rows.map(r => ({...r, fileName: r.file_name, importDate: r.import_date, bankId: r.bank_id, transactionCount: r.transaction_count})));
+        res.json((rows || []).map(r => ({...r, fileName: r.file_name, importDate: r.import_date, bankId: r.bank_id, transactionCount: r.transaction_count})));
     });
 });
 app.post('/api/ofx-imports', authenticateToken, (req, res) => {
@@ -660,18 +725,27 @@ app.post('/api/ofx-imports', authenticateToken, (req, res) => {
     db.run(`INSERT INTO ofx_imports (user_id, file_name, import_date, bank_id, transaction_count, content) VALUES (?, ?, ?, ?, ?, ?)`,
         [req.userId, fileName, importDate, bankId, transactionCount, content], function(err) { res.json({id: this.lastID}); });
 });
-app.delete('/api/ofx-imports/:id', authenticateToken, (req, res) => {
-    db.serialize(() => {
-        db.run(`DELETE FROM transactions WHERE ofx_import_id = ? AND user_id = ?`, [req.params.id, req.userId]);
-        db.run(`DELETE FROM ofx_imports WHERE id = ? AND user_id = ?`, [req.params.id, req.userId], (err) => res.json({success: !err}));
-    });
+app.delete('/api/ofx-imports/:id', authenticateToken, async (req, res) => {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        await client.query('DELETE FROM transactions WHERE ofx_import_id = $1 AND user_id = $2', [req.params.id, req.userId]);
+        await client.query('DELETE FROM ofx_imports WHERE id = $1 AND user_id = $2', [req.params.id, req.userId]);
+        await client.query('COMMIT');
+        res.json({success: true});
+    } catch (e) {
+        await client.query('ROLLBACK');
+        console.error("OFX delete error:", e.stack);
+        res.status(500).json({success: false, error: e.message});
+    } finally {
+        client.release();
+    }
 });
 app.get('/api/keyword-rules', authenticateToken, (req, res) => {
-    db.all(`SELECT * FROM keyword_rules WHERE user_id = ?`, [req.userId], (err, rows) => res.json(rows.map(r => ({...r, categoryId: r.category_id, bankId: r.bank_id}))));
+    db.all(`SELECT * FROM keyword_rules WHERE user_id = ?`, [req.userId], (err, rows) => res.json((rows || []).map(r => ({...r, categoryId: r.category_id, bankId: r.bank_id}))));
 });
 app.post('/api/keyword-rules', authenticateToken, (req, res) => {
     const { keyword, type, categoryId, bankId } = req.body;
-    // CORREÇÃO: Utilizando os nomes corretos das variáveis (categoryId e bankId) para evitar ReferenceError
     db.run(`INSERT INTO keyword_rules (user_id, keyword, type, category_id, bank_id) VALUES (?, ?, ?, ?, ?)`, 
         [req.userId, keyword, type, categoryId, bankId], 
         function(err) { 
@@ -684,7 +758,7 @@ app.delete('/api/keyword-rules/:id', authenticateToken, (req, res) => {
     db.run(`DELETE FROM keyword_rules WHERE id = ? AND user_id = ?`, [req.params.id, req.userId], (err) => res.json({success: !err}));
 });
 
-// --- RELATÓRIOS (RESTAURADOS E CORRIGIDOS PARA NOVA DRE) ---
+// --- RELATÓRIOS ---
 
 app.get('/api/reports/cash-flow', authenticateToken, async (req, res) => {
     const { year, month } = req.query;
@@ -695,97 +769,106 @@ app.get('/api/reports/cash-flow', authenticateToken, async (req, res) => {
     try {
         let startDate, endDate;
         if (m !== null) {
-            startDate = new Date(y, m, 1).toISOString().split('T')[0];
-            endDate = new Date(m === 11 ? y + 1 : y, m === 11 ? 0 : m + 1, 1).toISOString().split('T')[0];
+            startDate = new Date(Date.UTC(y, m, 1)).toISOString().split('T')[0];
+            endDate = new Date(Date.UTC(m === 11 ? y + 1 : y, m === 11 ? 0 : m + 1, 1)).toISOString().split('T')[0];
         } else {
-            startDate = new Date(y, 0, 1).toISOString().split('T')[0];
-            endDate = new Date(y + 1, 0, 1).toISOString().split('T')[0];
+            startDate = new Date(Date.UTC(y, 0, 1)).toISOString().split('T')[0];
+            endDate = new Date(Date.UTC(y + 1, 0, 1)).toISOString().split('T')[0];
         }
 
-        const balancePromise = new Promise((resolve, reject) => {
-            db.get(`SELECT SUM(CASE WHEN type = 'credito' THEN value ELSE -value END) as balance FROM transactions WHERE user_id = ? AND date < ?`,
-                [userId, startDate], (err, row) => err ? reject(err) : resolve(row?.balance || 0));
+        const balancePromise = pool.query(`SELECT SUM(CASE WHEN type = 'credito' THEN value ELSE -value END) as balance FROM transactions WHERE user_id = $1 AND date < $2`, [userId, startDate]);
+        const startBalanceRes = await balancePromise;
+        const startBalance = Number(startBalanceRes.rows[0]?.balance || 0);
+
+        const { rows } = await pool.query(
+            `SELECT t.*, c.name as category_name FROM transactions t LEFT JOIN categories c ON t.category_id = c.id WHERE t.user_id = $1 AND t.date >= $2 AND t.date < $3`,
+            [userId, startDate, endDate]
+        );
+
+        const totalReceitas = rows.filter(r => r.type === 'credito').reduce((sum, r) => sum + Number(r.value), 0);
+        const totalDespesas = rows.filter(r => r.type === 'debito').reduce((sum, r) => sum + Number(r.value), 0);
+        
+        const receitasCat = {};
+        const despesasCat = {};
+
+        rows.forEach(r => {
+            const catName = r.category_name || 'Sem Categoria';
+            const value = Number(r.value);
+            if (r.type === 'credito') receitasCat[catName] = (receitasCat[catName] || 0) + value;
+            else despesasCat[catName] = (despesasCat[catName] || 0) + value;
         });
 
-        const startBalance = await balancePromise;
-
-        db.all(`SELECT t.*, c.name as category_name FROM transactions t LEFT JOIN categories c ON t.category_id = c.id WHERE t.user_id = ? AND t.date >= ? AND t.date < ?`,
-            [userId, startDate, endDate], (err, rows) => {
-                if (err) return res.status(500).json({ error: err.message });
-
-                const totalReceitas = rows.filter(r => r.type === 'credito').reduce((sum, r) => sum + r.value, 0);
-                const totalDespesas = rows.filter(r => r.type === 'debito').reduce((sum, r) => sum + r.value, 0);
-                
-                const receitasCat = {};
-                const despesasCat = {};
-
-                rows.forEach(r => {
-                    const catName = r.category_name || 'Sem Categoria';
-                    if (r.type === 'credito') receitasCat[catName] = (receitasCat[catName] || 0) + r.value;
-                    else despesasCat[catName] = (despesasCat[catName] || 0) + r.value;
-                });
-
-                res.json({
-                    startBalance,
-                    totalReceitas,
-                    totalDespesas,
-                    endBalance: startBalance + totalReceitas - totalDespesas,
-                    receitasByCategory: Object.entries(receitasCat).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value),
-                    despesasByCategory: Object.entries(despesasCat).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value)
-                });
-            }
-        );
-    } catch (e) { res.status(500).json({ error: e.message }); }
+        res.json({
+            startBalance,
+            totalReceitas,
+            totalDespesas,
+            endBalance: startBalance + totalReceitas - totalDespesas,
+            receitasByCategory: Object.entries(receitasCat).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value),
+            despesasByCategory: Object.entries(despesasCat).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value)
+        });
+            
+    } catch (e) {
+        console.error("Cashflow Report Error:", e.stack);
+        res.status(500).json({ error: e.message }); 
+    }
 });
 
-app.get('/api/reports/daily-flow', authenticateToken, (req, res) => {
+app.get('/api/reports/daily-flow', authenticateToken, async (req, res) => {
     const { startDate, endDate } = req.query;
     if (!startDate || !endDate) return res.status(400).json({ error: 'Datas necessárias' });
 
-    db.all(`SELECT date, type, SUM(value) as total FROM transactions WHERE user_id = ? AND date BETWEEN ? AND ? GROUP BY date, type ORDER BY date ASC`,
-        [req.userId, startDate, endDate], (err, rows) => {
-            if (err) return res.status(500).json({ error: err.message });
-            const grouped = {};
-            rows.forEach(row => {
-                if (!grouped[row.date]) grouped[row.date] = { date: row.date, income: 0, expense: 0, net: 0 };
-                if (row.type === 'credito') grouped[row.date].income += row.total;
-                else grouped[row.date].expense += row.total;
-                grouped[row.date].net = grouped[row.date].income - grouped[row.date].expense;
-            });
-            res.json(Object.values(grouped));
-        }
-    );
+    try {
+        const { rows } = await pool.query(
+            `SELECT date, type, SUM(value) as total FROM transactions WHERE user_id = $1 AND date BETWEEN $2 AND $3 GROUP BY date, type ORDER BY date ASC`,
+            [req.userId, startDate, endDate]
+        );
+        const grouped = {};
+        rows.forEach(row => {
+            if (!grouped[row.date]) grouped[row.date] = { date: row.date, income: 0, expense: 0, net: 0 };
+            const total = Number(row.total);
+            if (row.type === 'credito') grouped[row.date].income += total;
+            else grouped[row.date].expense += total;
+            grouped[row.date].net = grouped[row.date].income - grouped[row.date].expense;
+        });
+        res.json(Object.values(grouped));
+    } catch(err) {
+        console.error("Daily Flow Error:", err.stack);
+        res.status(500).json({ error: err.message });
+    }
 });
 
-// DRE CORRIGIDO COM LÓGICA CONTÁBIL
-app.get('/api/reports/dre', authenticateToken, (req, res) => {
+// DRE CORRIGIDO COM LÓGICA CONTÁBIL E POSTGRES SQL
+app.get('/api/reports/dre', authenticateToken, async (req, res) => {
     const { year, month } = req.query;
     const userId = req.userId;
     const y = parseInt(year);
     const m = month ? parseInt(month) : null;
 
-    let query = `SELECT t.*, c.name as category_name, c.group_type FROM transactions t LEFT JOIN categories c ON t.category_id = c.id WHERE t.user_id = ? AND strftime('%Y', t.date) = ?`;
-    const params = [userId, String(y)];
-    if (m !== null) { query += ` AND strftime('%m', t.date) = ?`; params.push(String(m + 1).padStart(2, '0')); }
+    let query = `SELECT t.*, c.name as category_name, c.group_type FROM transactions t LEFT JOIN categories c ON t.category_id = c.id WHERE t.user_id = $1 AND EXTRACT(YEAR FROM t.date::date) = $2`;
+    const params = [userId, y];
+    if (m !== null) { 
+        query += ` AND EXTRACT(MONTH FROM t.date::date) = $3`; 
+        params.push(m + 1); 
+    }
 
-    db.all(query, params, (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
+    try {
+        const { rows } = await pool.query(query, params);
 
         let dre = { 
             receitaBruta: 0, 
             deducoes: 0, 
-            cmv: 0, // Custo Operacional
+            cmv: 0, 
             outrasReceitas: 0,
             despesasOperacionais: 0, 
             resultadoFinanceiro: 0, 
             receitaNaoOperacional: 0, 
             despesaNaoOperacional: 0, 
-            impostos: 0 // Mantido para referencia
+            impostos: 0 
         };
 
         rows.forEach(t => {
             const group = t.group_type || '';
-            const val = t.value;
+            const val = Number(t.value);
             const isCredit = t.type === 'credito';
 
             // Agrupamento
@@ -803,7 +886,6 @@ app.get('/api/reports/dre', authenticateToken, (req, res) => {
             else if (group === 'receita_nao_operacional') dre.receitaNaoOperacional += val;
             else if (group === 'despesa_nao_operacional') dre.despesaNaoOperacional += val;
             else if (['despesa_operacional', 'despesa_pessoal', 'despesa_administrativa'].includes(group)) dre.despesasOperacionais += val;
-            // Fallback
             else if (group === 'nao_operacional') { /* Ignora */ }
             else { 
                 const cat = (t.category_name || '').toLowerCase();
@@ -834,21 +916,27 @@ app.get('/api/reports/dre', authenticateToken, (req, res) => {
             resultadoAntesNaoOperacional,
             lucroLiquido
         });
-    });
+    } catch (err) {
+        console.error("DRE Report Error:", err.stack);
+        res.status(500).json({ error: err.message });
+    }
 });
 
-app.get('/api/reports/analysis', authenticateToken, (req, res) => {
+app.get('/api/reports/analysis', authenticateToken, async (req, res) => {
     const { year, month } = req.query;
     const userId = req.userId;
     const y = parseInt(year);
     const m = month ? parseInt(month) : null;
 
-    let query = `SELECT t.*, c.name as category_name, c.group_type FROM transactions t LEFT JOIN categories c ON t.category_id = c.id WHERE t.user_id = ? AND strftime('%Y', t.date) = ?`;
-    const params = [userId, String(y)];
-    if (m !== null) { query += ` AND strftime('%m', t.date) = ?`; params.push(String(m + 1).padStart(2, '0')); }
+    let query = `SELECT t.*, c.name as category_name, c.group_type FROM transactions t LEFT JOIN categories c ON t.category_id = c.id WHERE t.user_id = $1 AND EXTRACT(YEAR FROM t.date::date) = $2`;
+    const params = [userId, y];
+    if (m !== null) { 
+        query += ` AND EXTRACT(MONTH FROM t.date::date) = $3`; 
+        params.push(m + 1); 
+    }
 
-    db.all(query, params, (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
+    try {
+        const { rows } = await pool.query(query, params);
 
         const receitas = {};
         const despesas = {};
@@ -857,7 +945,7 @@ app.get('/api/reports/analysis', authenticateToken, (req, res) => {
         let dre = { receitaBruta: 0, cmv: 0, despesasOperacionais: 0, impostos: 0, lucroLiquidoParcial: 0 };
 
         rows.forEach(r => {
-            const val = r.value;
+            const val = Number(r.value);
             if (r.type === 'credito') {
                 receitas[r.category_name || 'Outros'] = (receitas[r.category_name || 'Outros'] || 0) + val;
                 totalReceitas += val;
@@ -887,24 +975,30 @@ app.get('/api/reports/analysis', authenticateToken, (req, res) => {
             receitas, despesas, totalReceitas, totalDespesas,
             kpis: { margemContribuicaoPct, resultadoOperacionalPct, resultadoLiquidoPct }
         });
-    });
+    } catch(err) {
+        console.error("Analysis Report Error:", err.stack);
+        res.status(500).json({ error: err.message });
+    }
 });
 
-app.get('/api/reports/forecasts', authenticateToken, (req, res) => {
+app.get('/api/reports/forecasts', authenticateToken, async (req, res) => {
     const { year, month } = req.query;
     const userId = req.userId;
     const y = parseInt(year);
     const m = month ? parseInt(month) : null;
 
-    let query = `SELECT f.*, c.name as category_name FROM forecasts f LEFT JOIN categories c ON f.category_id = c.id WHERE f.user_id = ? AND strftime('%Y', f.date) = ?`;
-    const params = [userId, String(y)];
-    if (m !== null) { query += ` AND strftime('%m', f.date) = ?`; params.push(String(m + 1).padStart(2, '0')); }
+    let query = `SELECT f.*, c.name as category_name FROM forecasts f LEFT JOIN categories c ON f.category_id = c.id WHERE f.user_id = $1 AND EXTRACT(YEAR FROM f.date::date) = $2`;
+    const params = [userId, y];
+    if (m !== null) { 
+        query += ` AND EXTRACT(MONTH FROM f.date::date) = $3`; 
+        params.push(m + 1); 
+    }
 
-    db.all(query, params, (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
+    try {
+        const { rows } = await pool.query(query, params);
         let summary = { predictedIncome: 0, predictedExpense: 0, realizedIncome: 0, realizedExpense: 0, pendingIncome: 0, pendingExpense: 0 };
         const items = rows.map(r => {
-            const val = r.value;
+            const val = Number(r.value);
             const isCredit = r.type === 'credito';
             if (isCredit) summary.predictedIncome += val; else summary.predictedExpense += val;
             if (r.realized) {
@@ -915,7 +1009,10 @@ app.get('/api/reports/forecasts', authenticateToken, (req, res) => {
             return { ...r, realized: !!r.realized };
         });
         res.json({ summary, items });
-    });
+    } catch(err) {
+        console.error("Forecasts Report Error:", err.stack);
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // Admin Routes (CORREÇÃO DE CRASH - VERSÃO ROBUSTA)
@@ -927,7 +1024,6 @@ app.get('/api/admin/users', authenticateToken, checkAdmin, (req, res) => {
         }
         try {
             const safeRows = rows || [];
-            console.log(`[Admin] Fetched ${safeRows.length} users.`);
             
             const processed = safeRows.map(r => {
                 try {
@@ -939,7 +1035,7 @@ app.get('/api/admin/users', authenticateToken, checkAdmin, (req, res) => {
                         blocked: !!r.blocked
                     };
                 } catch (e) {
-                    return r; // Fallback to raw row if decrypt fails
+                    return r; 
                 }
             });
             
@@ -966,10 +1062,10 @@ app.get('/api/admin/global-data', authenticateToken, checkAdmin, (req, res) => {
 });
 app.get('/api/admin/audit-transactions', authenticateToken, checkAdmin, (req, res) => {
     const sql = `SELECT t.id, t.date, t.description, t.value, t.type, u.razao_social FROM transactions t JOIN users u ON t.user_id = u.id ORDER BY t.date DESC LIMIT 500`;
-    db.all(sql, [], (err, rows) => res.json(rows));
+    db.all(sql, [], (err, rows) => res.json(rows || []));
 });
 app.get('/api/admin/banks', authenticateToken, checkAdmin, (req, res) => {
-    db.all('SELECT * FROM global_banks ORDER BY id DESC', [], (err, rows) => res.json(rows));
+    db.all('SELECT * FROM global_banks ORDER BY id DESC', [], (err, rows) => res.json(rows || []));
 });
 app.post('/api/admin/banks', authenticateToken, checkAdmin, (req, res) => {
     const { name, logoData } = req.body;
@@ -1002,7 +1098,6 @@ app.put('/api/admin/banks/:id', authenticateToken, checkAdmin, (req, res) => {
             } catch (e) {}
         }
         db.run('UPDATE global_banks SET name = ?, logo = ? WHERE id = ?', [name, logoPath, req.params.id], function(err) {
-            // Propagate updates to all user banks with same name
             db.run('UPDATE banks SET name = ?, logo = ? WHERE name = ?', [name, logoPath, row.name]);
             res.json({ success: true });
         });
@@ -1018,17 +1113,30 @@ app.get('/api/admin/users/:id/full-data', authenticateToken, checkAdmin, (req, r
     const p3 = new Promise((resolve) => db.all(`SELECT * FROM ofx_imports WHERE user_id = ?`, [userId], (err, r) => resolve(r)));
     Promise.all([p1, p2, p3]).then(([transactions, forecasts, ofxImports]) => res.json({ transactions, forecasts, ofxImports }));
 });
-app.delete('/api/admin/users/:id', authenticateToken, checkAdmin, (req, res) => {
+app.delete('/api/admin/users/:id', authenticateToken, checkAdmin, async (req, res) => {
     const id = req.params.id;
-    db.serialize(() => {
-        ['transactions', 'forecasts', 'banks', 'categories', 'ofx_imports', 'keyword_rules'].forEach(t => db.run(`DELETE FROM ${t} WHERE user_id = ?`, [id]));
-        db.run("DELETE FROM users WHERE id = ?", [id], (err) => res.json({success: true}));
-    });
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        const tables = ['transactions', 'forecasts', 'credit_cards', 'banks', 'categories', 'ofx_imports', 'keyword_rules'];
+        for (const t of tables) {
+            await client.query(`DELETE FROM ${t} WHERE user_id = $1`, [id]);
+        }
+        await client.query("DELETE FROM users WHERE id = $1", [id]);
+        await client.query('COMMIT');
+        res.json({success: true});
+    } catch (e) {
+        await client.query('ROLLBACK');
+        console.error("Admin user delete error:", e.stack);
+        res.status(500).json({success: false, error: e.message});
+    } finally {
+        client.release();
+    }
 });
 
 // START
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'dist', 'index.html')));
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT}`);
     if (ADMIN_EMAIL) console.log(`Admin ativo para: ${ADMIN_EMAIL}`);
 });
