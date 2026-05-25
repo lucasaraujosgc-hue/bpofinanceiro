@@ -66,6 +66,8 @@ const __dirname = path.dirname(__filename);
 const LOCAL_LOGO_DIR = path.join(__dirname, 'logo');
 if (!fs.existsSync(LOCAL_LOGO_DIR)) fs.mkdirSync(LOCAL_LOGO_DIR, { recursive: true });
 
+import { createServer as createViteServer } from 'vite';
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -80,7 +82,6 @@ const apiLimiter = rateLimit({
     message: { error: "Muitas requisições. Tente novamente mais tarde." }
 });
 app.use('/api/', apiLimiter);
-app.use(express.static(path.join(__dirname, 'dist')));
 
 // --- DATABASE SETUP ---
 const PERSISTENT_LOGO_DIR = fs.existsSync('/backup') ? '/backup/logos' : './backup/logos';
@@ -120,11 +121,7 @@ const db = {
     let pgSql = this._convertQuery(sql);
     let isInsert = pgSql.trim().toUpperCase().startsWith('INSERT');
     
-    // Explicit REPLACE statement mitigation for Postgres (ON CONFLICT)
-    if (isInsert && pgSql.includes('pending_signups')) {
-       pgSql = pgSql.replace(/INSERT OR REPLACE INTO/gi, 'INSERT INTO');
-       pgSql += ' ON CONFLICT (email) DO UPDATE SET token=EXCLUDED.token, cnpj=EXCLUDED.cnpj, razao_social=EXCLUDED.razao_social, phone=EXCLUDED.phone, created_at=EXCLUDED.created_at';
-    } else if (isInsert && !pgSql.toUpperCase().includes('RETURNING')) {
+    if (isInsert && !pgSql.toUpperCase().includes('RETURNING') && !pgSql.includes('pending_signups')) {
         pgSql += ' RETURNING id';
     }
 
@@ -176,7 +173,7 @@ const db = {
   prepare: function(sql) {
     let pgSql = this._convertQuery(sql);
     let isInsert = pgSql.trim().toUpperCase().startsWith('INSERT');
-    if (isInsert && !pgSql.toUpperCase().includes('RETURNING')) pgSql += ' RETURNING id';
+    if (isInsert && !pgSql.toUpperCase().includes('RETURNING') && !pgSql.includes('pending_signups')) pgSql += ' RETURNING id';
     return {
       run: function(...args) { 
         let params = args;
@@ -1135,8 +1132,22 @@ app.delete('/api/admin/users/:id', authenticateToken, checkAdmin, async (req, re
 });
 
 // START
-app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'dist', 'index.html')));
-app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on port ${PORT}`);
-    if (ADMIN_EMAIL) console.log(`Admin ativo para: ${ADMIN_EMAIL}`);
-});
+async function startServer() {
+    if (process.env.NODE_ENV !== "production") {
+        const vite = await createViteServer({
+            server: { middlewareMode: true },
+            appType: 'spa'
+        });
+        app.use(vite.middlewares);
+    } else {
+        const distPath = path.join(__dirname, 'dist');
+        app.use(express.static(distPath));
+        app.get('*', (req, res) => res.sendFile(path.join(distPath, 'index.html')));
+    }
+
+    app.listen(PORT, '0.0.0.0', () => {
+        console.log(`Server running on port ${PORT}`);
+        if (ADMIN_EMAIL) console.log(`Admin ativo para: ${ADMIN_EMAIL}`);
+    });
+}
+startServer();
