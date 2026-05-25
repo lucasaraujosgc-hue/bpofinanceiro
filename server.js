@@ -313,51 +313,50 @@ const INITIAL_CATEGORIES_SEED = [
 ];
 
 const db_init = async () => {
-  db.run(`CREATE TABLE IF NOT EXISTS global_banks (id SERIAL PRIMARY KEY, name TEXT, logo TEXT)`);
-  db.run(`CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, email TEXT UNIQUE, password TEXT, cnpj TEXT, razao_social TEXT, phone TEXT, reset_token TEXT, reset_token_expires BIGINT, role TEXT DEFAULT 'user', created_at TEXT, blocked INT DEFAULT 0)`, (err) => {
-      if(!err) {
-          ensureColumn('users', 'role', "TEXT DEFAULT 'user'");
-          ensureColumn('users', 'created_at', "TEXT");
-          ensureColumn('users', 'blocked', "INT DEFAULT 0");
-      }
-  });
-  db.run(`CREATE TABLE IF NOT EXISTS pending_signups (email TEXT PRIMARY KEY, token TEXT, cnpj TEXT, razao_social TEXT, phone TEXT, created_at BIGINT)`);
-  db.run(`CREATE TABLE IF NOT EXISTS banks (id SERIAL PRIMARY KEY, user_id INT, name TEXT, account_number TEXT, nickname TEXT, logo TEXT, active INT DEFAULT 1, balance NUMERIC(15,2) DEFAULT 0, FOREIGN KEY(user_id) REFERENCES users(id))`);
-  db.run(`CREATE TABLE IF NOT EXISTS credit_cards (id SERIAL PRIMARY KEY, user_id INT, bank_id INT, name TEXT, closing_day INT, due_day INT, limit_value NUMERIC(15,2), FOREIGN KEY(user_id) REFERENCES users(id), FOREIGN KEY(bank_id) REFERENCES banks(id))`);
-  db.run(`CREATE TABLE IF NOT EXISTS categories (id SERIAL PRIMARY KEY, user_id INT, name TEXT, type TEXT, group_type TEXT, FOREIGN KEY(user_id) REFERENCES users(id))`, (err) => {
-      if(!err) ensureColumn('categories', 'group_type', 'TEXT');
-  });
-  db.run(`CREATE TABLE IF NOT EXISTS ofx_imports (id SERIAL PRIMARY KEY, user_id INT, file_name TEXT, import_date TEXT, bank_id INT, transaction_count INT, content TEXT, FOREIGN KEY(user_id) REFERENCES users(id))`);
-  db.run(`CREATE TABLE IF NOT EXISTS transactions (id SERIAL PRIMARY KEY, user_id INT, date TEXT, description TEXT, value NUMERIC(15,2), type TEXT, category_id INT, bank_id INT, credit_card_id INT, reconciled INT, ofx_import_id INT, FOREIGN KEY(user_id) REFERENCES users(id))`, (err) => {
-      if(!err) ensureColumn('transactions', 'credit_card_id', 'INT');
-  });
-  db.run(`CREATE TABLE IF NOT EXISTS forecasts (id SERIAL PRIMARY KEY, user_id INT, date TEXT, description TEXT, value NUMERIC(15,2), type TEXT, category_id INT, bank_id INT, credit_card_id INT, realized INT, installment_current INT, installment_total INT, group_id TEXT, FOREIGN KEY(user_id) REFERENCES users(id))`, (err) => {
-      if(!err) ensureColumn('forecasts', 'credit_card_id', 'INT');
-  });
-  db.run(`CREATE TABLE IF NOT EXISTS keyword_rules (id SERIAL PRIMARY KEY, user_id INT, keyword TEXT, type TEXT, category_id INT, bank_id INT, FOREIGN KEY(user_id) REFERENCES users(id))`);
-  db.run(`CREATE TABLE IF NOT EXISTS audit_logs (id SERIAL PRIMARY KEY, user_id TEXT, action TEXT, details TEXT, ip_address TEXT, created_at TEXT)`);
-  
-  // Automate Indexes Creation
   try {
+      await pool.query(`CREATE TABLE IF NOT EXISTS global_banks (id SERIAL PRIMARY KEY, name TEXT, logo TEXT)`);
+      await pool.query(`CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, email TEXT UNIQUE, password TEXT, cnpj TEXT, razao_social TEXT, phone TEXT, reset_token TEXT, reset_token_expires BIGINT, role TEXT DEFAULT 'user', created_at TEXT, blocked INT DEFAULT 0)`);
+      await ensureColumn('users', 'role', "TEXT DEFAULT 'user'");
+      await ensureColumn('users', 'created_at', "TEXT");
+      await ensureColumn('users', 'blocked', "INT DEFAULT 0");
+
+      await pool.query(`CREATE TABLE IF NOT EXISTS pending_signups (email TEXT PRIMARY KEY, token TEXT, cnpj TEXT, razao_social TEXT, phone TEXT, created_at BIGINT)`);
+      await pool.query(`CREATE TABLE IF NOT EXISTS banks (id SERIAL PRIMARY KEY, user_id INT, name TEXT, account_number TEXT, nickname TEXT, logo TEXT, active INT DEFAULT 1, balance NUMERIC(15,2) DEFAULT 0, FOREIGN KEY(user_id) REFERENCES users(id))`);
+      await pool.query(`CREATE TABLE IF NOT EXISTS credit_cards (id SERIAL PRIMARY KEY, user_id INT, bank_id INT, name TEXT, closing_day INT, due_day INT, limit_value NUMERIC(15,2), FOREIGN KEY(user_id) REFERENCES users(id), FOREIGN KEY(bank_id) REFERENCES banks(id))`);
+      
+      await pool.query(`CREATE TABLE IF NOT EXISTS categories (id SERIAL PRIMARY KEY, user_id INT, name TEXT, type TEXT, group_type TEXT, FOREIGN KEY(user_id) REFERENCES users(id))`);
+      await ensureColumn('categories', 'group_type', 'TEXT');
+
+      await pool.query(`CREATE TABLE IF NOT EXISTS ofx_imports (id SERIAL PRIMARY KEY, user_id INT, file_name TEXT, import_date TEXT, bank_id INT, transaction_count INT, content TEXT, FOREIGN KEY(user_id) REFERENCES users(id))`);
+      
+      await pool.query(`CREATE TABLE IF NOT EXISTS transactions (id SERIAL PRIMARY KEY, user_id INT, date TEXT, description TEXT, value NUMERIC(15,2), type TEXT, category_id INT, bank_id INT, credit_card_id INT, reconciled INT, ofx_import_id INT, FOREIGN KEY(user_id) REFERENCES users(id))`);
+      await ensureColumn('transactions', 'credit_card_id', 'INT');
+
+      await pool.query(`CREATE TABLE IF NOT EXISTS forecasts (id SERIAL PRIMARY KEY, user_id INT, date TEXT, description TEXT, value NUMERIC(15,2), type TEXT, category_id INT, bank_id INT, credit_card_id INT, realized INT, installment_current INT, installment_total INT, group_id TEXT, FOREIGN KEY(user_id) REFERENCES users(id))`);
+      await ensureColumn('forecasts', 'credit_card_id', 'INT');
+
+      await pool.query(`CREATE TABLE IF NOT EXISTS keyword_rules (id SERIAL PRIMARY KEY, user_id INT, keyword TEXT, type TEXT, category_id INT, bank_id INT, FOREIGN KEY(user_id) REFERENCES users(id))`);
+      await pool.query(`CREATE TABLE IF NOT EXISTS audit_logs (id SERIAL PRIMARY KEY, user_id TEXT, action TEXT, details TEXT, ip_address TEXT, created_at TEXT)`);
+      
+      // Automate Indexes Creation
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_transactions_user_date ON transactions(user_id, date)`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_transactions_bank ON transactions(bank_id)`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category_id)`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_forecasts_user_date ON forecasts(user_id, date)`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_categories_user ON categories(user_id)`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_keyword_rules_user ON keyword_rules(user_id)`);
-      console.log("Database indexes verified.");
-  } catch(e) {
-      console.error("Index creation error:", e.message);
-  }
+      console.log("Database tables and indexes verified.");
 
-  // Seed Bancos Globais
-  db.get("SELECT COUNT(*) as count FROM global_banks", [], (err, row) => {
-      if (!err && row && row.count === 0) {
-          const stmt = db.prepare("INSERT INTO global_banks (name, logo) VALUES (?, ?)");
-          INITIAL_BANKS_SEED.forEach(b => stmt.run(b.name, b.logo));
-          stmt.finalize();
+      // Seed Bancos Globais
+      const { rows } = await pool.query("SELECT COUNT(*) as count FROM global_banks");
+      if (rows && rows.length > 0 && Number(rows[0].count) === 0) {
+          for (const b of INITIAL_BANKS_SEED) {
+              await pool.query("INSERT INTO global_banks (name, logo) VALUES ($1, $2)", [b.name, b.logo]);
+          }
       }
-  });
+  } catch(e) {
+      console.error("Database initialization error:", e.message);
+  }
 };
 db_init();
 
