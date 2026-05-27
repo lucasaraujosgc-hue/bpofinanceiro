@@ -189,14 +189,14 @@ const OFXImports: React.FC<OFXImportsProps> = ({ token, userId, banks, keywordRu
               setShowConflictModal(true);
           } else {
               // No conflicts, proceed directly
-              saveImport(newClean, []);
+              saveImport(newClean, [], content);
           }
       }, 100);
     };
     reader.readAsText(file);
   };
 
-  const saveImport = async (cleanTxs: any[], resolvedConflicts: ConflictingTransaction[]) => {
+  const saveImport = async (cleanTxs: any[], resolvedConflicts: ConflictingTransaction[], originalContent: string) => {
       setIsProcessing(true);
       setProcessingStatus('Salvando lançamentos...');
       setProgress(0);
@@ -230,7 +230,7 @@ const OFXImports: React.FC<OFXImportsProps> = ({ token, userId, banks, keywordRu
                       importDate: new Date().toISOString(),
                       bankId: Number(importConfig.bankId),
                       transactionCount: finalTransactionsToAdd.length,
-                      content: fileContent
+                      content: originalContent || fileContent
                   })
               });
               const importData = await resImport.json();
@@ -466,7 +466,7 @@ const OFXImports: React.FC<OFXImportsProps> = ({ token, userId, banks, keywordRu
                       <div className="flex gap-3">
                           <button onClick={() => setShowConflictModal(false)} className="px-4 py-2 border border-slate-700 rounded-lg text-slate-300 hover:bg-slate-800">Cancelar</button>
                           <button 
-                            onClick={() => saveImport(cleanTransactions, conflicts)}
+                            onClick={() => saveImport(cleanTransactions, conflicts, fileContent)}
                             className="px-6 py-2 bg-primary text-slate-900 font-bold rounded-lg hover:bg-primaryHover flex items-center gap-2"
                           >
                               <Save size={18}/> Confirmar Importação

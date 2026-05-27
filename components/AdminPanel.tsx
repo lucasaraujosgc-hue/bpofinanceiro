@@ -11,6 +11,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ token, onLogout }) => {
   const [stats, setStats] = useState<any>(null);
   const [users, setUsers] = useState<any[]>([]);
   const [auditData, setAuditData] = useState<any[]>([]);
+  const [auditPage, setAuditPage] = useState(0);
+  const [auditTotal, setAuditTotal] = useState(0);
   const [adminBanks, setAdminBanks] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   
@@ -56,8 +58,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ token, onLogout }) => {
               }
           }
           else if (tab === 'audit') {
-              const res = await fetch('/api/admin/audit-transactions', { headers: getHeaders() });
-              if(res.ok) setAuditData(await res.json());
+              const res = await fetch(`/api/admin/audit-signups?limit=20&offset=${auditPage*20}`, { headers: getHeaders() });
+              if(res.ok) {
+                  const result = await res.json();
+                  setAuditData(result.data || []);
+                  setAuditTotal(result.total || 0);
+              }
           }
           else if (tab === 'banks') {
               const res = await fetch('/api/admin/banks', { headers: getHeaders() });
@@ -73,7 +79,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ token, onLogout }) => {
   // Carrega ao montar e ao trocar de tab explicitamente
   useEffect(() => {
       if (token) loadTabContent(activeTab);
-  }, [activeTab, token]);
+  }, [activeTab, token, auditPage]);
 
   const handleTabChange = (tab: 'dashboard' | 'users' | 'audit' | 'banks') => {
       setActiveTab(tab);
@@ -417,21 +423,41 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ token, onLogout }) => {
 
           {activeTab === 'audit' && (
               <div className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden shadow-lg">
+                  <div className="p-4 border-b border-slate-800 flex justify-between items-center">
+                      <h2 className="text-white font-bold">Registros de Cadastros</h2>
+                      <span className="text-slate-400 text-sm">Total: {auditTotal} empresas</span>
+                  </div>
                   <table className="w-full text-sm text-left">
                       <thead className="bg-slate-800 text-slate-400 font-bold uppercase text-xs">
-                          <tr><th className="px-6 py-4">Data</th><th className="px-6 py-4">Empresa</th><th className="px-6 py-4">Descrição</th><th className="px-6 py-4 text-right">Valor</th></tr>
+                          <tr><th className="px-6 py-4">Data e Hora</th><th className="px-6 py-4">Empresa (Razão Social)</th><th className="px-6 py-4">Email</th></tr>
                       </thead>
                       <tbody className="divide-y divide-slate-800">
                           {auditData.map((t, idx) => (
                               <tr key={idx} className="hover:bg-slate-800/50">
-                                  <td className="px-6 py-3 text-slate-400">{new Date(t.date).toLocaleDateString()}</td>
-                                  <td className="px-6 py-3 text-blue-400">{t.razao_social}</td>
-                                  <td className="px-6 py-3 text-slate-300">{t.description}</td>
-                                  <td className={`px-6 py-3 text-right font-bold ${t.type==='credito'?'text-emerald-500':'text-rose-500'}`}>R$ {t.value?.toFixed(2)}</td>
+                                  <td className="px-6 py-3 text-slate-400 font-mono text-xs">{new Date(Number(t.created_at)).toLocaleString()}</td>
+                                  <td className="px-6 py-3 text-blue-400 font-medium">{t.razao_social}</td>
+                                  <td className="px-6 py-3 text-slate-300">{t.email}</td>
                               </tr>
                           ))}
                       </tbody>
                   </table>
+                  <div className="p-4 border-t border-slate-800 flex justify-between items-center text-sm">
+                      <button 
+                          disabled={auditPage === 0} 
+                          onClick={() => setAuditPage(p => p - 1)}
+                          className="px-4 py-2 border border-slate-700 rounded text-slate-300 hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                          Anterior
+                      </button>
+                      <span className="text-slate-400">Página {auditPage + 1} de {Math.ceil(auditTotal / 20) || 1}</span>
+                      <button 
+                          disabled={(auditPage + 1) * 20 >= auditTotal}
+                          onClick={() => setAuditPage(p => p + 1)}
+                          className="px-4 py-2 border border-slate-700 rounded text-slate-300 hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                          Próxima
+                      </button>
+                  </div>
               </div>
           )}
       </main>

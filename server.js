@@ -1060,9 +1060,19 @@ app.get('/api/admin/global-data', authenticateToken, checkAdmin, (req, res) => {
         });
     });
 });
-app.get('/api/admin/audit-transactions', authenticateToken, checkAdmin, (req, res) => {
-    const sql = `SELECT t.id, t.date, t.description, t.value, t.type, u.razao_social FROM transactions t JOIN users u ON t.user_id = u.id ORDER BY t.date DESC LIMIT 500`;
-    db.all(sql, [], (err, rows) => res.json(rows || []));
+app.get('/api/admin/audit-signups', authenticateToken, checkAdmin, async (req, res) => {
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = parseInt(req.query.offset) || 0;
+    
+    try {
+        const { rows } = await pool.query(`SELECT id, email, razao_social, created_at FROM users WHERE role != 'admin' ORDER BY created_at DESC LIMIT $1 OFFSET $2`, [limit, offset]);
+        const totalRes = await pool.query(`SELECT COUNT(*) as total FROM users WHERE role != 'admin'`);
+        
+        const processed = rows.map(r => ({ ...r, razao_social: decrypt(r.razao_social) || r.razao_social }));
+        res.json({ data: processed, total: Number(totalRes.rows[0].total) });
+    } catch(e) {
+        res.status(500).json({ error: e.message });
+    }
 });
 app.get('/api/admin/banks', authenticateToken, checkAdmin, (req, res) => {
     db.all('SELECT * FROM global_banks ORDER BY id DESC', [], (err, rows) => res.json(rows || []));
