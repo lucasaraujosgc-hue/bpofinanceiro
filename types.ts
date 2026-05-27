@@ -23,6 +23,14 @@ export interface Category {
   name: string;
   type: CategoryType;
   groupType?: string; // Novo campo para agrupamento no DRE
+  mainGroup?: string;
+  subGroup?: string;
+  nature?: string;
+  affectsDre?: boolean;
+  affectsCashflow?: boolean;
+  affectsBalance?: boolean;
+  costClassification?: string;
+  behaviorType?: string;
 }
 
 export interface KeywordRule {

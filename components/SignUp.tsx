@@ -190,6 +190,7 @@ const SignUp: React.FC<SignUpProps> = ({ onBack, isLoading }) => {
     razaoSocial: '',
     email: '',
     phone: '',
+    businessType: 'servico'
   });
 
   const [showTermsModal, setShowTermsModal] = useState(false);
@@ -343,6 +344,20 @@ const SignUp: React.FC<SignUpProps> = ({ onBack, isLoading }) => {
                     className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-sm text-white placeholder-slate-600"
                     placeholder="Telefone / WhatsApp"
                   />
+              </div>
+              <div className="relative">
+                  <select
+                    name="businessType"
+                    required
+                    value={formData.businessType}
+                    onChange={handleChange as any}
+                    className="w-full pl-4 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-sm text-white"
+                  >
+                      <option value="servico">Prestação de Serviços</option>
+                      <option value="comercio">Comércio</option>
+                      <option value="industria">Indústria</option>
+                      <option value="misto">Misto (Comércio e Serviço)</option>
+                  </select>
               </div>
             </div>
 

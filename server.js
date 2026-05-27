@@ -323,13 +323,25 @@ const db_init = async () => {
       await ensureColumn('users', 'role', "TEXT DEFAULT 'user'");
       await ensureColumn('users', 'created_at', "TEXT");
       await ensureColumn('users', 'blocked', "INT DEFAULT 0");
+      await ensureColumn('users', 'business_type', "TEXT DEFAULT 'servico'");
 
       await pool.query(`CREATE TABLE IF NOT EXISTS pending_signups (email TEXT PRIMARY KEY, token TEXT, cnpj TEXT, razao_social TEXT, phone TEXT, created_at BIGINT)`);
+      await ensureColumn('pending_signups', 'business_type', "TEXT DEFAULT 'servico'");
       await pool.query(`CREATE TABLE IF NOT EXISTS banks (id SERIAL PRIMARY KEY, user_id INT, name TEXT, account_number TEXT, nickname TEXT, logo TEXT, active INT DEFAULT 1, balance NUMERIC(15,2) DEFAULT 0, FOREIGN KEY(user_id) REFERENCES users(id))`);
       await pool.query(`CREATE TABLE IF NOT EXISTS credit_cards (id SERIAL PRIMARY KEY, user_id INT, bank_id INT, name TEXT, closing_day INT, due_day INT, limit_value NUMERIC(15,2), FOREIGN KEY(user_id) REFERENCES users(id), FOREIGN KEY(bank_id) REFERENCES banks(id))`);
       
       await pool.query(`CREATE TABLE IF NOT EXISTS categories (id SERIAL PRIMARY KEY, user_id INT, name TEXT, type TEXT, group_type TEXT, FOREIGN KEY(user_id) REFERENCES users(id))`);
       await ensureColumn('categories', 'group_type', 'TEXT');
+      await ensureColumn('categories', 'main_group', 'TEXT');
+      await ensureColumn('categories', 'sub_group', 'TEXT');
+      await ensureColumn('categories', 'nature', 'TEXT');
+      await ensureColumn('categories', 'affects_dre', 'BOOLEAN DEFAULT true');
+      await ensureColumn('categories', 'affects_cashflow', 'BOOLEAN DEFAULT true');
+      await ensureColumn('categories', 'affects_balance', 'BOOLEAN DEFAULT false');
+      await ensureColumn('categories', 'cost_classification', 'TEXT');
+      await ensureColumn('categories', 'behavior_type', 'TEXT');
+
+      await ensureColumn('users', 'business_type', "TEXT DEFAULT 'servico'");
 
       await pool.query(`CREATE TABLE IF NOT EXISTS ofx_imports (id SERIAL PRIMARY KEY, user_id INT, file_name TEXT, import_date TEXT, bank_id INT, transaction_count INT, content TEXT, FOREIGN KEY(user_id) REFERENCES users(id))`);
       
@@ -406,7 +418,7 @@ app.post('/api/login', (req, res) => {
 });
 
 app.post('/api/request-signup', (req, res) => {
-    const { email, cnpj, razaoSocial, phone } = req.body;
+    const { email, cnpj, razaoSocial, phone, businessType } = req.body;
     const token = crypto.randomBytes(32).toString('hex');
     
     db.get("SELECT id FROM users WHERE email = ?", [email], (err, row) => {
@@ -415,9 +427,10 @@ app.post('/api/request-signup', (req, res) => {
         const safeCnpj = encrypt(cnpj);
         const safeRazao = encrypt(razaoSocial);
         const safePhone = encrypt(phone);
+        const safeBusinessType = businessType || 'servico';
 
-        db.run(`INSERT INTO pending_signups (email, token, cnpj, razao_social, phone, created_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (email) DO UPDATE SET token=EXCLUDED.token, cnpj=EXCLUDED.cnpj, razao_social=EXCLUDED.razao_social, phone=EXCLUDED.phone, created_at=EXCLUDED.created_at`,
-            [email, token, safeCnpj, safeRazao, safePhone, Date.now()],
+        db.run(`INSERT INTO pending_signups (email, token, cnpj, razao_social, phone, business_type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (email) DO UPDATE SET token=EXCLUDED.token, cnpj=EXCLUDED.cnpj, razao_social=EXCLUDED.razao_social, phone=EXCLUDED.phone, business_type=EXCLUDED.business_type, created_at=EXCLUDED.created_at`,
+            [email, token, safeCnpj, safeRazao, safePhone, safeBusinessType, Date.now()],
             async function(err) {
                 if (err) return res.status(500).json({ error: err.message });
                 
@@ -457,13 +470,13 @@ app.post('/api/complete-signup', (req, res) => {
         if (!pending) return res.status(400).json({ error: "Inválido" });
 
         const hash = bcrypt.hashSync(password, 10);
-        db.run(`INSERT INTO users (email, password, cnpj, razao_social, phone, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
-            [pending.email, hash, pending.cnpj, pending.razao_social, pending.phone, new Date().toISOString()],
+        db.run(`INSERT INTO users (email, password, cnpj, razao_social, phone, business_type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [pending.email, hash, pending.cnpj, pending.razao_social, pending.phone, pending.business_type || 'servico', new Date().toISOString()],
             function (err) {
                 if (err) return res.status(500).json({ error: err.message });
                 const userId = this.lastID;
                 
-                const stmtCat = db.prepare("INSERT INTO categories (user_id, name, type, group_type) VALUES (?, ?, ?, ?)");
+                const stmtCat = db.prepare("INSERT INTO categories (user_id, name, type, group_type, affects_dre, affects_cashflow, affects_balance) VALUES (?, ?, ?, ?, true, true, false)");
                 INITIAL_CATEGORIES_SEED.forEach(c => stmtCat.run(userId, c.name, c.type, c.group));
                 stmtCat.finalize();
 
@@ -577,27 +590,29 @@ app.delete('/api/credit-cards/:id', authenticateToken, async (req, res) => {
 app.get('/api/categories', authenticateToken, (req, res) => {
     db.all(`SELECT * FROM categories WHERE user_id = ? ORDER BY name`, [req.userId], (err, rows) => {
         if(rows && rows.length === 0) {
-            const stmt = db.prepare("INSERT INTO categories (user_id, name, type, group_type) VALUES (?, ?, ?, ?)");
+            const stmt = db.prepare("INSERT INTO categories (user_id, name, type, group_type, affects_dre, affects_cashflow, affects_balance) VALUES (?, ?, ?, ?, true, true, false)");
             INITIAL_CATEGORIES_SEED.forEach(c => stmt.run(req.userId, c.name, c.type, c.group));
             stmt.finalize(() => {
                 db.all(`SELECT * FROM categories WHERE user_id = ?`, [req.userId], (err, newRows) => {
-                    res.json((newRows || []).map(r => ({ ...r, groupType: r.group_type })));
+                    res.json((newRows || []).map(r => ({ ...r, groupType: r.group_type, mainGroup: r.main_group, subGroup: r.sub_group, costClassification: r.cost_classification, behaviorType: r.behavior_type, affectsDre: r.affects_dre, affectsCashflow: r.affects_cashflow, affectsBalance: r.affects_balance })));
                 });
             });
         } else {
-            res.json((rows || []).map(r => ({ ...r, groupType: r.group_type })));
+            res.json((rows || []).map(r => ({ ...r, groupType: r.group_type, mainGroup: r.main_group, subGroup: r.sub_group, costClassification: r.cost_classification, behaviorType: r.behavior_type, affectsDre: r.affects_dre, affectsCashflow: r.affects_cashflow, affectsBalance: r.affects_balance })));
         }
     });
 });
 app.post('/api/categories', authenticateToken, (req, res) => {
-    const { name, type, groupType } = req.body;
-    db.run(`INSERT INTO categories (user_id, name, type, group_type) VALUES (?, ?, ?, ?)`, [req.userId, name, type, groupType], function(err) {
+    const { name, type, groupType, mainGroup, subGroup, nature, affectsDre, affectsCashflow, affectsBalance, costClassification, behaviorType } = req.body;
+    db.run(`INSERT INTO categories (user_id, name, type, group_type, main_group, sub_group, nature, affects_dre, affects_cashflow, affects_balance, cost_classification, behavior_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
+    [req.userId, name, type, groupType, mainGroup, subGroup, nature, affectsDre !== undefined ? affectsDre : true, affectsCashflow !== undefined ? affectsCashflow : true, affectsBalance || false, costClassification, behaviorType], function(err) {
         res.json({ id: this.lastID });
     });
 });
 app.put('/api/categories/:id', authenticateToken, (req, res) => {
-    const { name, type, groupType } = req.body;
-    db.run(`UPDATE categories SET name = ?, type = ?, group_type = ? WHERE id = ? AND user_id = ?`, [name, type, groupType, req.params.id, req.userId], (err) => res.json({success: !err}));
+    const { name, type, groupType, mainGroup, subGroup, nature, affectsDre, affectsCashflow, affectsBalance, costClassification, behaviorType } = req.body;
+    db.run(`UPDATE categories SET name = ?, type = ?, group_type = ?, main_group = ?, sub_group = ?, nature = ?, affects_dre = ?, affects_cashflow = ?, affects_balance = ?, cost_classification = ?, behavior_type = ? WHERE id = ? AND user_id = ?`, 
+    [name, type, groupType, mainGroup, subGroup, nature, affectsDre !== undefined ? affectsDre : true, affectsCashflow !== undefined ? affectsCashflow : true, affectsBalance || false, costClassification, behaviorType, req.params.id, req.userId], (err) => res.json({success: !err}));
 });
 app.delete('/api/categories/:id', authenticateToken, (req, res) => {
     db.run(`DELETE FROM categories WHERE id = ? AND user_id = ?`, [req.params.id, req.userId], (err) => res.json({success: !err}));
@@ -922,13 +937,16 @@ app.get('/api/reports/dre', authenticateToken, async (req, res) => {
     }
 });
 
-app.get('/api/reports/analysis', authenticateToken, async (req, res) => {
+app.get('/api/reports/dre-hierarchical', authenticateToken, async (req, res) => {
     const { year, month } = req.query;
     const userId = req.userId;
     const y = parseInt(year);
     const m = month ? parseInt(month) : null;
 
-    let query = `SELECT t.*, c.name as category_name, c.group_type FROM transactions t LEFT JOIN categories c ON t.category_id = c.id WHERE t.user_id = $1 AND EXTRACT(YEAR FROM t.date::date) = $2`;
+    let query = `SELECT t.*, c.name as category_name, c.group_type, c.main_group, c.sub_group, c.nature, c.affects_dre, c.cost_classification 
+                 FROM transactions t 
+                 LEFT JOIN categories c ON t.category_id = c.id 
+                 WHERE t.user_id = $1 AND EXTRACT(YEAR FROM t.date::date) = $2`;
     const params = [userId, y];
     if (m !== null) { 
         query += ` AND EXTRACT(MONTH FROM t.date::date) = $3`; 
@@ -937,43 +955,295 @@ app.get('/api/reports/analysis', authenticateToken, async (req, res) => {
 
     try {
         const { rows } = await pool.query(query, params);
+        
+        let rb = { label: 'Receita Bruta', value: 0, children: [] };
+        let deducoes = { label: '(-) Deduções da Receita Bruta', value: 0, children: [] };
+        let cmv = { label: '(-) Custos (CMV/CSP/CPV)', value: 0, children: [] };
+        let despesasOperacionais = { label: '(-) Despesas Operacionais', value: 0, children: [] };
+        let resultFinanceiro = { label: '(+/-) Resultado Financeiro', value: 0, children: [] };
+        let resultNaoOpe = { label: '(+/-) Resultado Não Operacional', value: 0, children: [] };
 
-        const receitas = {};
-        const despesas = {};
-        let totalReceitas = 0;
-        let totalDespesas = 0;
-        let dre = { receitaBruta: 0, cmv: 0, despesasOperacionais: 0, impostos: 0, lucroLiquidoParcial: 0 };
+        const addToGroup = (groupObj, childLabel, val) => {
+            let child = groupObj.children.find(c => c.label === childLabel);
+            if (!child) {
+                child = { label: childLabel, value: 0 };
+                groupObj.children.push(child);
+            }
+            child.value += val;
+            groupObj.value += val;
+        };
 
         rows.forEach(r => {
+            const isIgnored = r.affects_dre === false;
+            // Migrating legacy behavior_type to nature / effects
+            if (isIgnored || r.group_type === 'patrimonial' || r.nature === 'patrimonial') return;
+
             const val = Number(r.value);
+            const catName = r.category_name || 'Outros';
+
             if (r.type === 'credito') {
-                receitas[r.category_name || 'Outros'] = (receitas[r.category_name || 'Outros'] || 0) + val;
-                totalReceitas += val;
-                if(r.group_type === 'receita_bruta') dre.receitaBruta += val;
-                dre.lucroLiquidoParcial += val;
+                if (r.group_type === 'receita_bruta' || r.main_group === 'Receitas Operacionais' || !r.group_type) {
+                    addToGroup(rb, catName, val);
+                } else if (r.group_type === 'receita_financeira' || r.nature === 'financeira') {
+                    addToGroup(resultFinanceiro, catName, val);
+                } else {
+                    addToGroup(resultNaoOpe, catName, val);
+                }
             } else {
-                despesas[r.category_name || 'Outros'] = (despesas[r.category_name || 'Outros'] || 0) + val;
-                totalDespesas += val;
-                if(r.group_type === 'custo_operacional') dre.cmv += val;
-                if(['despesa_operacional', 'despesa_pessoal', 'despesa_administrativa'].includes(r.group_type)) dre.despesasOperacionais += val;
-                if(r.group_type === 'impostos') dre.impostos += val;
-                dre.lucroLiquidoParcial -= val;
+                if (r.group_type === 'impostos' || r.main_group === 'Deduções') {
+                    addToGroup(deducoes, catName, val);
+                } else if (r.group_type === 'custo_operacional' || r.cost_classification) {
+                    addToGroup(cmv, catName, val);
+                } else if (['despesa_operacional', 'despesa_pessoal', 'despesa_administrativa'].includes(r.group_type) || r.nature === 'operacional') {
+                    addToGroup(despesasOperacionais, catName, val);
+                } else if (r.group_type === 'despesa_financeira' || r.nature === 'financeira') {
+                    addToGroup(resultFinanceiro, catName, -val);
+                } else {
+                    addToGroup(resultNaoOpe, catName, -val);
+                }
             }
         });
 
-        const receitaLiquida = dre.receitaBruta - dre.impostos;
+        const receitaLiquida = rb.value - deducoes.value;
+        const lucroBruto = receitaLiquida - cmv.value;
+        const ebitda = lucroBruto - despesasOperacionais.value;
+        const lucroLiquido = ebitda + resultFinanceiro.value + resultNaoOpe.value;
+
+        const dre = [
+            rb,
+            deducoes,
+            { label: '= Receita Líquida', value: receitaLiquida, children: [] },
+            cmv,
+            { label: '= Lucro Bruto', value: lucroBruto, children: [] },
+            despesasOperacionais,
+            { label: '= EBITDA', value: ebitda, children: [] },
+            resultFinanceiro,
+            resultNaoOpe,
+            { label: '= Lucro Líquido', value: lucroLiquido, children: [] }
+        ];
+
+        res.json(dre);
+    } catch(err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/reports/analysis', authenticateToken, async (req, res) => {
+    const { year, month } = req.query;
+    const userId = req.userId;
+    const y = parseInt(year);
+    const m = month !== undefined && month !== null && month !== 'null' && month !== '' ? parseInt(month) : null;
+
+    let targetYear = y;
+    let targetMonth = m !== null ? m + 1 : null;
+    let prevYear = targetMonth ? (targetMonth === 1 ? y - 1 : y) : y - 1;
+    let prevMonth = targetMonth ? (targetMonth === 1 ? 12 : targetMonth - 1) : null;
+
+    let queryCurrentAndPrev = `
+        SELECT t.*, c.name as category_name, c.group_type, c.main_group, c.sub_group, c.nature, c.affects_dre, c.cost_classification, c.behavior_type 
+        FROM transactions t 
+        LEFT JOIN categories c ON t.category_id = c.id 
+        WHERE t.user_id = $1 
+    `;
+    const params = [userId];
+
+    if (targetMonth !== null) {
+        queryCurrentAndPrev += ` AND ( (EXTRACT(YEAR FROM t.date::date) = $2 AND EXTRACT(MONTH FROM t.date::date) = $3) OR (EXTRACT(YEAR FROM t.date::date) = $4 AND EXTRACT(MONTH FROM t.date::date) = $5) )`;
+        params.push(targetYear, targetMonth, prevYear, prevMonth);
+    } else {
+        queryCurrentAndPrev += ` AND ( EXTRACT(YEAR FROM t.date::date) = $2 OR EXTRACT(YEAR FROM t.date::date) = $3 )`;
+        params.push(targetYear, prevYear);
+    }
+
+    try {
+        const { rows } = await pool.query(queryCurrentAndPrev, params);
         
+        let currentRows = [];
+        let prevRows = [];
+        
+        rows.forEach(r => {
+            const d = new Date(Math.max(Date.parse(r.date), 0)); // Ensure valid date fallback
+            const rYear = d.getUTCFullYear();
+            const rMonth = d.getUTCMonth() + 1;
+            if (targetMonth) {
+                if (rYear === targetYear && rMonth === targetMonth) currentRows.push(r);
+                if (rYear === prevYear && rMonth === prevMonth) prevRows.push(r);
+            } else {
+                if (rYear === targetYear) currentRows.push(r);
+                if (rYear === prevYear) prevRows.push(r);
+            }
+        });
+
+        // Current Month calc
+        const receitas = {};
+        const despesas = {};
+        const despesasDetalhadas = {};
+        const receitasDetalhadas = {};
+        
+        let totalReceitas = 0;
+        let totalDespesas = 0;
+        let dre = { receitaBruta: 0, cmv: 0, despesasOperacionais: 0, despesasFinanceiras: 0, impostos: 0, lucroLiquidoParcial: 0, ticketCount: 0 };
+        let despesasFixas = 0;
+        let despesasVariaveis = 0;
+
+        currentRows.forEach(r => {
+            const val = Number(r.value);
+            const isIgnored = r.affects_dre === false || r.nature === 'patrimonial' || r.group_type === 'patrimonial';
+            const catName = r.category_name || 'Outros';
+
+            if (r.type === 'credito') {
+                if (!isIgnored) {
+                    receitas[catName] = (receitas[catName] || 0) + val;
+                    if(r.group_type === 'receita_bruta' || r.main_group === 'Receitas Operacionais' || !r.group_type) dre.receitaBruta += val;
+                    dre.lucroLiquidoParcial += val;
+                    dre.ticketCount += 1;
+                    receitasDetalhadas[catName] = (receitasDetalhadas[catName] || 0) + val;
+                }
+                totalReceitas += val;
+            } else {
+                if (!isIgnored) {
+                    despesas[catName] = (despesas[catName] || 0) + val;
+                    if(r.group_type === 'custo_operacional' || r.cost_classification) dre.cmv += val;
+                    else if(['despesa_operacional', 'despesa_pessoal', 'despesa_administrativa'].includes(r.group_type) || r.nature === 'operacional') dre.despesasOperacionais += val;
+                    else if(r.group_type === 'despesa_financeira' || r.nature === 'financeira') dre.despesasFinanceiras += val;
+                    else if(r.group_type === 'impostos') dre.impostos += val;
+                    
+                    if (r.behavior_type === 'fixa') despesasFixas += val;
+                    else despesasVariaveis += val;
+                    
+                    dre.lucroLiquidoParcial -= val;
+                    despesasDetalhadas[catName] = (despesasDetalhadas[catName] || 0) + val;
+                }
+                totalDespesas += val;
+            }
+        });
+
+        // Prev Month calc
+        let prevReceitas = 0;
+        let prevDespesas = 0;
+        prevRows.forEach(r => {
+            const val = Number(r.value);
+            if (r.type === 'credito') prevReceitas += val;
+            if (r.type === 'debito') prevDespesas += val;
+        });
+
+        const momReceita = prevReceitas > 0 ? ((totalReceitas - prevReceitas) / prevReceitas) * 100 : 0;
+        const momDespesa = prevDespesas > 0 ? ((totalDespesas - prevDespesas) / prevDespesas) * 100 : 0;
+
+        const receitaLiquida = dre.receitaBruta - dre.impostos;
         const margemContribuicaoVal = receitaLiquida - dre.cmv;
         const margemContribuicaoPct = receitaLiquida > 0 ? (margemContribuicaoVal / receitaLiquida) * 100 : 0;
         
         const resultadoOperacional = margemContribuicaoVal - dre.despesasOperacionais;
         const resultadoOperacionalPct = receitaLiquida > 0 ? (resultadoOperacional / receitaLiquida) * 100 : 0;
         
-        const resultadoLiquidoPct = receitaLiquida > 0 ? (dre.lucroLiquidoParcial / receitaLiquida) * 100 : 0;
+        const ebitda = resultadoOperacional;
+        const lucroLiquidoVal = dre.lucroLiquidoParcial;
+        const resultadoLiquidoPct = receitaLiquida > 0 ? (lucroLiquidoVal / receitaLiquida) * 100 : 0;
+
+        const ebitdaPct = receitaLiquida > 0 ? (ebitda / receitaLiquida) * 100 : 0;
+        const ticketMedio = dre.ticketCount > 0 ? totalReceitas / dre.ticketCount : 0;
+        const pctDespesasReceita = totalReceitas > 0 ? (totalDespesas / totalReceitas) * 100 : 0;
+        const pctDespesasFixas = (despesasFixas + despesasVariaveis) > 0 ? (despesasFixas / (despesasFixas + despesasVariaveis)) * 100 : 0;
+
+        // Pareto Accumulation
+        let cumDesp = 0;
+        const totalBaseDesp = Object.values(despesasDetalhadas).reduce((a,b)=>a+b, 0);
+        const paretoDespesas = Object.entries(despesasDetalhadas).map(([nome, valor]) => {
+            return { nome, valor, impacto: totalBaseDesp > 0 ? (valor / totalBaseDesp) * 100 : 0 };
+        }).sort((a,b) => b.valor - a.valor).map(i => {
+            cumDesp += i.impacto;
+            return { ...i, acumulado: cumDesp };
+        });
+
+        let cumRec = 0;
+        const totalBaseRec = Object.values(receitasDetalhadas).reduce((a,b)=>a+b, 0);
+        const paretoReceitas = Object.entries(receitasDetalhadas).map(([nome, valor]) => {
+            return { nome, valor, impacto: totalBaseRec > 0 ? (valor / totalBaseRec) * 100 : 0 };
+        }).sort((a,b) => b.valor - a.valor).map(i => {
+            cumRec += i.impacto;
+            return { ...i, acumulado: cumRec };
+        });
+
+        // Categorized Insights
+        let insights = []; // { type: 'alerta'|'insight'|'recomendacao', message: string }
+        if (pctDespesasReceita > 70) insights.push({ type: 'alerta', message: "Despesas representam mais de 70% da receita. Margem perigosa."});
+        if (margemContribuicaoPct < 20 && totalReceitas > 0) insights.push({ type: 'alerta', message: "Margem de contribuição baixa. Produto/serviço não está pagando os próprios custos diretos."});
+        if (dre.despesasFinanceiras > (totalReceitas * 0.1)) insights.push({ type: 'recomendacao', message: "As despesas financeiras estão altas. Recomendamos renegociar dívidas ou taxas."});
+        if (totalReceitas > 0 && totalDespesas > totalReceitas) insights.push({ type: 'alerta', message: "Queima de caixa! As despesas superaram as receitas no período analisado."});
+        if (momReceita > 0) insights.push({ type: 'insight', message: `Excelente! Sua receita cresceu ${momReceita.toFixed(1)}% em relação ao período anterior.` });
+        else if (momReceita < 0) insights.push({ type: 'alerta', message: `Sua receita caiu ${Math.abs(momReceita).toFixed(1)}% em relação ao período anterior.` });
+        
+        if (momDespesa > 10) insights.push({ type: 'alerta', message: `Suas despesas aumentaram ${momDespesa.toFixed(1)}% de um período para o outro.`});
+        else if (momDespesa < 0) insights.push({ type: 'insight', message: `Ótimo controle! Despesas reduziram ${Math.abs(momDespesa).toFixed(1)}%.`});
+
+        let financialHealthScore = 100;
+        if (pctDespesasReceita > 80) financialHealthScore -= 20;
+        if (margemContribuicaoPct < 20) financialHealthScore -= 20;
+        if (ebitda < 0) financialHealthScore -= 30;
+        if (dre.despesasFinanceiras > (totalReceitas * 0.05)) financialHealthScore -= 10;
+        if (lucroLiquidoVal < 0) financialHealthScore -= 20;
+        financialHealthScore = Math.max(0, financialHealthScore);
+
+        // Caixa vs Lucro
+        const geracaoCaixa = totalReceitas - totalDespesas;
+        if (lucroLiquidoVal > 0 && geracaoCaixa < 0) insights.push({ type: 'alerta', message: "Lucro positivo, mas Caixa Negativo. Dinheiro pode estar retido em clientes a receber ou sendo consumido por empréstimos."});
+        if (geracaoCaixa > 0 && lucroLiquidoVal < 0) insights.push({ type: 'insight', message: "Você tem dinheiro no caixa, mas no DRE registrou Prejuízo. Cuidado com empréstimos disfarçados de lucro."});
+
+        // Resumo Executivo
+        let resumo = [];
+        if (totalReceitas > 0) {
+            let res1 = `Sua receita no período foi de R$ ${totalReceitas.toFixed(2)}`;
+            if (momReceita !== 0) res1 += `, uma variação de ${momReceita > 0 ? '+' : ''}${momReceita.toFixed(1)}% vs anterior.`;
+            else res1 += '.';
+            resumo.push(res1);
+            
+            let res2 = `No mesmo período, as despesas consumiram ${pctDespesasReceita.toFixed(1)}% da receita.`;
+            if (momDespesa !== 0) res2 += ` Em comparação, elas variaram ${momDespesa > 0 ? '+' : ''}${momDespesa.toFixed(1)}%.`;
+            resumo.push(res2);
+
+            if (lucroLiquidoVal > 0) resumo.push(`A operação gerou Lucro Líquido de R$ ${lucroLiquidoVal.toFixed(2)}.`);
+            else resumo.push(`A operação resultou em Prejuízo Limpo de R$ ${Math.abs(lucroLiquidoVal).toFixed(2)}.`);
+
+            if (pctDespesasFixas > 60) resumo.push(`Note que ${pctDespesasFixas.toFixed(1)}% das suas despesas são fixas, o que tira a capacidade de adaptação se a receita cair.`);
+        } else {
+            resumo.push("Não há volume de receitas suficiente no período para formular uma conclusão gerencial abrangente.");
+        }
+
+        // Forecast / Projeção do Mês
+        let projecao = null;
+        const hj = new Date();
+        if (targetMonth && hj.getUTCFullYear() === targetYear && (hj.getUTCMonth() + 1) === targetMonth) {
+            const passedDays = Math.max(1, hj.getUTCDate());
+            const daysInMonth = new Date(targetYear, targetMonth, 0).getUTCDate(); // e.g. 30, 31
+            if (passedDays < daysInMonth) {
+                const percRealizado = passedDays / daysInMonth;
+                projecao = {
+                    receita: totalReceitas / percRealizado,
+                    despesa: totalDespesas / percRealizado,
+                    lucro: (totalReceitas - totalDespesas) / percRealizado,
+                };
+            }
+        }
 
         res.json({
             receitas, despesas, totalReceitas, totalDespesas,
-            kpis: { margemContribuicaoPct, resultadoOperacionalPct, resultadoLiquidoPct }
+            kpis: { 
+                margemContribuicaoPct, resultadoOperacionalPct, resultadoLiquidoPct, 
+                ebitda, ebitdaPct, ticketMedio, pctDespesasReceita, financialHealthScore,
+                pctDespesasFixas
+            },
+            advanced: {
+                paretoDespesas: paretoDespesas.slice(0, 10),
+                paretoReceitas: paretoReceitas.slice(0, 10),
+                insights,
+                geracaoCaixa,
+                lucroLiquidoVal,
+                momReceita,
+                momDespesa,
+                resumoExecutivo: resumo.join(" "),
+                projecao
+            }
         });
     } catch(err) {
         console.error("Analysis Report Error:", err.stack);
