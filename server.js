@@ -12,7 +12,11 @@ import jwt from 'jsonwebtoken';
 import helmet from 'helmet';
 import { rateLimit } from 'express-rate-limit';
 
-const { Pool } = pkg;
+const { Pool, types } = pkg;
+types.setTypeParser(1700, function(val) {
+  return parseFloat(val);
+});
+
 
 // --- CONFIGURAÇÃO DE SEGURANÇA E AMBIENTE ---
 const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(64).toString('hex');
