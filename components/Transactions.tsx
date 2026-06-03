@@ -97,8 +97,8 @@ const Transactions: React.FC<TransactionsProps> = ({
 
   const filteredTransactions = transactions.filter(t => {
     if (!t.date) return false;
-    // Oculta transações de bancos arquivados, exceto se estiver filtrando especificamente por um (o que não deve acontecer no dropdown, mas é safe)
-    if (!activeBankIds.includes(t.bankId)) return false; 
+    // Oculta transações de bancos arquivados, mas permite as sem banco (importadas da contabilidade)
+    if (t.bankId && !activeBankIds.includes(t.bankId)) return false; 
     
     const parts = t.date.split('-');
     if (parts.length < 2) return false;
@@ -108,7 +108,7 @@ const Transactions: React.FC<TransactionsProps> = ({
 
     const yearMatch = parseInt(y) === selectedYear;
     const monthMatch = (parseInt(m) - 1) === selectedMonth;
-    const bankMatch = selectedBankId === 'all' || t.bankId === selectedBankId;
+    const bankMatch = selectedBankId === 'all' || t.bankId === selectedBankId || (!t.bankId && selectedBankId === 'all');
     
     const matchesSearch = t.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = typeFilter === 'all' || t.type === typeFilter;
@@ -132,7 +132,7 @@ const Transactions: React.FC<TransactionsProps> = ({
       description: formData.description,
       value: Math.abs(Number(formData.value)), 
       type: formData.type,
-      bankId: Number(formData.bankId),
+      bankId: formData.bankId ? Number(formData.bankId) : null,
       creditCardId: formData.creditCardId,
       categoryId: Number(formData.categoryId),
       reconciled: editingId ? true : false 
@@ -432,7 +432,7 @@ const Transactions: React.FC<TransactionsProps> = ({
                                     <CreditCardIcon size={12}/> {creditCard.name}
                                 </span>
                             ) : (
-                                bank?.name
+                                bank?.name || <span className="text-xs text-slate-500 font-medium border border-slate-700 bg-slate-800/50 px-2 py-0.5 rounded">N/A</span>
                             )}
                         </td>
                         <td className={`px-6 py-4 text-right font-medium ${t.type === TransactionType.CREDIT ? 'text-emerald-500' : 'text-rose-500'}`}>
@@ -557,7 +557,7 @@ const Transactions: React.FC<TransactionsProps> = ({
                     <label className="text-sm font-medium text-slate-400">Conta / Cartão</label>
                     <select 
                         className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-all text-white"
-                        value={formData.creditCardId ? `card_${formData.creditCardId}` : `bank_${formData.bankId}`}
+                        value={formData.creditCardId ? `card_${formData.creditCardId}` : `bank_${formData.bankId || 'null'}`}
                         onChange={e => {
                             const val = e.target.value;
                             if (val.startsWith('card_')) {
@@ -566,12 +566,13 @@ const Transactions: React.FC<TransactionsProps> = ({
                                 if (card) {
                                     setFormData({...formData, bankId: card.bankId, creditCardId: cardId});
                                 }
-                            } else {
-                                const bankId = Number(val.replace('bank_', ''));
+                            } else if (val.startsWith('bank_')) {
+                                const bankId = val === 'bank_null' ? 0 : Number(val.replace('bank_', ''));
                                 setFormData({...formData, bankId: bankId, creditCardId: null});
                             }
                         }}
                     >
+                        <option value="bank_null" disabled>Selecione uma conta...</option>
                         <optgroup label="Contas Bancárias">
                             {activeBanks.map(b => (
                                 <option key={`bank_${b.id}`} value={`bank_${b.id}`}>{b.name}</option>

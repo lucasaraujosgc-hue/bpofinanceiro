@@ -111,7 +111,7 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
                     value: value,
                     type: formData.type,
                     categoryId: Number(formData.categoryId),
-                    bankId: Number(formData.bankId),
+                    bankId: formData.bankId ? Number(formData.bankId) : null,
                     creditCardId: formData.creditCardId
                 })
             });
@@ -131,7 +131,7 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
                     value: value,
                     type: formData.type,
                     categoryId: Number(formData.categoryId),
-                    bankId: Number(formData.bankId),
+                    bankId: formData.bankId ? Number(formData.bankId) : null,
                     creditCardId: formData.creditCardId,
                     installmentCurrent: formData.isFixed ? i + 1 : i + 1,
                     installmentTotal: formData.isFixed ? 0 : installments, 
@@ -324,7 +324,7 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
       const [y, m] = f.date.split('-'); 
       const yearMatch = parseInt(y) === selectedYear;
       const monthMatch = (parseInt(m) - 1) === selectedMonth;
-      const bankMatch = selectedBankId === 'all' || f.bankId === selectedBankId;
+      const bankMatch = selectedBankId === 'all' || f.bankId === selectedBankId || (!f.bankId && selectedBankId === 'all');
       return yearMatch && monthMatch && bankMatch;
   }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
@@ -450,7 +450,7 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
                                                 <CreditCardIcon size={12}/> {creditCard.name}
                                             </span>
                                         ) : (
-                                            <span className="text-slate-400 text-xs">{bank?.name}</span>
+                                            <span className="text-slate-400 text-xs">{bank?.name || <span className="border border-slate-700 bg-slate-800/50 px-2 py-0.5 rounded text-slate-500 font-medium">N/A</span>}</span>
                                         )}
                                    </td>
                                    <td className="px-6 py-3 text-slate-400">
@@ -561,7 +561,7 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
                          <label className="text-sm text-slate-400 font-medium">Conta / Cartão</label>
                          <select 
                             className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-primary"
-                            value={formData.creditCardId ? `card_${formData.creditCardId}` : `bank_${formData.bankId}`}
+                            value={formData.creditCardId ? `card_${formData.creditCardId}` : `bank_${formData.bankId || 'null'}`}
                             onChange={e => {
                                 const val = e.target.value;
                                 if (val.startsWith('card_')) {
@@ -570,12 +570,13 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
                                     if (card) {
                                         setFormData({...formData, bankId: card.bankId, creditCardId: cardId});
                                     }
-                                } else {
-                                    const bankId = Number(val.replace('bank_', ''));
+                                } else if (val.startsWith('bank_')) {
+                                    const bankId = val === 'bank_null' ? 0 : Number(val.replace('bank_', ''));
                                     setFormData({...formData, bankId: bankId, creditCardId: null});
                                 }
                             }}
                          >
+                             <option value="bank_null" disabled>Selecione uma conta...</option>
                              <optgroup label="Contas Bancárias">
                                  {activeBanks.map(b => (
                                      <option key={`bank_${b.id}`} value={`bank_${b.id}`}>{b.name}</option>

@@ -165,27 +165,27 @@ const IntegrationConfig: React.FC<IntegrationConfigProps> = ({ categories }) => 
 
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-sm font-medium text-slate-400 mb-1">Categoria Padrão (Entradas)</label>
+                                        <label className="block text-sm font-medium text-slate-400 mb-1">Categoria Padrão (NFe Entrada / Compras)</label>
                                         <select 
                                             value={form.category_in_id}
                                             onChange={(e) => setForm({...form, category_in_id: e.target.value})}
                                             className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none border-primary"
                                         >
                                             <option value="">Selecione...</option>
-                                            {categories.filter(c => c.type === 'receita' || c.type === 'credito').map(c => (
+                                            {categories.filter(c => c.type === 'despesa' || c.type === 'debito').map(c => (
                                                 <option key={c.id} value={c.id}>{c.name}</option>
                                             ))}
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-slate-400 mb-1">Categoria Padrão (Saídas)</label>
+                                        <label className="block text-sm font-medium text-slate-400 mb-1">Categoria Padrão (NFe Saída / Vendas)</label>
                                         <select 
                                             value={form.category_out_id}
                                             onChange={(e) => setForm({...form, category_out_id: e.target.value})}
                                             className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary"
                                         >
                                             <option value="">Selecione...</option>
-                                            {categories.filter(c => c.type === 'despesa' || c.type === 'debito').map(c => (
+                                            {categories.filter(c => c.type === 'receita' || c.type === 'credito').map(c => (
                                                 <option key={c.id} value={c.id}>{c.name}</option>
                                             ))}
                                         </select>

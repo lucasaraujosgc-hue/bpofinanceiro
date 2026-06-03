@@ -829,7 +829,7 @@ app.post('/api/integration/sync', authenticateToken, async (req, res) => {
             const desc = isNfeEntrada ? `Compra ${nota.fornecedor}` : `Venda ${nota.fornecedor}`;
             const val = parseFloat(nota.valor_total);
             
-            const catId = isNfeEntrada ? settings.category_out_id : settings.category_in_id;
+            const catId = isNfeEntrada ? settings.category_in_id : settings.category_out_id;
             const opType = isNfeEntrada ? 'debito' : 'credito';
 
             if (settings.target_type === 'forecast') {

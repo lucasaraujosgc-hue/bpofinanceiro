@@ -80,14 +80,14 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
   const overdueForecasts = forecasts.filter(f => {
       const fDate = new Date(f.date);
       const fDateMidnight = new Date(fDate.getFullYear(), fDate.getMonth(), fDate.getDate());
-      return fDateMidnight < startOfSelectedMonth && !f.realized && activeBankIds.includes(f.bankId);
+      return fDateMidnight < startOfSelectedMonth && !f.realized && (!f.bankId || activeBankIds.includes(f.bankId));
   }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-  const allPendingForecasts = forecasts.filter(f => !f.realized && activeBankIds.includes(f.bankId));
+  const allPendingForecasts = forecasts.filter(f => !f.realized && (!f.bankId || activeBankIds.includes(f.bankId)));
 
   const currentMonthTransactions = transactions.filter(t => {
       const d = new Date(t.date);
-      return d.getMonth() === currentMonth && d.getFullYear() === currentYear && activeBankIds.includes(t.bankId);
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear && (!t.bankId || activeBankIds.includes(t.bankId));
   });
 
   const recentTransactions = [...currentMonthTransactions]
@@ -118,9 +118,9 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
   const topIncomeCategories = getTopCategories(TransactionType.CREDIT);
   const topExpenseCategories = getTopCategories(TransactionType.DEBIT);
 
-  // GLOBAL BALANCE LOGIC (Only active banks)
-  const allTimeIncome = transactions.filter(t => t.type === TransactionType.CREDIT && activeBankIds.includes(t.bankId)).reduce((acc, curr) => acc + curr.value, 0);
-  const allTimeExpense = transactions.filter(t => t.type === TransactionType.DEBIT && activeBankIds.includes(t.bankId)).reduce((acc, curr) => acc + curr.value, 0);
+  // GLOBAL BALANCE LOGIC (Only active banks or null banks)
+  const allTimeIncome = transactions.filter(t => t.type === TransactionType.CREDIT && (!t.bankId || activeBankIds.includes(t.bankId))).reduce((acc, curr) => acc + curr.value, 0);
+  const allTimeExpense = transactions.filter(t => t.type === TransactionType.DEBIT && (!t.bankId || activeBankIds.includes(t.bankId))).reduce((acc, curr) => acc + curr.value, 0);
   const totalBalance = allTimeIncome - allTimeExpense;
 
   const monthRealizedIncome = currentMonthTransactions.filter(t => t.type === TransactionType.CREDIT).reduce((acc, curr) => acc + curr.value, 0);
@@ -128,7 +128,7 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
 
   const currentMonthForecasts = forecasts.filter(f => {
       const d = new Date(f.date);
-      return d.getMonth() === currentMonth && d.getFullYear() === currentYear && !f.realized && activeBankIds.includes(f.bankId);
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear && !f.realized && (!f.bankId || activeBankIds.includes(f.bankId));
   });
 
   const monthForecastIncome = currentMonthForecasts.filter(f => f.type === TransactionType.CREDIT).reduce((acc, curr) => acc + curr.value, 0);
