@@ -26,6 +26,14 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
 
   const [currentMonth, setCurrentMonth] = useState<number>(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState<number>(new Date().getFullYear());
+  const [integrationStats, setIntegrationStats] = useState<{ total_imported: number } | null>(null);
+
+  React.useEffect(() => {
+     fetch('/api/integration/settings', { headers: { 'Authorization': `Bearer ${token}` }})
+     .then(res => res.json())
+     .then(data => { if(data && data.total_imported !== undefined) setIntegrationStats(data); })
+     .catch(e => console.error(e));
+  }, [token, onRefresh]);
 
   const activeBanks = banks.filter(b => b.active);
   const activeBankIds = activeBanks.map(b => b.id);
@@ -262,6 +270,20 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
 
   return (
     <div className="space-y-4 pb-4">
+      {integrationStats && integrationStats.total_imported > 0 && (
+          <div className="bg-blue-950/40 border border-blue-500/30 p-3 rounded-xl">
+              <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center border border-blue-500/30">
+                      <ShieldCheck size={16} />
+                  </div>
+                  <div>
+                      <h3 className="font-bold text-blue-400 text-sm">Integração Contábil Ativa</h3>
+                      <p className="text-xs text-blue-200/70">Foram importadas {integrationStats.total_imported} notas fiscais até o momento.</p>
+                  </div>
+              </div>
+          </div>
+      )}
+
       {overdueForecasts.length > 0 && (
           <div onClick={() => setIsOverdueModalOpen(true)} className="bg-amber-950/40 border border-amber-500/30 p-3 rounded-xl cursor-pointer hover:bg-amber-900/40 transition-all group">
               <div className="flex items-center justify-between">

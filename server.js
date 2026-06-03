@@ -353,6 +353,7 @@ const db_init = async () => {
 
       await pool.query(`CREATE TABLE IF NOT EXISTS keyword_rules (id SERIAL PRIMARY KEY, user_id INT, keyword TEXT, type TEXT, category_id INT, bank_id INT, FOREIGN KEY(user_id) REFERENCES users(id))`);
       await pool.query(`CREATE TABLE IF NOT EXISTS audit_logs (id SERIAL PRIMARY KEY, user_id TEXT, action TEXT, details TEXT, ip_address TEXT, created_at TEXT)`);
+      await pool.query(`CREATE TABLE IF NOT EXISTS integration_settings (user_id INT PRIMARY KEY, token TEXT, start_date TEXT, target_type TEXT, category_in_id INT, category_out_id INT, total_imported INT DEFAULT 0, last_sync TEXT, FOREIGN KEY(user_id) REFERENCES users(id))`);
       
       // Automate Indexes Creation
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_transactions_user_date ON transactions(user_id, date)`);
@@ -773,6 +774,87 @@ app.delete('/api/keyword-rules/:id', authenticateToken, (req, res) => {
     db.run(`DELETE FROM keyword_rules WHERE id = ? AND user_id = ?`, [req.params.id, req.userId], (err) => res.json({success: !err}));
 });
 
+// Integration NFe
+app.get('/api/integration/settings', authenticateToken, async (req, res) => {
+    try {
+        const { rows } = await pool.query('SELECT * FROM integration_settings WHERE user_id = $1', [req.userId]);
+        if (rows.length > 0) res.json(rows[0]);
+        else res.json({ target_type: 'transaction', total_imported: 0 });
+    } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/integration/settings', authenticateToken, async (req, res) => {
+    const { token, start_date, target_type, category_in_id, category_out_id } = req.body;
+    try {
+        await pool.query(
+            `INSERT INTO integration_settings (user_id, token, start_date, target_type, category_in_id, category_out_id) 
+            VALUES ($1, $2, $3, $4, $5, $6) 
+            ON CONFLICT (user_id) DO UPDATE SET 
+            token = EXCLUDED.token, start_date = EXCLUDED.start_date, target_type = EXCLUDED.target_type, 
+            category_in_id = EXCLUDED.category_in_id, category_out_id = EXCLUDED.category_out_id`,
+            [req.userId, token, start_date, target_type, category_in_id, category_out_id]
+        );
+        res.json({ success: true });
+    } catch(err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/integration/sync', authenticateToken, async (req, res) => {
+    try {
+        const { rows } = await pool.query('SELECT * FROM integration_settings WHERE user_id = $1', [req.userId]);
+        if (rows.length === 0 || !rows[0].token) return res.status(400).json({ error: 'Token não configurado.' });
+        
+        const settings = rows[0];
+        let url = `https://nfe.virgulacontabil.com.br/api/v1/export/notas/${settings.token}`;
+        if (settings.start_date) {
+            url += `?data_inicio=${settings.start_date}`;
+        }
+
+        const fetchObj = await fetch(url);
+        if (!fetchObj.ok) {
+            return res.status(400).json({ error: 'Erro ao buscar notas. Token pode estar inválido.' });
+        }
+        const json = await fetchObj.json();
+        if (!json.success || !json.notas) {
+            return res.status(400).json({ error: 'Formato de resposta inválido da API ou sem notas.' });
+        }
+
+        let importedCount = 0;
+        const totalNotas = json.notas.length;
+        
+        for (const nota of json.notas) {
+            const rawDate = nota.data_emissao || '';
+            const dataV = rawDate.split(' ')[0]; // Convert YYYY-MM-DD HH:MM:SS to YYYY-MM-DD
+            
+            const isNfeEntrada = String(nota.tipo).toLowerCase() === 'entrada'; // NFe Entrada = Compra = Debito
+            const desc = isNfeEntrada ? `Compra ${nota.fornecedor}` : `Venda ${nota.fornecedor}`;
+            const val = parseFloat(nota.valor_total);
+            
+            const catId = isNfeEntrada ? settings.category_out_id : settings.category_in_id;
+            const opType = isNfeEntrada ? 'debito' : 'credito';
+
+            if (settings.target_type === 'forecast') {
+                await pool.query(
+                    'INSERT INTO forecasts (user_id, date, description, value, type, category_id, bank_id, realized) VALUES ($1, $2, $3, $4, $5, $6, NULL, 0)',
+                    [req.userId, dataV, desc, val, opType, catId || null]
+                );
+            } else {
+                await pool.query(
+                    'INSERT INTO transactions (user_id, date, description, value, type, category_id, bank_id, reconciled) VALUES ($1, $2, $3, $4, $5, $6, NULL, 1)',
+                    [req.userId, dataV, desc, val, opType, catId || null]
+                );
+            }
+            importedCount++;
+        }
+
+        await pool.query('UPDATE integration_settings SET total_imported = COALESCE(total_imported, 0) + $1, last_sync = $2 WHERE user_id = $3', [importedCount, new Date().toISOString(), req.userId]);
+
+        res.json({ success: true, count: importedCount, total: totalNotas });
+    } catch(err) {
+        console.error("Sync error:", err);
+        res.status(500).json({ error: 'Erro ao processar sincronização: ' + err.message });
+    }
+});
+
 // --- RELATÓRIOS ---
 
 app.get('/api/reports/cash-flow', authenticateToken, async (req, res) => {
@@ -1178,11 +1260,16 @@ app.get('/api/reports/analysis', authenticateToken, async (req, res) => {
         else if (momDespesa < 0) insights.push({ type: 'insight', message: `Ótimo controle! Despesas reduziram ${Math.abs(momDespesa).toFixed(1)}%.`});
 
         let financialHealthScore = 100;
-        if (pctDespesasReceita > 80) financialHealthScore -= 20;
-        if (margemContribuicaoPct < 20) financialHealthScore -= 20;
-        if (ebitda < 0) financialHealthScore -= 30;
-        if (dre.despesasFinanceiras > (totalReceitas * 0.05)) financialHealthScore -= 10;
-        if (lucroLiquidoVal < 0) financialHealthScore -= 20;
+        if (totalReceitas === 0 && totalDespesas === 0) {
+            financialHealthScore = 0; // Se não tem dado nenhum, o score não deve ser 100 nem começar alto. Pode ser 0 para indicar falta de dados.
+        } else {
+            if (pctDespesasReceita > 80) financialHealthScore -= 20;
+            if (margemContribuicaoPct < 20 && totalReceitas > 0) financialHealthScore -= 20;
+            if (margemContribuicaoPct < 0 && totalReceitas === 0) financialHealthScore -= 20;
+            if (ebitda < 0) financialHealthScore -= 30;
+            if (dre.despesasFinanceiras > (totalReceitas * 0.05)) financialHealthScore -= 10;
+            if (lucroLiquidoVal < 0) financialHealthScore -= 20;
+        }
         financialHealthScore = Math.max(0, financialHealthScore);
 
         // Caixa vs Lucro

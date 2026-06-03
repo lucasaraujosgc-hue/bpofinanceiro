@@ -131,6 +131,15 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
                         <Tags size={16} />
                         Categorias
                     </button>
+                    <button
+                        onClick={() => { onTabChange('integration'); setIsMobileMenuOpen(false); }}
+                        className={`w-full flex items-center gap-3 px-3 py-1.5 rounded-md text-sm font-medium transition-colors
+                            ${activeTab === 'integration' ? 'bg-primary/10 text-primary border border-primary/20' : 'text-slate-400 hover:text-white hover:bg-slate-800'}
+                        `}
+                    >
+                        <FileCog size={16} />
+                        Configurações
+                    </button>
                 </div>
             </div>
 
