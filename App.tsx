@@ -319,7 +319,7 @@ function App() {
       case 'rules': return <KeywordRules categories={categories} rules={keywordRules} banks={activeBanks} onAddRule={handleAddKeywordRule} onDeleteRule={handleDeleteKeywordRule} />;
       case 'banks': return <BankList banks={banksWithBalance} creditCards={creditCards} transactions={transactions} onUpdateBank={handleUpdateBank} onAddBank={handleAddBank} onDeleteBank={handleDeleteBank} onAddCreditCard={handleAddCreditCard} onUpdateCreditCard={handleUpdateCreditCard} onDeleteCreditCard={handleDeleteCreditCard} />;
       case 'categories': return <Categories categories={categories} onAddCategory={handleAddCategory} onDeleteCategory={handleDeleteCategory} onUpdateCategory={handleUpdateCategory} />;
-      case 'integration': return <IntegrationConfig categories={categories} />;
+      case 'integration': return <IntegrationConfig categories={categories} banks={activeBanks} />;
       case 'reports': return <Reports token={currentToken} transactions={transactions} categories={categories} />;
       case 'forecasts': return <Forecasts token={currentToken} userId={user.id} banks={activeBanks} creditCards={creditCards} transactions={transactions} categories={categories} onUpdate={fetchInitialData} onNavigate={setActiveTab} />;
       case 'tutorial': return <Tutorial />;

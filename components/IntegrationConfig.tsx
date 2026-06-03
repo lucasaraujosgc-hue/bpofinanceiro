@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, RefreshCw, CheckCircle, Database } from 'lucide-react';
-import { Category } from '../types';
+import { Category, Bank } from '../types';
 
 interface IntegrationConfigProps {
     categories: Category[];
+    banks: Bank[];
 }
 
-const IntegrationConfig: React.FC<IntegrationConfigProps> = ({ categories }) => {
+const IntegrationConfig: React.FC<IntegrationConfigProps> = ({ categories, banks }) => {
     const [settings, setSettings] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -18,7 +19,9 @@ const IntegrationConfig: React.FC<IntegrationConfigProps> = ({ categories }) => 
         start_date: '',
         target_type: 'transaction',
         category_in_id: '',
-        category_out_id: ''
+        category_out_id: '',
+        bank_in_id: '',
+        bank_out_id: ''
     });
 
     useEffect(() => {
@@ -40,7 +43,9 @@ const IntegrationConfig: React.FC<IntegrationConfigProps> = ({ categories }) => 
                     start_date: data.start_date || '',
                     target_type: data.target_type || 'transaction',
                     category_in_id: data.category_in_id?.toString() || '',
-                    category_out_id: data.category_out_id?.toString() || ''
+                    category_out_id: data.category_out_id?.toString() || '',
+                    bank_in_id: data.bank_in_id?.toString() || '',
+                    bank_out_id: data.bank_out_id?.toString() || ''
                 });
             }
         } catch (e) {
@@ -67,6 +72,8 @@ const IntegrationConfig: React.FC<IntegrationConfigProps> = ({ categories }) => 
                     target_type: form.target_type,
                     category_in_id: form.category_in_id ? parseInt(form.category_in_id) : null,
                     category_out_id: form.category_out_id ? parseInt(form.category_out_id) : null,
+                    bank_in_id: form.bank_in_id ? parseInt(form.bank_in_id) : null,
+                    bank_out_id: form.bank_out_id ? parseInt(form.bank_out_id) : null,
                 })
             });
             if (res.ok) {
@@ -187,6 +194,35 @@ const IntegrationConfig: React.FC<IntegrationConfigProps> = ({ categories }) => 
                                             <option value="">Selecione...</option>
                                             {categories.filter(c => c.type === 'receita' || c.type === 'credito').map(c => (
                                                 <option key={c.id} value={c.id}>{c.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-400 mb-1">Conta (NFe Entrada / Compras)</label>
+                                        <select 
+                                            value={form.bank_out_id}
+                                            onChange={(e) => setForm({...form, bank_out_id: e.target.value})}
+                                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary"
+                                        >
+                                            <option value="">Automático / Sem Conta</option>
+                                            {banks.map(b => (
+                                                <option key={b.id} value={b.id}>{b.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-400 mb-1">Conta (NFe Saída / Vendas)</label>
+                                        <select 
+                                            value={form.bank_in_id}
+                                            onChange={(e) => setForm({...form, bank_in_id: e.target.value})}
+                                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary"
+                                        >
+                                            <option value="">Automático / Sem Conta</option>
+                                            {banks.map(b => (
+                                                <option key={b.id} value={b.id}>{b.name}</option>
                                             ))}
                                         </select>
                                     </div>

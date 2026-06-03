@@ -354,6 +354,8 @@ const db_init = async () => {
       await pool.query(`CREATE TABLE IF NOT EXISTS keyword_rules (id SERIAL PRIMARY KEY, user_id INT, keyword TEXT, type TEXT, category_id INT, bank_id INT, FOREIGN KEY(user_id) REFERENCES users(id))`);
       await pool.query(`CREATE TABLE IF NOT EXISTS audit_logs (id SERIAL PRIMARY KEY, user_id TEXT, action TEXT, details TEXT, ip_address TEXT, created_at TEXT)`);
       await pool.query(`CREATE TABLE IF NOT EXISTS integration_settings (user_id INT PRIMARY KEY, token TEXT, start_date TEXT, target_type TEXT, category_in_id INT, category_out_id INT, total_imported INT DEFAULT 0, last_sync TEXT, FOREIGN KEY(user_id) REFERENCES users(id))`);
+      await ensureColumn('integration_settings', 'bank_in_id', 'INT');
+      await ensureColumn('integration_settings', 'bank_out_id', 'INT');
       
       // Automate Indexes Creation
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_transactions_user_date ON transactions(user_id, date)`);
@@ -784,15 +786,16 @@ app.get('/api/integration/settings', authenticateToken, async (req, res) => {
 });
 
 app.put('/api/integration/settings', authenticateToken, async (req, res) => {
-    const { token, start_date, target_type, category_in_id, category_out_id } = req.body;
+    const { token, start_date, target_type, category_in_id, category_out_id, bank_in_id, bank_out_id } = req.body;
     try {
         await pool.query(
-            `INSERT INTO integration_settings (user_id, token, start_date, target_type, category_in_id, category_out_id) 
-            VALUES ($1, $2, $3, $4, $5, $6) 
+            `INSERT INTO integration_settings (user_id, token, start_date, target_type, category_in_id, category_out_id, bank_in_id, bank_out_id) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
             ON CONFLICT (user_id) DO UPDATE SET 
             token = EXCLUDED.token, start_date = EXCLUDED.start_date, target_type = EXCLUDED.target_type, 
-            category_in_id = EXCLUDED.category_in_id, category_out_id = EXCLUDED.category_out_id`,
-            [req.userId, token, start_date, target_type, category_in_id, category_out_id]
+            category_in_id = EXCLUDED.category_in_id, category_out_id = EXCLUDED.category_out_id,
+            bank_in_id = EXCLUDED.bank_in_id, bank_out_id = EXCLUDED.bank_out_id`,
+            [req.userId, token, start_date, target_type, category_in_id, category_out_id, bank_in_id, bank_out_id]
         );
         res.json({ success: true });
     } catch(err) { res.status(500).json({ error: err.message }); }
@@ -830,17 +833,18 @@ app.post('/api/integration/sync', authenticateToken, async (req, res) => {
             const val = parseFloat(nota.valor_total);
             
             const catId = isNfeEntrada ? settings.category_in_id : settings.category_out_id;
+            const bankId = isNfeEntrada ? settings.bank_out_id : settings.bank_in_id;
             const opType = isNfeEntrada ? 'debito' : 'credito';
 
             if (settings.target_type === 'forecast') {
                 await pool.query(
-                    'INSERT INTO forecasts (user_id, date, description, value, type, category_id, bank_id, realized) VALUES ($1, $2, $3, $4, $5, $6, NULL, 0)',
-                    [req.userId, dataV, desc, val, opType, catId || null]
+                    'INSERT INTO forecasts (user_id, date, description, value, type, category_id, bank_id, realized) VALUES ($1, $2, $3, $4, $5, $6, $7, 0)',
+                    [req.userId, dataV, desc, val, opType, catId || null, bankId || null]
                 );
             } else {
                 await pool.query(
-                    'INSERT INTO transactions (user_id, date, description, value, type, category_id, bank_id, reconciled) VALUES ($1, $2, $3, $4, $5, $6, NULL, 1)',
-                    [req.userId, dataV, desc, val, opType, catId || null]
+                    'INSERT INTO transactions (user_id, date, description, value, type, category_id, bank_id, reconciled) VALUES ($1, $2, $3, $4, $5, $6, $7, 1)',
+                    [req.userId, dataV, desc, val, opType, catId || null, bankId || null]
                 );
             }
             importedCount++;
