@@ -804,7 +804,7 @@ app.post('/api/pluggy/connect-token', authenticateToken, async (req, res) => {
     }
     try {
         const clientUserId = String(req.userId);
-        const connectToken = await pluggyClient.createConnectToken({
+        const connectToken = await pluggyClient.createConnectToken(undefined, {
             clientUserId,
         });
         res.json({ accessToken: connectToken.accessToken });

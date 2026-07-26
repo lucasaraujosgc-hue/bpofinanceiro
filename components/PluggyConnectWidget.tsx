@@ -26,7 +26,8 @@ const PluggyConnectWidget: React.FC<PluggyConnectWidgetProps> = ({ token, onSucc
                 setConnectToken(data.accessToken);
                 setIsOpen(true);
             } else {
-                alert("Erro ao conectar à API bancária. Verifique as configurações.");
+                const errData = await res.json().catch(() => null);
+                alert(`Erro ao conectar à API bancária: ${errData?.error || 'Verifique as configurações.'}`);
             }
         } catch (e) {
             console.error(e);
