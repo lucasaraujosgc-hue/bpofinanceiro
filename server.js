@@ -21,6 +21,24 @@ types.setTypeParser(1700, function(val) {
 // --- CONFIGURAÇÃO DE SEGURANÇA E AMBIENTE ---
 const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(64).toString('hex');
 
+const PLUGGY_CLIENT_ID = process.env.PLUGGY_CLIENT_ID;
+const PLUGGY_CLIENT_SECRET = process.env.PLUGGY_CLIENT_SECRET;
+const PLUGGY_API_KEY = process.env.PLUGGY_API_KEY;
+
+if (!PLUGGY_CLIENT_ID || !PLUGGY_CLIENT_SECRET || !PLUGGY_API_KEY) {
+    console.error("ERRO: As variáveis PLUGGY_CLIENT_ID, PLUGGY_CLIENT_SECRET e PLUGGY_API_KEY são obrigatórias.");
+}
+
+import { PluggyClient } from 'pluggy-sdk';
+let pluggyClient = null;
+if (PLUGGY_CLIENT_ID && PLUGGY_CLIENT_SECRET) {
+    pluggyClient = new PluggyClient({
+        clientId: PLUGGY_CLIENT_ID,
+        clientSecret: PLUGGY_CLIENT_SECRET,
+    });
+}
+
+
 // Credenciais de Admin
 const ADMIN_EMAIL = (process.env.MAIL_ADMIN || process.env.EMAIL_ADMIN || '').trim();
 const ADMIN_PASSWORD = (process.env.PASSWORD_ADMIN || '').trim();
@@ -356,6 +374,9 @@ const db_init = async () => {
       await pool.query(`CREATE TABLE IF NOT EXISTS integration_settings (user_id INT PRIMARY KEY, token TEXT, start_date TEXT, target_type TEXT, category_in_id INT, category_out_id INT, total_imported INT DEFAULT 0, last_sync TEXT, FOREIGN KEY(user_id) REFERENCES users(id))`);
       await ensureColumn('integration_settings', 'bank_in_id', 'INT');
       await ensureColumn('integration_settings', 'bank_out_id', 'INT');
+      
+      await pool.query(`CREATE TABLE IF NOT EXISTS pluggy_connections (id SERIAL PRIMARY KEY, user_id INT, item_id TEXT UNIQUE, status TEXT, created_at TEXT, updated_at TEXT, FOREIGN KEY(user_id) REFERENCES users(id))`);
+
       
       // Automate Indexes Creation
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_transactions_user_date ON transactions(user_id, date)`);
@@ -774,6 +795,91 @@ app.post('/api/keyword-rules', authenticateToken, (req, res) => {
 });
 app.delete('/api/keyword-rules/:id', authenticateToken, (req, res) => {
     db.run(`DELETE FROM keyword_rules WHERE id = ? AND user_id = ?`, [req.params.id, req.userId], (err) => res.json({success: !err}));
+});
+
+// --- Pluggy Open Finance Integration ---
+app.post('/api/pluggy/connect-token', authenticateToken, async (req, res) => {
+    if (!pluggyClient) {
+        return res.status(500).json({ error: 'PluggyClient não inicializado. Verifique as variáveis de ambiente.' });
+    }
+    try {
+        const clientUserId = String(req.userId);
+        const connectToken = await pluggyClient.createConnectToken({
+            clientUserId,
+        });
+        res.json({ accessToken: connectToken.accessToken });
+    } catch (err) {
+        console.error('Erro ao gerar Connect Token Pluggy:', err);
+        res.status(500).json({ error: 'Erro ao gerar Connect Token' });
+    }
+});
+
+app.post('/api/pluggy/webhook', async (req, res) => {
+    const event = req.body;
+    console.log('Received webhook:', event.event);
+    console.log('Event ID:', event.eventId);
+    
+    try {
+        if (event.event === 'item/created' || event.event === 'item/updated') {
+            await pool.query(
+                `INSERT INTO pluggy_connections (item_id, status, created_at, updated_at) 
+                 VALUES ($1, $2, $3, $4)
+                 ON CONFLICT (item_id) DO UPDATE SET status = EXCLUDED.status, updated_at = EXCLUDED.updated_at`,
+                [event.itemId, event.event === 'item/created' ? 'CREATED' : 'UPDATED', new Date().toISOString(), new Date().toISOString()]
+            );
+        } else if (event.event === 'item/error') {
+            await pool.query(
+                `UPDATE pluggy_connections SET status = $1, updated_at = $2 WHERE item_id = $3`,
+                ['ERROR', new Date().toISOString(), event.itemId]
+            );
+        }
+    } catch (err) {
+        console.error('Erro processando webhook Pluggy:', err);
+    }
+    
+    res.json({ received: true });
+});
+
+app.post('/api/pluggy/item', authenticateToken, async (req, res) => {
+    // This is called by frontend after successful connection
+    const { itemId } = req.body;
+    if (!itemId) return res.status(400).json({ error: 'itemId is required' });
+    
+    try {
+        await pool.query(
+            `INSERT INTO pluggy_connections (user_id, item_id, status, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5)
+             ON CONFLICT (item_id) DO UPDATE SET user_id = EXCLUDED.user_id`,
+            [req.userId, itemId, 'CONNECTED', new Date().toISOString(), new Date().toISOString()]
+        );
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Erro ao salvar itemId Pluggy:', err);
+        res.status(500).json({ error: 'Erro ao salvar integração' });
+    }
+});
+
+app.get('/api/pluggy/accounts', authenticateToken, async (req, res) => {
+    if (!pluggyClient) {
+        return res.status(500).json({ error: 'PluggyClient não inicializado.' });
+    }
+    try {
+        const { rows } = await pool.query('SELECT item_id FROM pluggy_connections WHERE user_id = $1 AND status != $2', [req.userId, 'ERROR']);
+        
+        const accounts = [];
+        for (const row of rows) {
+            try {
+                const accountsResponse = await pluggyClient.fetchAccounts(row.item_id);
+                accounts.push(...accountsResponse.results);
+            } catch (err) {
+                console.error(`Erro ao buscar contas para item ${row.item_id}:`, err);
+            }
+        }
+        res.json({ accounts });
+    } catch (err) {
+        console.error('Erro ao buscar contas Pluggy:', err);
+        res.status(500).json({ error: 'Erro ao buscar contas bancárias' });
+    }
 });
 
 // Integration NFe

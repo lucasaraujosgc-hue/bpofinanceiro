@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { Transaction, TransactionType, Bank, Forecast, Category, CategoryType } from '../types';
 import { Wallet, CheckCircle2, TrendingUp, TrendingDown, Plus, Minus, X, ThumbsUp, ThumbsDown, Repeat, CalendarDays, AlertTriangle, CalendarClock, Check, Trash2, ChevronLeft, ChevronRight, Calculator, Calendar, ShieldCheck } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import PluggyConnectWidget from './PluggyConnectWidget';
 
 interface DashboardProps {
   token: string;
+
   userId: number;
   transactions: Transaction[];
   banks: Bank[];
@@ -27,13 +29,28 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
   const [currentMonth, setCurrentMonth] = useState<number>(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState<number>(new Date().getFullYear());
   const [integrationStats, setIntegrationStats] = useState<{ total_imported: number } | null>(null);
+  const [pluggyAccounts, setPluggyAccounts] = useState<any[]>([]);
 
   React.useEffect(() => {
      fetch('/api/integration/settings', { headers: { 'Authorization': `Bearer ${token}` }})
      .then(res => res.json())
      .then(data => { if(data && data.total_imported !== undefined) setIntegrationStats(data); })
      .catch(e => console.error(e));
+
+     fetchPluggyAccounts();
   }, [token, onRefresh]);
+
+  const fetchPluggyAccounts = async () => {
+      try {
+          const res = await fetch('/api/pluggy/accounts', { headers: { 'Authorization': `Bearer ${token}` }});
+          if (res.ok) {
+              const data = await res.json();
+              if (data.accounts) setPluggyAccounts(data.accounts);
+          }
+      } catch (e) {
+          console.error("Failed to fetch pluggy accounts", e);
+      }
+  };
 
   const activeBanks = banks.filter(b => b.active);
   const activeBankIds = activeBanks.map(b => b.id);
@@ -270,6 +287,32 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
 
   return (
     <div className="space-y-4 pb-4">
+      <PluggyConnectWidget token={token} onSuccess={() => { fetchPluggyAccounts(); onRefresh(); }} />
+
+      {pluggyAccounts.length > 0 && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {pluggyAccounts.map((acc, idx) => (
+                  <div key={idx} className="bg-slate-900 border border-slate-700 p-3 rounded-xl flex flex-col justify-between h-full">
+                      <div className="flex items-center gap-2 mb-2">
+                           <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden p-1 shrink-0">
+                               {acc.imageUrl ? <img src={acc.imageUrl} alt="Bank Logo" className="w-full h-full object-contain" /> : <Wallet size={14} className="text-slate-400" />}
+                           </div>
+                           <div className="min-w-0">
+                               <h4 className="text-white text-xs font-bold truncate">{acc.name}</h4>
+                               <p className="text-slate-500 text-[10px] truncate">{acc.number}</p>
+                           </div>
+                      </div>
+                      <div>
+                          <span className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1">Saldo</span>
+                          <span className={`text-sm font-bold block ${acc.balance >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                              R$ {acc.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </span>
+                      </div>
+                  </div>
+              ))}
+          </div>
+      )}
+      
       {integrationStats && integrationStats.total_imported > 0 && (
           <div className="bg-blue-950/40 border border-blue-500/30 p-3 rounded-xl">
               <div className="flex items-center gap-3">
