@@ -19,24 +19,24 @@ types.setTypeParser(1700, function(val) {
 
 
 // --- CONFIGURAÇÃO DE SEGURANÇA E AMBIENTE ---
-const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(64).toString('hex');
+const IS_PROD = process.env.NODE_ENV === 'production';
 
-const PLUGGY_CLIENT_ID = process.env.PLUGGY_CLIENT_ID;
-const PLUGGY_CLIENT_SECRET = process.env.PLUGGY_CLIENT_SECRET;
-const PLUGGY_API_KEY = process.env.PLUGGY_API_KEY;
-
-if (!PLUGGY_CLIENT_ID || !PLUGGY_CLIENT_SECRET || !PLUGGY_API_KEY) {
-    console.error("ERRO: As variáveis PLUGGY_CLIENT_ID, PLUGGY_CLIENT_SECRET e PLUGGY_API_KEY são obrigatórias.");
+// Em produção os segredos são OBRIGATÓRIOS: o boot aborta se faltarem.
+// Em dev, cai para um valor efêmero (com aviso) para não travar o setup local.
+function requireSecret(name) {
+    const raw = (process.env[name] || '').trim();
+    if (!raw) {
+        if (IS_PROD) {
+            console.error(`FATAL: variável de ambiente ${name} é obrigatória em produção.`);
+            process.exit(1);
+        }
+        console.warn(`⚠️  ${name} não definida — usando valor efêmero (apenas dev; dados cifrados NÃO sobrevivem a restart).`);
+        return null;
+    }
+    return raw;
 }
 
-import { PluggyClient } from 'pluggy-sdk';
-let pluggyClient = null;
-if (PLUGGY_CLIENT_ID && PLUGGY_CLIENT_SECRET) {
-    pluggyClient = new PluggyClient({
-        clientId: PLUGGY_CLIENT_ID,
-        clientSecret: PLUGGY_CLIENT_SECRET,
-    });
-}
+const JWT_SECRET = requireSecret('JWT_SECRET') || crypto.randomBytes(64).toString('hex');
 
 
 // Credenciais de Admin
@@ -47,39 +47,60 @@ if (!ADMIN_EMAIL) console.warn("⚠️  Admin Email não configurado (.env)");
 
 // Criptografia para dados sensíveis (LGPD)
 let keyBuffer;
-if (process.env.ENCRYPTION_KEY) {
-    keyBuffer = Buffer.from(process.env.ENCRYPTION_KEY, 'hex');
-    if (keyBuffer.length !== 32) {
-        keyBuffer = crypto.createHash('sha256').update(String(process.env.ENCRYPTION_KEY)).digest();
-    }
-} else {
+const rawEncryptionKey = requireSecret('ENCRYPTION_KEY');
+if (!rawEncryptionKey) {
     keyBuffer = crypto.randomBytes(32);
+} else if (/^[0-9a-fA-F]{64}$/.test(rawEncryptionKey)) {
+    keyBuffer = Buffer.from(rawEncryptionKey, 'hex');
+} else {
+    console.warn('⚠️  ENCRYPTION_KEY não está em hex de 32 bytes (64 chars). Derivando via sha256. '
+        + 'Recomendado: ENCRYPTION_KEY = $(openssl rand -hex 32), chave dedicada e distinta do JWT_SECRET. '
+        + 'Trocar a chave depois torna ilegíveis os dados já cifrados.');
+    keyBuffer = crypto.createHash('sha256').update(String(rawEncryptionKey)).digest();
+}
+if (rawEncryptionKey && rawEncryptionKey === (process.env.JWT_SECRET || '').trim()) {
+    console.warn('⚠️  ENCRYPTION_KEY == JWT_SECRET. Use segredos distintos e dedicados.');
 }
 const ENCRYPTION_KEY = keyBuffer;
-const IV_LENGTH = 16; 
+const GCM_IV_LEN = 12;
 
+// Formato novo:  v2:<iv hex>:<authTag hex>:<ciphertext hex>   (AES-256-GCM, autenticado)
+// Formato legado: <iv hex>:<ciphertext hex>                   (AES-256-CBC, ainda lido)
 function encrypt(text) {
-    if (!text) return text;
+    if (text === null || text === undefined || text === '') return text;
     try {
-        const iv = crypto.randomBytes(IV_LENGTH);
-        const cipher = crypto.createCipheriv('aes-256-cbc', ENCRYPTION_KEY, iv);
-        let encrypted = cipher.update(String(text));
-        encrypted = Buffer.concat([encrypted, cipher.final()]);
-        return iv.toString('hex') + ':' + encrypted.toString('hex');
-    } catch (e) { return null; }
+        const iv = crypto.randomBytes(GCM_IV_LEN);
+        const cipher = crypto.createCipheriv('aes-256-gcm', ENCRYPTION_KEY, iv);
+        const enc = Buffer.concat([cipher.update(String(text), 'utf8'), cipher.final()]);
+        const tag = cipher.getAuthTag();
+        return `v2:${iv.toString('hex')}:${tag.toString('hex')}:${enc.toString('hex')}`;
+    } catch (e) {
+        console.error('encrypt error:', e.message);
+        return null;
+    }
 }
 
 function decrypt(text) {
-    if (!text || !text.includes(':')) return text; 
+    if (text === null || text === undefined || text === '') return text;
+    if (typeof text !== 'string' || !text.includes(':')) return text; // valor em texto plano (legado)
     try {
-        const textParts = text.split(':');
-        const iv = Buffer.from(textParts.shift(), 'hex');
-        const encryptedText = Buffer.from(textParts.join(':'), 'hex');
+        if (text.startsWith('v2:')) {
+            const [, ivHex, tagHex, ctHex] = text.split(':');
+            const decipher = crypto.createDecipheriv('aes-256-gcm', ENCRYPTION_KEY, Buffer.from(ivHex, 'hex'));
+            decipher.setAuthTag(Buffer.from(tagHex, 'hex'));
+            return Buffer.concat([decipher.update(Buffer.from(ctHex, 'hex')), decipher.final()]).toString('utf8');
+        }
+        // legado: AES-256-CBC, formato iv:ct
+        const parts = text.split(':');
+        const iv = Buffer.from(parts.shift(), 'hex');
+        const ct = Buffer.from(parts.join(':'), 'hex');
         const decipher = crypto.createDecipheriv('aes-256-cbc', ENCRYPTION_KEY, iv);
-        let decrypted = decipher.update(encryptedText);
-        decrypted = Buffer.concat([decrypted, decipher.final()]);
-        return decrypted.toString();
-    } catch (e) { return text; }
+        return Buffer.concat([decipher.update(ct), decipher.final()]).toString('utf8');
+    } catch (e) {
+        // Não vaza o ciphertext de volta para o cliente.
+        console.warn('decrypt: valor não pôde ser decifrado — retornando null');
+        return null;
+    }
 }
 
 const __filename = fileURLToPath(import.meta.url);
@@ -88,14 +109,26 @@ const __dirname = path.dirname(__filename);
 const LOCAL_LOGO_DIR = path.join(__dirname, 'logo');
 if (!fs.existsSync(LOCAL_LOGO_DIR)) fs.mkdirSync(LOCAL_LOGO_DIR, { recursive: true });
 
-import { createServer as createViteServer } from 'vite';
+// 'vite' só é carregado no modo dev (import dinâmico em startServer) — em
+// produção o server serve dist/ estático e não deve depender de devDependencies.
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.set('trust proxy', 1);
-app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false })); 
-app.use(cors()); 
+app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+
+// CORS: allowlist explícita via CORS_ORIGINS (lista separada por vírgula).
+// Sem a env: em produção nega qualquer Origin cross-site; em dev libera geral.
+const corsOrigins = (process.env.CORS_ORIGINS || '')
+    .split(',').map(s => s.trim()).filter(Boolean);
+app.use(cors({
+    origin(origin, cb) {
+        if (!origin) return cb(null, true);              // apps nativas / curl / same-origin
+        if (!IS_PROD && corsOrigins.length === 0) return cb(null, true);
+        return cb(null, corsOrigins.includes(origin));
+    },
+}));
 app.use(express.json({ limit: '10mb' }));
 
 const apiLimiter = rateLimit({
@@ -243,15 +276,45 @@ function logAudit(userId, action, details, ip) {
 }
 
 // Middleware Auth
+// Cache curto do status de bloqueio para não bater no banco a cada request.
+const blockedCache = new Map(); // userId -> { blocked: boolean, exp: number }
+const BLOCKED_TTL_MS = 30_000;
+
+async function isUserBlocked(userId) {
+    const now = Date.now();
+    const hit = blockedCache.get(userId);
+    if (hit && hit.exp > now) return hit.blocked;
+    const { rows } = await pool.query('SELECT blocked FROM users WHERE id = $1', [userId]);
+    const blocked = rows.length === 0 ? true : !!rows[0].blocked; // usuário sumido = sem acesso
+    blockedCache.set(userId, { blocked, exp: now + BLOCKED_TTL_MS });
+    return blocked;
+}
+function invalidateBlockedCache(userId) {
+    blockedCache.delete(Number(userId));
+    blockedCache.delete(String(userId));
+}
+
 const authenticateToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
     if (!token) return res.status(401).json({ error: "Token não fornecido." });
 
-    jwt.verify(token, JWT_SECRET, (err, decoded) => {
+    jwt.verify(token, JWT_SECRET, async (err, decoded) => {
         if (err) return res.status(403).json({ error: "Sessão expirada." });
-        req.user = decoded; 
-        req.userId = decoded.id; 
+        req.user = decoded;
+        req.userId = decoded.id;
+
+        // Admin (conta única) não passa pela tabela users.
+        if (decoded.role === 'admin') return next();
+
+        try {
+            if (await isUserBlocked(decoded.id)) {
+                return res.status(403).json({ error: "Conta bloqueada.", blocked: true });
+            }
+        } catch (e) {
+            console.error("Erro ao verificar bloqueio do usuário:", e.message);
+            return res.status(503).json({ error: "Serviço indisponível." });
+        }
         next();
     });
 };
@@ -375,9 +438,8 @@ const db_init = async () => {
       await ensureColumn('integration_settings', 'bank_in_id', 'INT');
       await ensureColumn('integration_settings', 'bank_out_id', 'INT');
       
-      await pool.query(`CREATE TABLE IF NOT EXISTS pluggy_connections (id SERIAL PRIMARY KEY, user_id INT, item_id TEXT UNIQUE, status TEXT, created_at TEXT, updated_at TEXT, FOREIGN KEY(user_id) REFERENCES users(id))`);
 
-      
+
       // Automate Indexes Creation
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_transactions_user_date ON transactions(user_id, date)`);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_transactions_bank ON transactions(bank_id)`);
@@ -642,6 +704,20 @@ app.delete('/api/categories/:id', authenticateToken, (req, res) => {
     db.run(`DELETE FROM categories WHERE id = ? AND user_id = ?`, [req.params.id, req.userId], (err) => res.json({success: !err}));
 });
 
+// Confere que cada FK (banco / categoria / cartão) referenciada pertence ao
+// próprio usuário. `table` vem de uma lista fixa — nunca do request.
+async function assertUserOwns(userId, { bankId, categoryId, creditCardId }) {
+    const checks = [];
+    if (bankId) checks.push(['banks', bankId]);
+    if (categoryId) checks.push(['categories', categoryId]);
+    if (creditCardId) checks.push(['credit_cards', creditCardId]);
+    for (const [table, id] of checks) {
+        const { rows } = await pool.query(`SELECT 1 FROM ${table} WHERE id = $1 AND user_id = $2`, [id, userId]);
+        if (rows.length === 0) return { ok: false, error: `Registro inválido (${table}).` };
+    }
+    return { ok: true };
+}
+
 // Transações
 app.get('/api/transactions', authenticateToken, async (req, res) => {
     try {
@@ -652,18 +728,30 @@ app.get('/api/transactions', authenticateToken, async (req, res) => {
         res.status(500).json({error: "Server Error"});
     }
 });
-app.post('/api/transactions', authenticateToken, (req, res) => {
+app.post('/api/transactions', authenticateToken, async (req, res) => {
     const { date, description, value, type, categoryId, bankId, creditCardId, reconciled, ofxImportId } = req.body;
-    db.run(`INSERT INTO transactions (user_id, date, description, value, type, category_id, bank_id, credit_card_id, reconciled, ofx_import_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [req.userId, date, description, value, type, categoryId, bankId, creditCardId, reconciled?1:0, ofxImportId], function(err) {
-            if(err) return res.status(500).json({error: err.message});
-            
-            if (!creditCardId) {
-                const modifier = type === 'credito' ? 1 : -1;
-                db.run(`UPDATE banks SET balance = balance + ? WHERE id = ?`, [value * modifier, bankId]);
-            }
-            res.json({ id: this.lastID });
-        });
+    try {
+        // 400 (não 403): é validação de payload. O apiFetch do frontend desloga
+        // em 401/403, e um id de categoria/banco obsoleto não deve derrubar a sessão.
+        const owned = await assertUserOwns(req.userId, { bankId, categoryId, creditCardId });
+        if (!owned.ok) return res.status(400).json({ error: owned.error });
+
+        const ins = await pool.query(
+            `INSERT INTO transactions (user_id, date, description, value, type, category_id, bank_id, credit_card_id, reconciled, ofx_import_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+            [req.userId, date, description, value, type, categoryId || null, bankId || null, creditCardId || null, reconciled ? 1 : 0, ofxImportId || null]
+        );
+
+        if (!creditCardId && bankId) {
+            const modifier = type === 'credito' ? 1 : -1;
+            await pool.query(`UPDATE banks SET balance = balance + $1 WHERE id = $2 AND user_id = $3`,
+                [Number(value) * modifier, bankId, req.userId]);
+        }
+        res.json({ id: ins.rows[0].id });
+    } catch (err) {
+        console.error("POST /transactions error:", err.message);
+        res.status(500).json({ error: err.message });
+    }
 });
 app.put('/api/transactions/:id', authenticateToken, (req, res) => {
     const { date, description, value, type, categoryId, bankId, creditCardId, reconciled } = req.body;
@@ -743,8 +831,9 @@ app.delete('/api/forecasts/:id', authenticateToken, (req, res) => {
     if (mode === 'single') {
         db.run(`DELETE FROM forecasts WHERE id = ? AND user_id = ?`, [req.params.id, req.userId], (err) => res.json({success: !err}));
     } else {
-        db.get(`SELECT group_id, date FROM forecasts WHERE id = ?`, [req.params.id], (err, current) => {
-            if(!current || !current.group_id) return db.run(`DELETE FROM forecasts WHERE id = ?`, [req.params.id], () => res.json({success:true}));
+        db.get(`SELECT group_id, date FROM forecasts WHERE id = ? AND user_id = ?`, [req.params.id, req.userId], (err, current) => {
+            if(!current) return res.status(404).json({ success: false, error: "Não encontrado" });
+            if(!current.group_id) return db.run(`DELETE FROM forecasts WHERE id = ? AND user_id = ?`, [req.params.id, req.userId], () => res.json({success:true}));
             let sql = `DELETE FROM forecasts WHERE group_id = ? AND user_id = ?`;
             const params = [current.group_id, req.userId];
             if (mode === 'future') { sql += ` AND date >= ?`; params.push(current.date); }
@@ -795,91 +884,6 @@ app.post('/api/keyword-rules', authenticateToken, (req, res) => {
 });
 app.delete('/api/keyword-rules/:id', authenticateToken, (req, res) => {
     db.run(`DELETE FROM keyword_rules WHERE id = ? AND user_id = ?`, [req.params.id, req.userId], (err) => res.json({success: !err}));
-});
-
-// --- Pluggy Open Finance Integration ---
-app.post('/api/pluggy/connect-token', authenticateToken, async (req, res) => {
-    if (!pluggyClient) {
-        return res.status(500).json({ error: 'PluggyClient não inicializado. Verifique as variáveis de ambiente.' });
-    }
-    try {
-        const clientUserId = String(req.userId);
-        const connectToken = await pluggyClient.createConnectToken(undefined, {
-            clientUserId,
-        });
-        res.json({ accessToken: connectToken.accessToken });
-    } catch (err) {
-        console.error('Erro ao gerar Connect Token Pluggy:', err);
-        res.status(500).json({ error: 'Erro ao gerar Connect Token' });
-    }
-});
-
-app.post('/api/pluggy/webhook', async (req, res) => {
-    const event = req.body;
-    console.log('Received webhook:', event.event);
-    console.log('Event ID:', event.eventId);
-    
-    try {
-        if (event.event === 'item/created' || event.event === 'item/updated') {
-            await pool.query(
-                `INSERT INTO pluggy_connections (item_id, status, created_at, updated_at) 
-                 VALUES ($1, $2, $3, $4)
-                 ON CONFLICT (item_id) DO UPDATE SET status = EXCLUDED.status, updated_at = EXCLUDED.updated_at`,
-                [event.itemId, event.event === 'item/created' ? 'CREATED' : 'UPDATED', new Date().toISOString(), new Date().toISOString()]
-            );
-        } else if (event.event === 'item/error') {
-            await pool.query(
-                `UPDATE pluggy_connections SET status = $1, updated_at = $2 WHERE item_id = $3`,
-                ['ERROR', new Date().toISOString(), event.itemId]
-            );
-        }
-    } catch (err) {
-        console.error('Erro processando webhook Pluggy:', err);
-    }
-    
-    res.json({ received: true });
-});
-
-app.post('/api/pluggy/item', authenticateToken, async (req, res) => {
-    // This is called by frontend after successful connection
-    const { itemId } = req.body;
-    if (!itemId) return res.status(400).json({ error: 'itemId is required' });
-    
-    try {
-        await pool.query(
-            `INSERT INTO pluggy_connections (user_id, item_id, status, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, $5)
-             ON CONFLICT (item_id) DO UPDATE SET user_id = EXCLUDED.user_id`,
-            [req.userId, itemId, 'CONNECTED', new Date().toISOString(), new Date().toISOString()]
-        );
-        res.json({ success: true });
-    } catch (err) {
-        console.error('Erro ao salvar itemId Pluggy:', err);
-        res.status(500).json({ error: 'Erro ao salvar integração' });
-    }
-});
-
-app.get('/api/pluggy/accounts', authenticateToken, async (req, res) => {
-    if (!pluggyClient) {
-        return res.status(500).json({ error: 'PluggyClient não inicializado.' });
-    }
-    try {
-        const { rows } = await pool.query('SELECT item_id FROM pluggy_connections WHERE user_id = $1 AND status != $2', [req.userId, 'ERROR']);
-        
-        const accounts = [];
-        for (const row of rows) {
-            try {
-                const accountsResponse = await pluggyClient.fetchAccounts(row.item_id);
-                accounts.push(...accountsResponse.results);
-            } catch (err) {
-                console.error(`Erro ao buscar contas para item ${row.item_id}:`, err);
-            }
-        }
-        res.json({ accounts });
-    } catch (err) {
-        console.error('Erro ao buscar contas Pluggy:', err);
-        res.status(500).json({ error: 'Erro ao buscar contas bancárias' });
-    }
 });
 
 // Integration NFe
@@ -1517,6 +1521,7 @@ app.put('/api/admin/users/:id/block', authenticateToken, checkAdmin, (req, res) 
     const { blocked } = req.body;
     db.run("UPDATE users SET blocked = ? WHERE id = ?", [blocked ? 1 : 0, req.params.id], function(err) {
         if(err) return res.status(500).json({error: err.message});
+        invalidateBlockedCache(req.params.id);
         res.json({success: true});
     });
 });
@@ -1613,7 +1618,8 @@ app.delete('/api/admin/users/:id', authenticateToken, checkAdmin, async (req, re
 
 // START
 async function startServer() {
-    if (process.env.NODE_ENV !== "production") {
+    if (!IS_PROD) {
+        const { createServer: createViteServer } = await import('vite');
         const vite = await createViteServer({
             server: { middlewareMode: true },
             appType: 'spa'
