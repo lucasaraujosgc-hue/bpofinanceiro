@@ -343,26 +343,26 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
   return (
     <div className="space-y-6">
        <div>
-        <h1 className="text-2xl font-bold text-white">
+        <h1 className="text-2xl font-bold text-ink">
             Previsões Financeiras - {MONTHS[selectedMonth]}/{selectedYear}
         </h1>
        </div>
 
        {/* Filters Header */}
-       <div className="bg-surface p-4 rounded-xl border border-slate-800 shadow-sm flex flex-col md:flex-row items-end md:items-center justify-between gap-4">
+       <div className="bg-surface p-4 rounded-xl border border-line shadow-sm flex flex-col md:flex-row items-end md:items-center justify-between gap-4">
            <div className="flex gap-4 w-full md:w-auto">
                <div>
-                   <label className="text-xs font-semibold text-slate-500 block mb-1">Selecionar Ano</label>
-                   <div className="flex bg-slate-900 rounded-lg p-1 border border-slate-700">
-                       <button onClick={() => setSelectedYear(selectedYear - 1)} className="px-3 py-1 hover:bg-slate-800 rounded-md text-sm text-slate-300"><ChevronLeft size={16}/></button>
-                       <span className="px-4 py-1 font-semibold text-white">{selectedYear}</span>
-                       <button onClick={() => setSelectedYear(selectedYear + 1)} className="px-3 py-1 hover:bg-slate-800 rounded-md text-sm text-slate-300"><ChevronRight size={16}/></button>
+                   <label className="text-xs font-semibold text-faint block mb-1">Selecionar Ano</label>
+                   <div className="flex bg-surface rounded-lg p-1 border border-line">
+                       <button onClick={() => setSelectedYear(selectedYear - 1)} className="px-3 py-1 hover:bg-sunken rounded-md text-sm text-muted"><ChevronLeft size={16}/></button>
+                       <span className="px-4 py-1 font-semibold text-ink">{selectedYear}</span>
+                       <button onClick={() => setSelectedYear(selectedYear + 1)} className="px-3 py-1 hover:bg-sunken rounded-md text-sm text-muted"><ChevronRight size={16}/></button>
                    </div>
                </div>
                <div className="flex-1">
-                   <label className="text-xs font-semibold text-slate-500 block mb-1">Filtrar por Banco</label>
+                   <label className="text-xs font-semibold text-faint block mb-1">Filtrar por Banco</label>
                    <select 
-                     className="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white outline-none focus:border-primary"
+                     className="w-full px-3 py-1.5 bg-surface border border-line rounded-lg text-sm text-ink outline-none focus:border-brand"
                      value={selectedBankId}
                      onChange={e => setSelectedBankId(e.target.value === 'all' ? 'all' : Number(e.target.value))}
                    >
@@ -374,35 +374,35 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
            
            <button 
              onClick={() => { setEditingId(null); setIsModalOpen(true); }}
-             className="px-4 py-2 bg-primary text-slate-900 rounded-lg hover:bg-primaryHover font-medium flex items-center gap-2 shadow-sm shadow-emerald-900/20"
+             className="px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-strong font-medium flex items-center gap-2 shadow-sm shadow-md"
            >
                <Plus size={18}/> Nova Previsão
            </button>
        </div>
 
        {/* Month Navigation & Summary */}
-       <div className="bg-surface rounded-xl border border-slate-800 shadow-sm overflow-hidden">
+       <div className="bg-surface rounded-xl border border-line shadow-sm overflow-hidden">
            <div className="flex flex-col lg:flex-row">
                {/* Month Carousel */}
-               <div className="lg:w-1/3 border-b lg:border-b-0 lg:border-r border-slate-800 p-4 flex items-center justify-between">
-                    <button onClick={handlePrevMonth} className="p-2 hover:bg-slate-800 rounded-full text-primary"><ChevronLeft/></button>
-                    <div className="font-bold text-xl text-primary">{MONTHS[selectedMonth]}</div>
-                    <button onClick={handleNextMonth} className="p-2 hover:bg-slate-800 rounded-full text-primary"><ChevronRight/></button>
+               <div className="lg:w-1/3 border-b lg:border-b-0 lg:border-r border-line p-4 flex items-center justify-between">
+                    <button onClick={handlePrevMonth} className="p-2 hover:bg-sunken rounded-full text-brand"><ChevronLeft/></button>
+                    <div className="font-bold text-xl text-brand">{MONTHS[selectedMonth]}</div>
+                    <button onClick={handleNextMonth} className="p-2 hover:bg-sunken rounded-full text-brand"><ChevronRight/></button>
                </div>
                
                {/* Summary Cards */}
-               <div className="flex-1 grid grid-cols-3 divide-x divide-slate-800">
+               <div className="flex-1 grid grid-cols-3 divide-x divide-line">
                     <div className="p-4 text-center">
-                        <div className="text-xs text-slate-500 uppercase font-semibold mb-1">Receitas Previstas</div>
-                        <div className="text-xl font-bold text-emerald-500">R$ {totalIncome.toFixed(2)}</div>
+                        <div className="text-xs text-faint uppercase font-semibold mb-1">Receitas Previstas</div>
+                        <div className="text-xl font-bold text-ok">R$ {totalIncome.toFixed(2)}</div>
                     </div>
                     <div className="p-4 text-center">
-                        <div className="text-xs text-slate-500 uppercase font-semibold mb-1">Despesas Previstas</div>
-                        <div className="text-xl font-bold text-rose-500">R$ {totalExpense.toFixed(2)}</div>
+                        <div className="text-xs text-faint uppercase font-semibold mb-1">Despesas Previstas</div>
+                        <div className="text-xl font-bold text-danger">R$ {totalExpense.toFixed(2)}</div>
                     </div>
-                    <div className="p-4 text-center bg-slate-900/50">
-                        <div className="text-xs text-slate-500 uppercase font-semibold mb-1">Saldo Projetado</div>
-                        <div className={`text-xl font-bold ${projectedBalance >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                    <div className="p-4 text-center bg-surface/50">
+                        <div className="text-xs text-faint uppercase font-semibold mb-1">Saldo Projetado</div>
+                        <div className={`text-xl font-bold ${projectedBalance >= 0 ? 'text-ok' : 'text-danger'}`}>
                             R$ {projectedBalance.toFixed(2)}
                         </div>
                     </div>
@@ -411,15 +411,15 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
        </div>
 
        {/* Detailed List */}
-       <div className="bg-surface border border-slate-800 rounded-xl shadow-sm overflow-hidden">
-           <div className="px-6 py-4 border-b border-slate-800 bg-slate-950/30 flex justify-between items-center">
-               <h3 className="font-semibold text-slate-200">Previsões Detalhadas</h3>
-               <span className="text-xs bg-slate-800 border border-slate-700 px-2 py-1 rounded text-slate-400">
+       <div className="bg-surface border border-line rounded-xl shadow-sm overflow-hidden">
+           <div className="px-6 py-4 border-b border-line bg-ground/30 flex justify-between items-center">
+               <h3 className="font-semibold text-ink">Previsões Detalhadas</h3>
+               <span className="text-xs bg-sunken border border-line px-2 py-1 rounded text-muted">
                    {allForecasts.length} registros
                </span>
            </div>
            <table className="w-full text-sm text-left">
-               <thead className="bg-slate-950 text-slate-400 font-medium border-b border-slate-800">
+               <thead className="bg-ground text-muted font-medium border-b border-line">
                    <tr>
                        <th className="px-6 py-3">Banco / Cartão</th>
                        <th className="px-6 py-3">Dia</th>
@@ -430,9 +430,9 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
                        <th className="px-6 py-3 text-center">Ações</th>
                    </tr>
                </thead>
-               <tbody className="divide-y divide-slate-800">
+               <tbody className="divide-y divide-line">
                    {allForecasts.length === 0 ? (
-                       <tr><td colSpan={7} className="text-center py-8 text-slate-500">Nenhuma previsão para este período.</td></tr>
+                       <tr><td colSpan={7} className="text-center py-8 text-faint">Nenhuma previsão para este período.</td></tr>
                    ) : (
                        allForecasts.map(f => {
                            const bank = banks.find(b => b.id === f.bankId);
@@ -442,58 +442,58 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
                            const isVirtual = (f as any).isVirtual;
                            
                            return (
-                               <tr key={f.id} className={`hover:bg-slate-800/50 ${isVirtual ? 'bg-indigo-900/5' : ''}`}>
+                               <tr key={f.id} className={`hover:bg-sunken/60 ${isVirtual ? 'bg-info/10' : ''}`}>
                                    <td className="px-6 py-3 flex items-center gap-2">
                                        {bank && <img src={bank.logo} className="w-6 h-6 rounded object-contain bg-white p-0.5" title={bank.name}/>}
                                        {creditCard ? (
-                                            <span className="flex items-center gap-1 text-indigo-400 text-xs">
+                                            <span className="flex items-center gap-1 text-info text-xs">
                                                 <CreditCardIcon size={12}/> {creditCard.name}
                                             </span>
                                         ) : (
-                                            <span className="text-slate-400 text-xs">{bank?.name || <span className="border border-slate-700 bg-slate-800/50 px-2 py-0.5 rounded text-slate-500 font-medium">N/A</span>}</span>
+                                            <span className="text-muted text-xs">{bank?.name || <span className="border border-line bg-sunken/60 px-2 py-0.5 rounded text-faint font-medium">N/A</span>}</span>
                                         )}
                                    </td>
-                                   <td className="px-6 py-3 text-slate-400">
+                                   <td className="px-6 py-3 text-muted">
                                        {day}/{selectedMonth+1}
-                                       {isVirtual && <span className="ml-2 text-[10px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded">Fatura</span>}
+                                       {isVirtual && <span className="ml-2 text-[10px] bg-info/20 text-white px-1.5 py-0.5 rounded">Fatura</span>}
                                    </td>
-                                   <td className="px-6 py-3 font-medium text-slate-200">{f.description}</td>
-                                   <td className={`px-6 py-3 text-right font-bold ${f.type === TransactionType.DEBIT ? 'text-rose-500' : 'text-emerald-500'}`}>
+                                   <td className="px-6 py-3 font-medium text-ink">{f.description}</td>
+                                   <td className={`px-6 py-3 text-right font-bold ${f.type === TransactionType.DEBIT ? 'text-danger' : 'text-ok'}`}>
                                        {f.value.toFixed(2)}
                                    </td>
                                    <td className="px-6 py-3 text-center">
                                        {isFixed ? (
-                                            <span className="flex items-center justify-center gap-1 text-xs font-semibold text-sky-400 bg-sky-900/20 px-2 py-0.5 rounded border border-sky-900/40">
+                                            <span className="flex items-center justify-center gap-1 text-xs font-semibold text-white bg-info/10 px-2 py-0.5 rounded border border-info/30">
                                                 <Infinity size={12}/> Fixo
                                             </span>
                                        ) : f.installmentTotal ? (
-                                           <span className="bg-sky-900/20 text-sky-400 px-2 py-0.5 rounded text-xs font-semibold border border-sky-900/40">
+                                           <span className="bg-info/10 text-white px-2 py-0.5 rounded text-xs font-semibold border border-info/30">
                                                {f.installmentCurrent}/{f.installmentTotal}
                                            </span>
                                        ) : '-'}
                                    </td>
                                    <td className="px-6 py-3 text-center">
                                        {f.realized ? (
-                                           <span className="bg-emerald-500/10 text-emerald-500 px-2 py-1 rounded text-xs font-bold border border-emerald-500/20">Realizado</span>
+                                           <span className="bg-brand/10 text-white px-2 py-1 rounded text-xs font-bold border border-ok/20">Realizado</span>
                                        ) : (
-                                           <span className="bg-amber-500/10 text-amber-500 px-2 py-1 rounded text-xs font-bold border border-amber-500/20">Pendente</span>
+                                           <span className="bg-warn/10 text-white px-2 py-1 rounded text-xs font-bold border border-warn/20">Pendente</span>
                                        )}
                                    </td>
                                    <td className="px-6 py-3 text-center flex justify-center gap-2">
                                        {!f.realized && (
                                            <>
-                                            <button onClick={() => handleRealize(f)} className="p-1.5 bg-emerald-500/10 text-emerald-500 rounded hover:bg-emerald-500/20" title="Efetivar">
+                                            <button onClick={() => handleRealize(f)} className="p-1.5 bg-brand/10 text-white rounded hover:bg-brand/20" title="Efetivar">
                                                 <Check size={16}/>
                                             </button>
                                             {!isVirtual && (
-                                                <button onClick={() => handleEditClick(f)} className="p-1.5 bg-sky-500/10 text-sky-500 rounded hover:bg-sky-500/20" title="Editar">
+                                                <button onClick={() => handleEditClick(f)} className="p-1.5 bg-info/10 text-white rounded hover:bg-info/20" title="Editar">
                                                     <Edit2 size={16}/>
                                                 </button>
                                             )}
                                            </>
                                        )}
                                        {!isVirtual && (
-                                           <button onClick={() => handleDeleteClick(f.id)} className="p-1.5 bg-red-500/10 text-red-500 rounded hover:bg-red-500/20" title="Excluir">
+                                           <button onClick={() => handleDeleteClick(f.id)} className="p-1.5 bg-danger/10 text-white rounded hover:bg-danger/20" title="Excluir">
                                                <Trash2 size={16}/>
                                            </button>
                                        )}
@@ -510,17 +510,17 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
        {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
-          <div className="relative bg-surface border border-slate-800 rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="px-6 py-4 border-b border-slate-800 bg-slate-950 flex justify-between items-center">
-              <h3 className="font-semibold text-white">{editingId ? 'Editar Previsão' : 'Nova Previsão'}</h3>
-              <button onClick={() => setIsModalOpen(false)}><X size={20} className="text-slate-400 hover:text-white"/></button>
+          <div className="relative bg-surface border border-line rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="px-6 py-4 border-b border-line bg-ground flex justify-between items-center">
+              <h3 className="font-semibold text-ink">{editingId ? 'Editar Previsão' : 'Nova Previsão'}</h3>
+              <button onClick={() => setIsModalOpen(false)}><X size={20} className="text-muted hover:text-ink"/></button>
             </div>
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                      <div>
-                         <label className="text-sm text-slate-400 font-medium">Tipo</label>
+                         <label className="text-sm text-muted font-medium">Tipo</label>
                          <select 
-                            className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-primary"
+                            className="w-full mt-1 bg-surface border border-line rounded-lg p-2 text-ink outline-none focus:border-brand"
                             value={formData.type}
                             onChange={e => setFormData({...formData, type: e.target.value as TransactionType})}
                          >
@@ -529,38 +529,38 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
                          </select>
                      </div>
                      <div>
-                         <label className="text-sm text-slate-400 font-medium">Data Início</label>
+                         <label className="text-sm text-muted font-medium">Data Início</label>
                          <input 
                             type="date"
-                            className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-primary"
+                            className="w-full mt-1 bg-surface border border-line rounded-lg p-2 text-ink outline-none focus:border-brand"
                             value={formData.date}
                             onChange={e => setFormData({...formData, date: e.target.value})}
                          />
                      </div>
                 </div>
                 <div>
-                     <label className="text-sm text-slate-400 font-medium">Descrição</label>
+                     <label className="text-sm text-muted font-medium">Descrição</label>
                      <input 
                         type="text" required
-                        className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-primary"
+                        className="w-full mt-1 bg-surface border border-line rounded-lg p-2 text-ink outline-none focus:border-brand"
                         value={formData.description}
                         onChange={e => setFormData({...formData, description: e.target.value})}
                      />
                 </div>
                 <div>
-                     <label className="text-sm text-slate-400 font-medium">Valor</label>
+                     <label className="text-sm text-muted font-medium">Valor</label>
                      <input 
                         type="number" step="0.01" required
-                        className={`w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg p-2 font-bold outline-none focus:border-primary ${formData.type === TransactionType.DEBIT ? 'text-rose-500' : 'text-emerald-500'}`}
+                        className={`w-full mt-1 bg-surface border border-line rounded-lg p-2 font-bold outline-none focus:border-brand ${formData.type === TransactionType.DEBIT ? 'text-danger' : 'text-ok'}`}
                         value={formData.value}
                         onChange={e => setFormData({...formData, value: e.target.value})}
                      />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                      <div>
-                         <label className="text-sm text-slate-400 font-medium">Conta / Cartão</label>
+                         <label className="text-sm text-muted font-medium">Conta / Cartão</label>
                          <select 
-                            className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-primary"
+                            className="w-full mt-1 bg-surface border border-line rounded-lg p-2 text-ink outline-none focus:border-brand"
                             value={formData.creditCardId ? `card_${formData.creditCardId}` : `bank_${formData.bankId || 'null'}`}
                             onChange={e => {
                                 const val = e.target.value;
@@ -592,9 +592,9 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
                          </select>
                      </div>
                      <div>
-                         <label className="text-sm text-slate-400 font-medium">Categoria</label>
+                         <label className="text-sm text-muted font-medium">Categoria</label>
                          <select 
-                            className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-primary"
+                            className="w-full mt-1 bg-surface border border-line rounded-lg p-2 text-ink outline-none focus:border-brand"
                             value={formData.categoryId}
                             onChange={e => setFormData({...formData, categoryId: Number(e.target.value)})}
                          >
@@ -606,8 +606,8 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
                 
                 {/* Recurrence Section - Only show on Create */}
                 {!editingId && (
-                    <div className="bg-sky-950/30 p-3 rounded-lg border border-sky-900/50">
-                        <label className="text-sm font-semibold text-sky-400 mb-2 block flex items-center gap-2">
+                    <div className="bg-info/10 p-3 rounded-lg border border-info/30">
+                        <label className="text-sm font-semibold text-info mb-2 block flex items-center gap-2">
                             <Repeat size={14}/> Recorrência
                         </label>
                         
@@ -617,30 +617,30 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
                                     type="checkbox"
                                     checked={formData.isFixed}
                                     onChange={e => setFormData({...formData, isFixed: e.target.checked})}
-                                    className="w-4 h-4 text-sky-500 rounded bg-slate-800 border-slate-600"
+                                    className="w-4 h-4 text-info rounded bg-sunken border-line"
                                 />
-                                <span className="text-sm text-slate-300">Lançamento Fixo Mensal</span>
+                                <span className="text-sm text-muted">Lançamento Fixo Mensal</span>
                             </label>
                         </div>
 
                         {!formData.isFixed && (
                              <div className="flex items-center gap-2">
-                                <CalendarDays className="text-slate-400" size={20}/>
+                                <CalendarDays className="text-muted" size={20}/>
                                 <input 
                                     type="number" min="1" max="360"
-                                    className="w-20 bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-center text-white"
+                                    className="w-20 bg-surface border border-line rounded-lg p-1.5 text-center text-ink"
                                     value={formData.installments}
                                     onChange={e => setFormData({...formData, installments: Number(e.target.value)})}
                                 />
-                                <span className="text-sm text-slate-400">parcelas</span>
+                                <span className="text-sm text-muted">parcelas</span>
                             </div>
                         )}
                     </div>
                 )}
 
                 <div className="pt-4 flex gap-3">
-                    <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-2 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-800">Cancelar</button>
-                    <button type="submit" className="flex-1 py-2 bg-primary text-slate-900 rounded-lg hover:bg-primaryHover">Salvar</button>
+                    <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-2 border border-line text-muted rounded-lg hover:bg-sunken">Cancelar</button>
+                    <button type="submit" className="flex-1 py-2 bg-brand text-white rounded-lg hover:bg-brand-strong">Salvar</button>
                 </div>
             </form>
           </div>
@@ -651,25 +651,25 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
        {deleteModal.isOpen && (
            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                 <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setDeleteModal({ isOpen: false, id: null })} />
-                <div className="relative bg-surface border border-slate-800 rounded-xl shadow-xl w-full max-w-sm p-6 text-center animate-in fade-in zoom-in duration-200">
-                    <div className="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500">
+                <div className="relative bg-surface border border-line rounded-xl shadow-xl w-full max-w-sm p-6 text-center animate-in fade-in zoom-in duration-200">
+                    <div className="w-12 h-12 bg-danger/10 rounded-full flex items-center justify-center mx-auto mb-4 text-white">
                         <Trash2 size={24}/>
                     </div>
-                    <h3 className="text-lg font-bold text-white mb-2">Excluir Previsão</h3>
-                    <p className="text-slate-400 mb-6 text-sm">Esta previsão parece fazer parte de uma recorrência. Como deseja excluir?</p>
+                    <h3 className="text-lg font-bold text-ink mb-2">Excluir Previsão</h3>
+                    <p className="text-muted mb-6 text-sm">Esta previsão parece fazer parte de uma recorrência. Como deseja excluir?</p>
                     
                     <div className="space-y-2">
-                        <button onClick={() => confirmDelete('single')} className="w-full py-2.5 bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-200 rounded-lg font-medium text-sm">
+                        <button onClick={() => confirmDelete('single')} className="w-full py-2.5 bg-sunken border border-line hover:bg-sunken text-ink rounded-lg font-medium text-sm">
                             Apenas esta previsão
                         </button>
-                        <button onClick={() => confirmDelete('future')} className="w-full py-2.5 bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-200 rounded-lg font-medium text-sm">
+                        <button onClick={() => confirmDelete('future')} className="w-full py-2.5 bg-sunken border border-line hover:bg-sunken text-ink rounded-lg font-medium text-sm">
                             Esta e as futuras
                         </button>
-                        <button onClick={() => confirmDelete('all')} className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium text-sm shadow-sm">
+                        <button onClick={() => confirmDelete('all')} className="w-full py-2.5 bg-danger hover:bg-danger text-white rounded-lg font-medium text-sm shadow-sm">
                             Todas as ocorrências
                         </button>
                     </div>
-                    <button onClick={() => setDeleteModal({ isOpen: false, id: null })} className="mt-4 text-xs text-slate-500 hover:text-slate-300">Cancelar</button>
+                    <button onClick={() => setDeleteModal({ isOpen: false, id: null })} className="mt-4 text-xs text-faint hover:text-muted">Cancelar</button>
                 </div>
            </div>
        )}

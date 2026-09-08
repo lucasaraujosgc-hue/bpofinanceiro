@@ -136,46 +136,46 @@ const Reports: React.FC<ReportsProps> = ({ token }) => {
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
               {/* Cards Summary */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div className="bg-surface p-4 rounded-xl border border-slate-800">
-                      <p className="text-slate-400 text-sm">Saldo Inicial</p>
-                      <p className="text-xl font-bold text-white">R$ {data.startBalance.toFixed(2)}</p>
+                  <div className="bg-surface p-4 rounded-xl border border-line">
+                      <p className="text-muted text-sm">Saldo Inicial</p>
+                      <p className="text-xl font-bold text-ink">R$ {data.startBalance.toFixed(2)}</p>
                   </div>
-                  <div className="bg-surface p-4 rounded-xl border border-slate-800">
-                      <p className="text-emerald-400 text-sm">Receitas</p>
-                      <p className="text-xl font-bold text-emerald-500">+ R$ {data.totalReceitas.toFixed(2)}</p>
+                  <div className="bg-surface p-4 rounded-xl border border-line">
+                      <p className="text-ok text-sm">Receitas</p>
+                      <p className="text-xl font-bold text-ok">+ R$ {data.totalReceitas.toFixed(2)}</p>
                   </div>
-                  <div className="bg-surface p-4 rounded-xl border border-slate-800">
-                      <p className="text-rose-400 text-sm">Despesas</p>
-                      <p className="text-xl font-bold text-rose-500">- R$ {data.totalDespesas.toFixed(2)}</p>
+                  <div className="bg-surface p-4 rounded-xl border border-line">
+                      <p className="text-danger text-sm">Despesas</p>
+                      <p className="text-xl font-bold text-danger">- R$ {data.totalDespesas.toFixed(2)}</p>
                   </div>
-                  <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
-                      <p className="text-sky-400 text-sm">Saldo Final</p>
-                      <p className={`text-xl font-bold ${data.endBalance >= 0 ? 'text-sky-400' : 'text-rose-400'}`}>
+                  <div className="bg-sunken p-4 rounded-xl border border-line">
+                      <p className="text-info text-sm">Saldo Final</p>
+                      <p className={`text-xl font-bold ${data.endBalance >= 0 ? 'text-info' : 'text-danger'}`}>
                           R$ {data.endBalance.toFixed(2)}
                       </p>
                   </div>
               </div>
 
               {/* Cash Cycle Chart (Evolution) */}
-              <div className="bg-surface p-6 rounded-xl border border-slate-800">
+              <div className="bg-surface p-6 rounded-xl border border-line">
                   <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
                       <div>
-                          <h3 className="text-white font-bold text-lg flex items-center gap-2">
-                              <CalendarRange className="text-primary" size={20}/> Evolução Diária do Caixa
+                          <h3 className="text-ink font-bold text-lg flex items-center gap-2">
+                              <CalendarRange className="text-brand" size={20}/> Evolução Diária do Caixa
                           </h3>
-                          <p className="text-slate-400 text-sm">Entradas e saídas de dinheiro por data específica</p>
+                          <p className="text-muted text-sm">Entradas e saídas de dinheiro por data específica</p>
                       </div>
-                      <div className="flex items-center gap-2 bg-slate-900 p-2 rounded-lg border border-slate-700">
+                      <div className="flex items-center gap-2 bg-surface p-2 rounded-lg border border-line">
                           <input 
                             type="date" 
-                            className="bg-transparent text-white text-sm outline-none border-b border-slate-600 focus:border-primary pb-1"
+                            className="bg-transparent text-ink text-sm outline-none border-b border-line focus:border-brand pb-1"
                             value={cycleStartDate}
                             onChange={(e) => setCycleStartDate(e.target.value)}
                           />
-                          <span className="text-slate-500 text-xs">até</span>
+                          <span className="text-faint text-xs">até</span>
                           <input 
                             type="date" 
-                            className="bg-transparent text-white text-sm outline-none border-b border-slate-600 focus:border-primary pb-1"
+                            className="bg-transparent text-ink text-sm outline-none border-b border-line focus:border-brand pb-1"
                             value={cycleEndDate}
                             onChange={(e) => setCycleEndDate(e.target.value)}
                           />
@@ -185,15 +185,15 @@ const Reports: React.FC<ReportsProps> = ({ token }) => {
                   <div className="h-80 w-full">
                       <ResponsiveContainer width="100%" height="100%">
                           <ComposedChart data={cycleData}>
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-line)" />
                               <XAxis 
                                 dataKey="date" 
                                 tickFormatter={(str) => str ? str.split('-').slice(1).join('/') : ''}
-                                tick={{fill: '#94a3b8', fontSize: 12}}
+                                tick={{fill: 'var(--color-faint)', fontSize: 12}}
                               />
                               <YAxis hide />
                               <Tooltip 
-                                  contentStyle={{backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px'}}
+                                  contentStyle={{backgroundColor: 'var(--color-surface)', border: '1px solid var(--color-line)', borderRadius: '8px'}}
                                   labelFormatter={(label) => new Date(label).toLocaleDateString('pt-BR')}
                               />
                               <Legend />
@@ -208,8 +208,8 @@ const Reports: React.FC<ReportsProps> = ({ token }) => {
               {/* Pies */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Income Chart */}
-                  <div className="bg-surface p-6 rounded-xl border border-slate-800">
-                      <h3 className="text-white font-semibold mb-4">Receitas por Categoria</h3>
+                  <div className="bg-surface p-6 rounded-xl border border-line">
+                      <h3 className="text-ink font-semibold mb-4">Receitas por Categoria</h3>
                       <div className="h-64">
                           <ResponsiveContainer width="100%" height="100%">
                               <PieChart>
@@ -218,7 +218,7 @@ const Reports: React.FC<ReportsProps> = ({ token }) => {
                                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                       ))}
                                   </Pie>
-                                  <Tooltip contentStyle={{backgroundColor: '#0f172a', border: '1px solid #1e293b'}} />
+                                  <Tooltip contentStyle={{backgroundColor: 'var(--color-surface)', border: '1px solid var(--color-line)'}} />
                                   <Legend />
                               </PieChart>
                           </ResponsiveContainer>
@@ -226,8 +226,8 @@ const Reports: React.FC<ReportsProps> = ({ token }) => {
                   </div>
 
                   {/* Expense Chart */}
-                  <div className="bg-surface p-6 rounded-xl border border-slate-800">
-                      <h3 className="text-white font-semibold mb-4">Despesas por Categoria</h3>
+                  <div className="bg-surface p-6 rounded-xl border border-line">
+                      <h3 className="text-ink font-semibold mb-4">Despesas por Categoria</h3>
                       <div className="h-64">
                           <ResponsiveContainer width="100%" height="100%">
                               <PieChart>
@@ -236,7 +236,7 @@ const Reports: React.FC<ReportsProps> = ({ token }) => {
                                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                       ))}
                                   </Pie>
-                                  <Tooltip contentStyle={{backgroundColor: '#0f172a', border: '1px solid #1e293b'}} />
+                                  <Tooltip contentStyle={{backgroundColor: 'var(--color-surface)', border: '1px solid var(--color-line)'}} />
                                   <Legend />
                               </PieChart>
                           </ResponsiveContainer>
@@ -266,26 +266,26 @@ const Reports: React.FC<ReportsProps> = ({ token }) => {
       if (!data || !Array.isArray(data)) return null;
       return (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="bg-surface p-6 rounded-xl border border-slate-800 shadow-sm">
-                  <h3 className="text-xl font-bold text-white mb-6">Demonstrativo de Resultados do Exercício (DRE)</h3>
+              <div className="bg-surface p-6 rounded-xl border border-line shadow-sm">
+                  <h3 className="text-xl font-bold text-ink mb-6">Demonstrativo de Resultados do Exercício (DRE)</h3>
                   <div className="overflow-x-auto">
                       <table className="w-full text-left text-sm">
-                          <tbody className="divide-y divide-slate-800/50">
+                          <tbody className="divide-y divide-line/50">
                               {data.map((group: any, idx: number) => {
                                   const isTotal = group.label.startsWith('=');
-                                  const valColor = isTotal ? (group.value >= 0 ? 'text-emerald-400' : 'text-rose-400') : 'text-white';
+                                  const valColor = isTotal ? (group.value >= 0 ? 'text-ok' : 'text-danger') : 'text-ink';
                                   const tooltip = getDreDescription(group.label);
                                   
                                   return (
                                       <React.Fragment key={idx}>
-                                          <tr className={`${isTotal ? 'bg-slate-800/30' : ''}`}>
-                                              <td className={`py-4 px-4 ${isTotal ? 'font-bold text-base text-primary' : 'font-semibold text-slate-200'}`}>
+                                          <tr className={`${isTotal ? 'bg-sunken/30' : ''}`}>
+                                              <td className={`py-4 px-4 ${isTotal ? 'font-bold text-base text-brand' : 'font-semibold text-ink'}`}>
                                                   <div className="flex items-center gap-2 group relative">
                                                       {group.label}
                                                       {tooltip && (
                                                           <div className="relative flex items-center">
-                                                              <Info size={14} className="text-slate-500 cursor-help" />
-                                                              <div className="absolute bottom-full mb-2 left-0 w-64 p-2 bg-slate-900 border border-slate-700 text-slate-300 text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10 shadow-xl">
+                                                              <Info size={14} className="text-faint cursor-help" />
+                                                              <div className="absolute bottom-full mb-2 left-0 w-64 p-2 bg-surface border border-line text-muted text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10 shadow-xl">
                                                                   {tooltip}
                                                               </div>
                                                           </div>
@@ -297,11 +297,11 @@ const Reports: React.FC<ReportsProps> = ({ token }) => {
                                               </td>
                                           </tr>
                                           {group.children && group.children.length > 0 && group.children.map((child: any, cidx: number) => (
-                                              <tr key={`${idx}-${cidx}`} className="hover:bg-slate-800/20">
-                                                  <td className="py-2 px-8 text-slate-400 flex items-center gap-2 before:content-[''] before:w-2 before:h-px before:bg-slate-600">
+                                              <tr key={`${idx}-${cidx}`} className="hover:bg-sunken/20">
+                                                  <td className="py-2 px-8 text-muted flex items-center gap-2 before:content-[''] before:w-2 before:h-px before:bg-faint">
                                                       {child.label}
                                                   </td>
-                                                  <td className="py-2 px-4 text-right text-slate-400 font-mono text-xs">
+                                                  <td className="py-2 px-4 text-right text-muted font-mono text-xs">
                                                       R$ {child.value.toFixed(2)}
                                                   </td>
                                               </tr>
@@ -318,10 +318,10 @@ const Reports: React.FC<ReportsProps> = ({ token }) => {
   };
 
   const getScoreVisuals = (score: number) => {
-      if (score >= 80) return { color: 'text-blue-400', bg: 'bg-blue-400/10', label: 'Excelente', emoji: '🏆', border: 'border-blue-400/30' };
-      if (score >= 60) return { color: 'text-emerald-400', bg: 'bg-emerald-400/10', label: 'Saudável', emoji: '✅', border: 'border-emerald-400/30' };
-      if (score >= 40) return { color: 'text-amber-400', bg: 'bg-amber-400/10', label: 'Atenção', emoji: '⚠️', border: 'border-amber-400/30' };
-      return { color: 'text-rose-400', bg: 'bg-rose-400/10', label: 'Crítico', emoji: '🚨', border: 'border-rose-400/30' };
+      if (score >= 80) return { color: 'text-white', bg: 'bg-info/10', label: 'Excelente', emoji: '🏆', border: 'border-info/30' };
+      if (score >= 60) return { color: 'text-white', bg: 'bg-ok/10', label: 'Saudável', emoji: '✅', border: 'border-ok/30' };
+      if (score >= 40) return { color: 'text-white', bg: 'bg-warn/10', label: 'Atenção', emoji: '⚠️', border: 'border-warn/30' };
+      return { color: 'text-white', bg: 'bg-danger/10', label: 'Crítico', emoji: '🚨', border: 'border-danger/30' };
   };
 
   const renderAnalysis = () => {
@@ -336,14 +336,14 @@ const Reports: React.FC<ReportsProps> = ({ token }) => {
               
               {/* Executive Summary */}
               {advanced.resumoExecutivo && (
-                  <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-6 rounded-xl border border-slate-700 shadow-xl relative overflow-hidden">
+                  <div className="bg-gradient-to-r from-ink to-sunken dark:from-surface dark:to-sunken p-6 rounded-xl border border-line shadow-xl relative overflow-hidden">
                       <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
                           <Activity size={120} />
                       </div>
-                      <h3 className="text-xl font-bold text-white mb-2 relative z-10 flex items-center gap-2">
+                      <h3 className="text-xl font-bold text-ink mb-2 relative z-10 flex items-center gap-2">
                          Resumo Executivo do Mês 
                       </h3>
-                      <p className="text-slate-300 relative z-10 text-lg leading-relaxed">
+                      <p className="text-muted relative z-10 text-lg leading-relaxed">
                           {advanced.resumoExecutivo}
                       </p>
                   </div>
@@ -352,45 +352,45 @@ const Reports: React.FC<ReportsProps> = ({ token }) => {
               <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
                   {/* Financial Health Score (Left, takes 4 cols) */}
                   <div className={`md:col-span-4 p-6 rounded-xl border ${scoreVisual.bg} ${scoreVisual.border} text-center flex flex-col justify-center`}>
-                      <h3 className="text-sm uppercase tracking-wider font-bold text-white mb-2">Score Financeiro</h3>
+                      <h3 className="text-sm uppercase tracking-wider font-bold text-ink mb-2">Score Financeiro</h3>
                       <div className="flex justify-center items-end gap-2 my-2">
                           <span className={`text-6xl font-bold font-mono ${scoreVisual.color}`}>{kpis.financialHealthScore}</span>
                           <span className="text-2xl mb-1">{scoreVisual.emoji}</span>
                       </div>
                       <p className={`font-bold text-lg ${scoreVisual.color}`}>{scoreVisual.label}</p>
-                      <p className="text-slate-400 text-xs mt-2">Saúde da empresa baseada em margens, liquidez e estrutura de custos.</p>
+                      <p className="text-muted text-xs mt-2">Saúde da empresa baseada em margens, liquidez e estrutura de custos.</p>
                   </div>
 
                   {/* KPIs Grid (Right, takes 8 cols) */}
                   <div className="md:col-span-8 grid grid-cols-2 lg:grid-cols-4 gap-4">
-                      <div className="bg-surface p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
-                          <p className="text-slate-400 text-sm mb-1 flex items-center gap-2" title="Margem Contribuição">Margem Contrib.</p>
-                          <p className="text-2xl font-bold text-white">{kpis.margemContribuicaoPct.toFixed(1)}%</p>
+                      <div className="bg-surface p-4 rounded-xl border border-line flex flex-col justify-between">
+                          <p className="text-muted text-sm mb-1 flex items-center gap-2" title="Margem Contribuição">Margem Contrib.</p>
+                          <p className="text-2xl font-bold text-ink">{kpis.margemContribuicaoPct.toFixed(1)}%</p>
                       </div>
-                      <div className="bg-surface p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
-                          <p className="text-slate-400 text-sm mb-1 flex items-center gap-2">EBITDA</p>
-                          <p className={`text-xl font-bold font-mono ${kpis.ebitda >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>R$ {kpis.ebitda.toFixed(0)}</p>
+                      <div className="bg-surface p-4 rounded-xl border border-line flex flex-col justify-between">
+                          <p className="text-muted text-sm mb-1 flex items-center gap-2">EBITDA</p>
+                          <p className={`text-xl font-bold font-mono ${kpis.ebitda >= 0 ? 'text-ok' : 'text-danger'}`}>R$ {kpis.ebitda.toFixed(0)}</p>
                       </div>
-                      <div className="bg-surface p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
-                          <p className="text-slate-400 text-sm mb-1 flex items-center gap-2">% Custo Fixo</p>
-                          <p className="text-2xl font-bold text-white">{kpis.pctDespesasFixas.toFixed(1)}%</p>
+                      <div className="bg-surface p-4 rounded-xl border border-line flex flex-col justify-between">
+                          <p className="text-muted text-sm mb-1 flex items-center gap-2">% Custo Fixo</p>
+                          <p className="text-2xl font-bold text-ink">{kpis.pctDespesasFixas.toFixed(1)}%</p>
                       </div>
-                      <div className="bg-surface p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
-                          <p className="text-slate-400 text-sm mb-1 flex items-center gap-2">% Desp/Rec</p>
-                          <p className="text-2xl font-bold text-white">{kpis.pctDespesasReceita.toFixed(1)}%</p>
+                      <div className="bg-surface p-4 rounded-xl border border-line flex flex-col justify-between">
+                          <p className="text-muted text-sm mb-1 flex items-center gap-2">% Desp/Rec</p>
+                          <p className="text-2xl font-bold text-ink">{kpis.pctDespesasReceita.toFixed(1)}%</p>
                       </div>
 
                       {/* Small blocks for Trends if available */}
-                      <div className="bg-surface p-4 rounded-xl border border-slate-800 col-span-2">
-                          <p className="text-slate-400 text-sm mb-1">Tendência de Receita (MoM)</p>
-                          <div className={`text-xl font-bold flex items-center gap-1 ${advanced.momReceita > 0 ? 'text-emerald-400' : advanced.momReceita < 0 ? 'text-rose-400' : 'text-slate-300'}`}>
+                      <div className="bg-surface p-4 rounded-xl border border-line col-span-2">
+                          <p className="text-muted text-sm mb-1">Tendência de Receita (MoM)</p>
+                          <div className={`text-xl font-bold flex items-center gap-1 ${advanced.momReceita > 0 ? 'text-ok' : advanced.momReceita < 0 ? 'text-danger' : 'text-muted'}`}>
                               {advanced.momReceita > 0 ? <TrendingUp size={18}/> : advanced.momReceita < 0 ? <TrendingDown size={18}/> : null}
                               {advanced.momReceita > 0 ? '+' : ''}{advanced.momReceita.toFixed(1)}% vs anterior
                           </div>
                       </div>
-                      <div className="bg-surface p-4 rounded-xl border border-slate-800 col-span-2">
-                          <p className="text-slate-400 text-sm mb-1">Tendência de Despesa (MoM)</p>
-                          <div className={`text-xl font-bold flex items-center gap-1 ${advanced.momDespesa > 0 ? 'text-rose-400' : advanced.momDespesa < 0 ? 'text-emerald-400' : 'text-slate-300'}`}>
+                      <div className="bg-surface p-4 rounded-xl border border-line col-span-2">
+                          <p className="text-muted text-sm mb-1">Tendência de Despesa (MoM)</p>
+                          <div className={`text-xl font-bold flex items-center gap-1 ${advanced.momDespesa > 0 ? 'text-danger' : advanced.momDespesa < 0 ? 'text-ok' : 'text-muted'}`}>
                               {advanced.momDespesa > 0 ? <TrendingUp size={18}/> : advanced.momDespesa < 0 ? <TrendingDown size={18}/> : null}
                               {advanced.momDespesa > 0 ? '+' : ''}{advanced.momDespesa.toFixed(1)}% vs anterior
                           </div>
@@ -400,21 +400,21 @@ const Reports: React.FC<ReportsProps> = ({ token }) => {
 
               {/* End of Month Projection / Projeção do Mês */}
               {isCurrentMonth && advanced.projecao && (
-                  <div className="bg-indigo-950/20 p-6 rounded-xl border border-indigo-900/50">
-                      <h3 className="font-bold text-indigo-300 mb-4 flex items-center gap-2"><TrendingUp size={20} /> Projeção Fim do Mês</h3>
-                      <p className="text-sm text-indigo-200/70 mb-4">Se mantiver o ritmo de entradas e saídas até o último dia do mês:</p>
+                  <div className="bg-info/10 p-6 rounded-xl border border-info/30">
+                      <h3 className="font-bold text-info mb-4 flex items-center gap-2"><TrendingUp size={20} /> Projeção Fim do Mês</h3>
+                      <p className="text-sm text-info mb-4">Se mantiver o ritmo de entradas e saídas até o último dia do mês:</p>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <div className="bg-slate-900/80 p-4 rounded border border-indigo-900/30">
-                              <p className="text-slate-400 text-xs mb-1">Receita Estimada</p>
-                              <p className="text-xl font-bold text-indigo-300 font-mono">R$ {advanced.projecao.receita.toFixed(2)}</p>
+                          <div className="bg-surface/80 p-4 rounded border border-info/30">
+                              <p className="text-muted text-xs mb-1">Receita Estimada</p>
+                              <p className="text-xl font-bold text-info font-mono">R$ {advanced.projecao.receita.toFixed(2)}</p>
                           </div>
-                          <div className="bg-slate-900/80 p-4 rounded border border-indigo-900/30">
-                              <p className="text-slate-400 text-xs mb-1">Despesa Estimada</p>
-                              <p className="text-xl font-bold text-rose-300 font-mono">R$ {advanced.projecao.despesa.toFixed(2)}</p>
+                          <div className="bg-surface/80 p-4 rounded border border-info/30">
+                              <p className="text-muted text-xs mb-1">Despesa Estimada</p>
+                              <p className="text-xl font-bold text-danger font-mono">R$ {advanced.projecao.despesa.toFixed(2)}</p>
                           </div>
-                          <div className="bg-slate-900/80 p-4 rounded border border-indigo-900/30">
-                              <p className="text-slate-400 text-xs mb-1">Lucro Estimado</p>
-                              <p className={`text-xl font-bold font-mono ${advanced.projecao.lucro >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>R$ {advanced.projecao.lucro.toFixed(2)}</p>
+                          <div className="bg-surface/80 p-4 rounded border border-info/30">
+                              <p className="text-muted text-xs mb-1">Lucro Estimado</p>
+                              <p className={`text-xl font-bold font-mono ${advanced.projecao.lucro >= 0 ? 'text-ok' : 'text-danger'}`}>R$ {advanced.projecao.lucro.toFixed(2)}</p>
                           </div>
                       </div>
                   </div>
@@ -422,15 +422,15 @@ const Reports: React.FC<ReportsProps> = ({ token }) => {
 
               {/* Insights Section */}
               {advanced.insights && advanced.insights.length > 0 && (
-                  <div className="bg-surface p-6 rounded-xl border border-slate-800">
-                      <h3 className="font-bold text-white mb-4 text-lg">Análise Automática</h3>
+                  <div className="bg-surface p-6 rounded-xl border border-line">
+                      <h3 className="font-bold text-ink mb-4 text-lg">Análise Automática</h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           {advanced.insights.map((ins: any, idx: number) => {
                               const isAlerta = ins.type === 'alerta';
                               const isRecomend = ins.type === 'recomendacao';
-                              const boxClass = isAlerta ? 'bg-rose-950/20 border-rose-900/50 text-rose-300' : 
-                                               isRecomend ? 'bg-indigo-950/20 border-indigo-900/50 text-indigo-300' : 
-                                               'bg-emerald-950/20 border-emerald-900/50 text-emerald-300';
+                              const boxClass = isAlerta ? 'bg-danger/10 border-danger/30 text-white' : 
+                                               isRecomend ? 'bg-info/10 border-info/30 text-white' : 
+                                               'bg-ok/10 border-ok/30 text-white';
                               const IconCall = isAlerta ? AlertCircle : isRecomend ? Info : TrendingUp;
                               return (
                                   <div key={idx} className={`p-4 rounded-lg border flex gap-3 ${boxClass}`}>
@@ -447,19 +447,19 @@ const Reports: React.FC<ReportsProps> = ({ token }) => {
               )}
 
               {/* Caixa vs Lucro */}
-              <div className="bg-surface p-6 rounded-xl border border-slate-800">
-                  <h3 className="font-bold text-white mb-6">Geração de Caixa vs Lucro Líquido</h3>
+              <div className="bg-surface p-6 rounded-xl border border-line">
+                  <h3 className="font-bold text-ink mb-6">Geração de Caixa vs Lucro Líquido</h3>
                   <div className="flex flex-col md:flex-row items-center justify-around gap-6">
                       <div className="text-center w-full md:w-1/3">
-                          <p className="text-slate-400 mb-2">Geração de Caixa (Conta Bancária)</p>
-                          <p className={`text-3xl font-bold font-mono ${advanced.geracaoCaixa >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          <p className="text-muted mb-2">Geração de Caixa (Conta Bancária)</p>
+                          <p className={`text-3xl font-bold font-mono ${advanced.geracaoCaixa >= 0 ? 'text-ok' : 'text-danger'}`}>
                               R$ {advanced.geracaoCaixa.toFixed(2)}
                           </p>
                       </div>
-                      <div className="text-slate-700 hidden md:block">|</div>
+                      <div className="text-faint hidden md:block">|</div>
                       <div className="text-center w-full md:w-1/3">
-                          <p className="text-slate-400 mb-2">Lucro Líquido (Operação / DRE)</p>
-                          <p className={`text-3xl font-bold font-mono ${advanced.lucroLiquidoVal >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          <p className="text-muted mb-2">Lucro Líquido (Operação / DRE)</p>
+                          <p className={`text-3xl font-bold font-mono ${advanced.lucroLiquidoVal >= 0 ? 'text-ok' : 'text-danger'}`}>
                               R$ {advanced.lucroLiquidoVal.toFixed(2)}
                           </p>
                       </div>
@@ -468,52 +468,52 @@ const Reports: React.FC<ReportsProps> = ({ token }) => {
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Pareto Despesas */}
-                  <div className="bg-surface p-6 rounded-xl border border-slate-800">
-                      <h3 className="font-bold text-white mb-4 text-sm uppercase">Curva ABC - Despesas</h3>
+                  <div className="bg-surface p-6 rounded-xl border border-line">
+                      <h3 className="font-bold text-ink mb-4 text-sm uppercase">Curva ABC - Despesas</h3>
                       <div className="space-y-4">
-                          <div className="flex justify-between text-xs font-bold text-slate-500 mb-2 px-1 border-b border-slate-800 pb-2">
+                          <div className="flex justify-between text-xs font-bold text-faint mb-2 px-1 border-b border-line pb-2">
                               <span className="w-1/2">Categoria</span>
                               <span className="w-1/4 text-right">R$ Valor (%)</span>
                               <span className="w-1/4 text-right">Acumulado</span>
                           </div>
                           {advanced.paretoDespesas.map((item: any, idx: number) => (
                               <div key={idx} className="group">
-                                  <div className="flex justify-between text-xs text-slate-300 mb-1 items-center">
-                                      <span className="w-1/2 truncate pr-2 group-hover:text-white transition-colors">{item.nome}</span>
-                                      <span className="w-1/4 text-right font-mono text-rose-400">R$ {item.valor.toFixed(2)} ({item.impacto.toFixed(1)}%)</span>
-                                      <span className="w-1/4 text-right font-mono text-slate-500">{item.acumulado.toFixed(1)}%</span>
+                                  <div className="flex justify-between text-xs text-muted mb-1 items-center">
+                                      <span className="w-1/2 truncate pr-2 group-hover:text-ink transition-colors">{item.nome}</span>
+                                      <span className="w-1/4 text-right font-mono text-danger">R$ {item.valor.toFixed(2)} ({item.impacto.toFixed(1)}%)</span>
+                                      <span className="w-1/4 text-right font-mono text-faint">{item.acumulado.toFixed(1)}%</span>
                                   </div>
-                                  <div className="w-full bg-slate-800 rounded-full h-1 overflow-hidden">
-                                      <div className="bg-rose-500 h-full rounded-full" style={{ width: `${Math.min(item.impacto, 100)}%` }}></div>
+                                  <div className="w-full bg-sunken rounded-full h-1 overflow-hidden">
+                                      <div className="bg-danger h-full rounded-full" style={{ width: `${Math.min(item.impacto, 100)}%` }}></div>
                                   </div>
                               </div>
                           ))}
-                          {advanced.paretoDespesas.length === 0 && <p className="text-slate-500 text-sm text-center py-4">Nenhum dado de despesa.</p>}
+                          {advanced.paretoDespesas.length === 0 && <p className="text-faint text-sm text-center py-4">Nenhum dado de despesa.</p>}
                       </div>
                   </div>
 
                   {/* Pareto Receitas */}
-                  <div className="bg-surface p-6 rounded-xl border border-slate-800">
-                      <h3 className="font-bold text-white mb-4 text-sm uppercase">Curva ABC - Receitas</h3>
+                  <div className="bg-surface p-6 rounded-xl border border-line">
+                      <h3 className="font-bold text-ink mb-4 text-sm uppercase">Curva ABC - Receitas</h3>
                       <div className="space-y-4">
-                          <div className="flex justify-between text-xs font-bold text-slate-500 mb-2 px-1 border-b border-slate-800 pb-2">
+                          <div className="flex justify-between text-xs font-bold text-faint mb-2 px-1 border-b border-line pb-2">
                               <span className="w-1/2">Categoria</span>
                               <span className="w-1/4 text-right">R$ Valor (%)</span>
                               <span className="w-1/4 text-right">Acumulado</span>
                           </div>
                           {advanced.paretoReceitas.map((item: any, idx: number) => (
                               <div key={idx} className="group">
-                                  <div className="flex justify-between text-xs text-slate-300 mb-1 items-center">
-                                      <span className="w-1/2 truncate pr-2 group-hover:text-white transition-colors">{item.nome}</span>
-                                      <span className="w-1/4 text-right font-mono text-emerald-400">R$ {item.valor.toFixed(2)} ({item.impacto.toFixed(1)}%)</span>
-                                      <span className="w-1/4 text-right font-mono text-slate-500">{item.acumulado.toFixed(1)}%</span>
+                                  <div className="flex justify-between text-xs text-muted mb-1 items-center">
+                                      <span className="w-1/2 truncate pr-2 group-hover:text-ink transition-colors">{item.nome}</span>
+                                      <span className="w-1/4 text-right font-mono text-ok">R$ {item.valor.toFixed(2)} ({item.impacto.toFixed(1)}%)</span>
+                                      <span className="w-1/4 text-right font-mono text-faint">{item.acumulado.toFixed(1)}%</span>
                                   </div>
-                                  <div className="w-full bg-slate-800 rounded-full h-1 overflow-hidden">
-                                      <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${Math.min(item.impacto, 100)}%` }}></div>
+                                  <div className="w-full bg-sunken rounded-full h-1 overflow-hidden">
+                                      <div className="bg-brand h-full rounded-full" style={{ width: `${Math.min(item.impacto, 100)}%` }}></div>
                                   </div>
                               </div>
                           ))}
-                          {advanced.paretoReceitas.length === 0 && <p className="text-slate-500 text-sm text-center py-4">Nenhum dado de receita.</p>}
+                          {advanced.paretoReceitas.length === 0 && <p className="text-faint text-sm text-center py-4">Nenhum dado de receita.</p>}
                       </div>
                   </div>
               </div>
@@ -543,51 +543,51 @@ const Reports: React.FC<ReportsProps> = ({ token }) => {
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
               {/* Summary Cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="bg-surface p-6 rounded-xl border border-slate-800 shadow-sm">
-                      <h3 className="text-emerald-400 font-bold mb-4 flex items-center gap-2">
+                  <div className="bg-surface p-6 rounded-xl border border-line shadow-sm">
+                      <h3 className="text-ok font-bold mb-4 flex items-center gap-2">
                           <Target size={20}/> Receitas Previstas
                       </h3>
                       <div className="flex justify-between items-end mb-2">
                           <div>
-                              <p className="text-slate-400 text-xs uppercase">Total Previsto</p>
-                              <p className="text-2xl font-bold text-white">R$ {data.summary.predictedIncome.toFixed(2)}</p>
+                              <p className="text-muted text-xs uppercase">Total Previsto</p>
+                              <p className="text-2xl font-bold text-ink">R$ {data.summary.predictedIncome.toFixed(2)}</p>
                           </div>
                           <div className="text-right">
-                              <p className="text-slate-400 text-xs uppercase">Realizado</p>
-                              <p className="text-xl font-bold text-emerald-500">
+                              <p className="text-muted text-xs uppercase">Realizado</p>
+                              <p className="text-xl font-bold text-ok">
                                   {data.summary.predictedIncome > 0 ? ((data.summary.realizedIncome / data.summary.predictedIncome) * 100).toFixed(1) : 0}%
                               </p>
                           </div>
                       </div>
-                      <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
-                          <div className="bg-emerald-500 h-2 rounded-full" style={{ width: `${data.summary.predictedIncome > 0 ? (data.summary.realizedIncome / data.summary.predictedIncome) * 100 : 0}%` }}></div>
+                      <div className="w-full bg-sunken rounded-full h-2 overflow-hidden">
+                          <div className="bg-brand h-2 rounded-full" style={{ width: `${data.summary.predictedIncome > 0 ? (data.summary.realizedIncome / data.summary.predictedIncome) * 100 : 0}%` }}></div>
                       </div>
-                      <div className="flex justify-between mt-2 text-xs text-slate-500">
+                      <div className="flex justify-between mt-2 text-xs text-faint">
                           <span>Realizado: R$ {data.summary.realizedIncome.toFixed(2)}</span>
                           <span>Pendente: R$ {data.summary.pendingIncome.toFixed(2)}</span>
                       </div>
                   </div>
 
-                  <div className="bg-surface p-6 rounded-xl border border-slate-800 shadow-sm">
-                      <h3 className="text-rose-400 font-bold mb-4 flex items-center gap-2">
+                  <div className="bg-surface p-6 rounded-xl border border-line shadow-sm">
+                      <h3 className="text-danger font-bold mb-4 flex items-center gap-2">
                           <Target size={20}/> Despesas Previstas
                       </h3>
                       <div className="flex justify-between items-end mb-2">
                           <div>
-                              <p className="text-slate-400 text-xs uppercase">Total Previsto</p>
-                              <p className="text-2xl font-bold text-white">R$ {data.summary.predictedExpense.toFixed(2)}</p>
+                              <p className="text-muted text-xs uppercase">Total Previsto</p>
+                              <p className="text-2xl font-bold text-ink">R$ {data.summary.predictedExpense.toFixed(2)}</p>
                           </div>
                           <div className="text-right">
-                              <p className="text-slate-400 text-xs uppercase">Realizado</p>
-                              <p className="text-xl font-bold text-rose-500">
+                              <p className="text-muted text-xs uppercase">Realizado</p>
+                              <p className="text-xl font-bold text-danger">
                                   {data.summary.predictedExpense > 0 ? ((data.summary.realizedExpense / data.summary.predictedExpense) * 100).toFixed(1) : 0}%
                               </p>
                           </div>
                       </div>
-                      <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
-                          <div className="bg-rose-500 h-2 rounded-full" style={{ width: `${data.summary.predictedExpense > 0 ? (data.summary.realizedExpense / data.summary.predictedExpense) * 100 : 0}%` }}></div>
+                      <div className="w-full bg-sunken rounded-full h-2 overflow-hidden">
+                          <div className="bg-danger h-2 rounded-full" style={{ width: `${data.summary.predictedExpense > 0 ? (data.summary.realizedExpense / data.summary.predictedExpense) * 100 : 0}%` }}></div>
                       </div>
-                      <div className="flex justify-between mt-2 text-xs text-slate-500">
+                      <div className="flex justify-between mt-2 text-xs text-faint">
                           <span>Realizado: R$ {data.summary.realizedExpense.toFixed(2)}</span>
                           <span>Pendente: R$ {data.summary.pendingExpense.toFixed(2)}</span>
                       </div>
@@ -595,17 +595,17 @@ const Reports: React.FC<ReportsProps> = ({ token }) => {
               </div>
 
               {/* Comparative Chart */}
-              <div className="bg-surface p-6 rounded-xl border border-slate-800 shadow-sm">
-                  <h3 className="text-white font-semibold mb-6">Comparativo Previsto vs Realizado</h3>
+              <div className="bg-surface p-6 rounded-xl border border-line shadow-sm">
+                  <h3 className="text-ink font-semibold mb-6">Comparativo Previsto vs Realizado</h3>
                   <div className="h-80 w-full">
                       <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={chartData}>
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
-                              <XAxis dataKey="name" tick={{fill: '#94a3b8'}} />
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-line)" />
+                              <XAxis dataKey="name" tick={{fill: 'var(--color-faint)'}} />
                               <YAxis hide />
                               <Tooltip 
-                                  contentStyle={{backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px'}}
-                                  cursor={{fill: '#1e293b', opacity: 0.4}}
+                                  contentStyle={{backgroundColor: 'var(--color-surface)', border: '1px solid var(--color-line)', borderRadius: '8px'}}
+                                  cursor={{fill: 'var(--color-sunken)', opacity: 0.4}}
                               />
                               <Legend />
                               <Bar dataKey="Previsto" fill="#64748b" radius={[4, 4, 0, 0]} />
@@ -617,18 +617,18 @@ const Reports: React.FC<ReportsProps> = ({ token }) => {
               </div>
 
               {/* List of Pending Items */}
-              <div className="bg-surface rounded-xl border border-slate-800 overflow-hidden">
-                  <div className="px-6 py-4 border-b border-slate-800 bg-amber-900/10 flex justify-between items-center">
-                      <h3 className="font-bold text-amber-500 flex items-center gap-2">
+              <div className="bg-surface rounded-xl border border-line overflow-hidden">
+                  <div className="px-6 py-4 border-b border-line bg-warn/10 flex justify-between items-center">
+                      <h3 className="font-bold text-warn flex items-center gap-2">
                           <AlertCircle size={20}/> Itens Pendentes neste Mês
                       </h3>
-                      <span className="text-xs bg-amber-500/20 text-amber-400 px-2 py-1 rounded border border-amber-500/30">
+                      <span className="text-xs bg-warn/15 text-white px-2 py-1 rounded border border-warn/30">
                           Ação Necessária
                       </span>
                   </div>
                   <div className="overflow-x-auto max-h-80 custom-scroll">
                       <table className="w-full text-sm text-left">
-                          <thead className="bg-slate-950 text-slate-400 font-medium sticky top-0">
+                          <thead className="bg-ground text-muted font-medium sticky top-0">
                               <tr>
                                   <th className="px-6 py-3">Dia</th>
                                   <th className="px-6 py-3">Descrição</th>
@@ -636,18 +636,18 @@ const Reports: React.FC<ReportsProps> = ({ token }) => {
                                   <th className="px-6 py-3 text-right">Valor</th>
                               </tr>
                           </thead>
-                          <tbody className="divide-y divide-slate-800">
+                          <tbody className="divide-y divide-line">
                               {data.items.filter((i: any) => !i.realized).length === 0 ? (
-                                  <tr><td colSpan={4} className="px-6 py-8 text-center text-emerald-500 font-medium">Tudo realizado! Nenhuma pendência.</td></tr>
+                                  <tr><td colSpan={4} className="px-6 py-8 text-center text-ok font-medium">Tudo realizado! Nenhuma pendência.</td></tr>
                               ) : (
                                   data.items.filter((i: any) => !i.realized).map((item: any) => (
-                                      <tr key={item.id} className="hover:bg-slate-800/30">
-                                          <td className="px-6 py-3 text-slate-400 font-mono">
+                                      <tr key={item.id} className="hover:bg-sunken/30">
+                                          <td className="px-6 py-3 text-muted font-mono">
                                               {item.date.split('-')[2]}
                                           </td>
-                                          <td className="px-6 py-3 text-slate-200">{item.description}</td>
-                                          <td className="px-6 py-3 text-slate-500 text-xs">{item.category_name || '-'}</td>
-                                          <td className={`px-6 py-3 text-right font-bold ${item.type === 'credito' ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                          <td className="px-6 py-3 text-ink">{item.description}</td>
+                                          <td className="px-6 py-3 text-faint text-xs">{item.category_name || '-'}</td>
+                                          <td className={`px-6 py-3 text-right font-bold ${item.type === 'credito' ? 'text-ok' : 'text-danger'}`}>
                                               R$ {item.value.toFixed(2)}
                                           </td>
                                       </tr>
@@ -665,42 +665,42 @@ const Reports: React.FC<ReportsProps> = ({ token }) => {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Relatórios Financeiros</h1>
-          <p className="text-slate-400">Análise completa da saúde financeira</p>
+          <h1 className="text-2xl font-bold text-ink">Relatórios Financeiros</h1>
+          <p className="text-muted">Análise completa da saúde financeira</p>
         </div>
         
-        <div className="flex items-center gap-2 bg-surface p-1 rounded-lg border border-slate-800">
-            <button onClick={handlePrevMonth} className="p-2 hover:bg-slate-800 rounded text-slate-400"><ChevronLeft size={16}/></button>
+        <div className="flex items-center gap-2 bg-surface p-1 rounded-lg border border-line">
+            <button onClick={handlePrevMonth} className="p-2 hover:bg-sunken rounded text-muted"><ChevronLeft size={16}/></button>
             <div className="px-4 text-center min-w-[140px]">
-                <span className="block text-xs text-slate-500 font-bold">MÊS DE REFERÊNCIA</span>
-                <span className="block text-sm font-bold text-white">{MONTHS[month]} / {year}</span>
+                <span className="block text-xs text-faint font-bold">MÊS DE REFERÊNCIA</span>
+                <span className="block text-sm font-bold text-ink">{MONTHS[month]} / {year}</span>
             </div>
-            <button onClick={handleNextMonth} className="p-2 hover:bg-slate-800 rounded text-slate-400"><ChevronRight size={16}/></button>
+            <button onClick={handleNextMonth} className="p-2 hover:bg-sunken rounded text-muted"><ChevronRight size={16}/></button>
         </div>
       </div>
 
-      <div className="flex gap-1 bg-surface p-1 rounded-xl border border-slate-800 w-full md:w-fit overflow-x-auto custom-scroll">
+      <div className="flex gap-1 bg-surface p-1 rounded-xl border border-line w-full md:w-fit overflow-x-auto custom-scroll">
           <button 
             onClick={() => { setActiveTab('cashflow'); setData(null); }}
-            className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'cashflow' ? 'bg-primary text-slate-900 shadow-lg shadow-emerald-900/20' : 'text-slate-400 hover:text-white'}`}
+            className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'cashflow' ? 'bg-brand text-white shadow-lg shadow-md' : 'text-muted hover:text-ink'}`}
           >
               Fluxo de Caixa
           </button>
           <button 
             onClick={() => { setActiveTab('forecasts'); setData(null); }}
-            className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'forecasts' ? 'bg-primary text-slate-900 shadow-lg shadow-emerald-900/20' : 'text-slate-400 hover:text-white'}`}
+            className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'forecasts' ? 'bg-brand text-white shadow-lg shadow-md' : 'text-muted hover:text-ink'}`}
           >
               Previsões
           </button>
           <button 
             onClick={() => { setActiveTab('dre'); setData(null); }}
-            className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'dre' ? 'bg-primary text-slate-900 shadow-lg shadow-emerald-900/20' : 'text-slate-400 hover:text-white'}`}
+            className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'dre' ? 'bg-brand text-white shadow-lg shadow-md' : 'text-muted hover:text-ink'}`}
           >
               DRE Gerencial
           </button>
           <button 
             onClick={() => { setActiveTab('analysis'); setData(null); }}
-            className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'analysis' ? 'bg-primary text-slate-900 shadow-lg shadow-emerald-900/20' : 'text-slate-400 hover:text-white'}`}
+            className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${activeTab === 'analysis' ? 'bg-brand text-white shadow-lg shadow-md' : 'text-muted hover:text-ink'}`}
           >
               Análise Detalhada
           </button>
@@ -709,7 +709,7 @@ const Reports: React.FC<ReportsProps> = ({ token }) => {
       <div className="min-h-[400px]">
           {loading ? (
               <div className="flex items-center justify-center h-64">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand"></div>
               </div>
           ) : (
               <>

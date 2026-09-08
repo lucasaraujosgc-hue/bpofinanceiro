@@ -37,18 +37,18 @@ const PreSignUp: React.FC<PreSignUpProps> = ({ onBack, isLoading }) => {
 
   if (isSent) {
       return (
-        <div className="min-h-screen bg-background flex items-center justify-center p-4">
-            <div className="bg-surface w-full max-w-md rounded-2xl shadow-xl p-8 text-center animate-in fade-in zoom-in duration-300 border border-slate-800">
-            <div className="w-16 h-16 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6 border border-emerald-500/20">
+        <div className="min-h-screen bg-ground flex items-center justify-center p-4">
+            <div className="bg-surface w-full max-w-md rounded-2xl shadow-xl p-8 text-center animate-in fade-in zoom-in duration-300 border border-line">
+            <div className="w-16 h-16 bg-brand/10 text-white rounded-full flex items-center justify-center mx-auto mb-6 border border-ok/20">
                 <CheckCircle2 size={32} />
             </div>
-            <h2 className="text-2xl font-bold text-white mb-2">Verifique seu E-mail</h2>
-            <p className="text-slate-400 mb-8">
+            <h2 className="text-2xl font-bold text-ink mb-2">Verifique seu E-mail</h2>
+            <p className="text-muted mb-8">
                 Enviamos um link de confirmação para <strong>{email}</strong>. Clique nele para continuar o cadastro da sua empresa.
             </p>
             <button
                 onClick={onBack}
-                className="w-full bg-slate-800 text-white py-3 rounded-lg font-semibold hover:bg-slate-700 transition-colors border border-slate-700"
+                className="w-full bg-sunken text-ink py-3 rounded-lg font-semibold hover:bg-sunken transition-colors border border-line"
             >
                 Voltar para o Login
             </button>
@@ -58,28 +58,28 @@ const PreSignUp: React.FC<PreSignUpProps> = ({ onBack, isLoading }) => {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="bg-surface w-full max-w-md rounded-2xl shadow-2xl overflow-hidden border border-slate-800">
-        <div className="p-8 bg-slate-950 text-center border-b border-slate-800">
-            <div className="w-16 h-16 bg-primary/20 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-primary/30">
-                <UserPlus className="w-8 h-8 text-primary" />
+    <div className="min-h-screen bg-ground flex items-center justify-center p-4">
+      <div className="bg-surface w-full max-w-md rounded-2xl shadow-2xl overflow-hidden border border-line">
+        <div className="p-8 bg-ground text-center border-b border-line">
+            <div className="w-16 h-16 bg-brand/20 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-brand/30">
+                <UserPlus className="w-8 h-8 text-brand" />
             </div>
-            <h2 className="text-2xl font-bold text-white">Criar Nova Conta</h2>
-            <p className="text-slate-400 mt-2">Informe seu e-mail para iniciar o cadastro</p>
+            <h2 className="text-2xl font-bold text-ink">Criar Nova Conta</h2>
+            <p className="text-muted mt-2">Informe seu e-mail para iniciar o cadastro</p>
         </div>
 
         <div className="p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300">Email Corporativo</label>
+              <label className="text-sm font-medium text-muted">Email Corporativo</label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={20} />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-faint" size={20} />
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-slate-900 border border-slate-700 rounded-lg focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-white placeholder-slate-600"
+                  className="w-full pl-10 pr-4 py-3 bg-surface border border-line rounded-lg focus:border-brand focus:ring-1 focus:ring-brand outline-none transition-all text-ink placeholder-faint"
                   placeholder="empresa@email.com"
                 />
               </div>
@@ -88,7 +88,7 @@ const PreSignUp: React.FC<PreSignUpProps> = ({ onBack, isLoading }) => {
             <button
               type="submit"
               disabled={localLoading || isLoading}
-              className="w-full bg-primary text-slate-950 py-3 rounded-lg font-bold hover:bg-primaryHover transition-colors flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed shadow-lg shadow-emerald-900/50"
+              className="w-full bg-brand text-white py-3 rounded-lg font-bold hover:bg-brand-strong transition-colors flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed shadow-lg shadow-md"
             >
               {localLoading ? (
                 'Enviando...'
@@ -103,7 +103,7 @@ const PreSignUp: React.FC<PreSignUpProps> = ({ onBack, isLoading }) => {
           <div className="mt-6 text-center">
              <button 
                 onClick={onBack}
-                className="flex items-center gap-2 text-sm text-slate-500 hover:text-white mx-auto transition-colors"
+                className="flex items-center gap-2 text-sm text-faint hover:text-ink mx-auto transition-colors"
              >
                 <ArrowLeft size={16}/> Voltar ao login
              </button>

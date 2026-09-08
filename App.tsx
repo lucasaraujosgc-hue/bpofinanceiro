@@ -254,11 +254,11 @@ function App() {
 
   if (isAppError) {
       return (
-          <div className="flex flex-col items-center justify-center h-screen bg-slate-950 text-white p-4 text-center">
-              <AlertTriangle className="text-red-500 w-12 h-12 mb-4" />
+          <div className="flex flex-col items-center justify-center h-screen bg-ground text-ink p-4 text-center">
+              <AlertTriangle className="text-danger w-12 h-12 mb-4" />
               <h2 className="text-2xl font-bold mb-2">Serviço Indisponível</h2>
-              <button onClick={fetchInitialData} className="flex items-center gap-2 bg-primary px-6 py-2 rounded-lg text-slate-900 font-bold hover:bg-emerald-400 mt-4"><RefreshCcw size={18} /> Tentar Novamente</button>
-              <button onClick={handleLogout} className="mt-4 text-sm text-slate-500 underline hover:text-slate-300">Voltar ao Login</button>
+              <button onClick={fetchInitialData} className="flex items-center gap-2 bg-brand px-6 py-2 rounded-lg text-white font-bold hover:bg-brand-strong mt-4"><RefreshCcw size={18} /> Tentar Novamente</button>
+              <button onClick={handleLogout} className="mt-4 text-sm text-faint underline hover:text-muted">Voltar ao Login</button>
           </div>
       );
   }
@@ -274,30 +274,30 @@ function App() {
   // --- BLOCKED USER MODAL ---
   if (user?.blocked) {
       return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950 p-4">
-              <div className="bg-slate-900 border border-red-500/50 rounded-2xl shadow-2xl w-full max-w-lg p-8 text-center animate-in fade-in zoom-in duration-300 relative overflow-hidden">
-                  <div className="absolute top-0 left-0 w-full h-2 bg-red-500"></div>
-                  <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-red-500/20">
-                      <Lock size={40} className="text-red-500" />
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-ground p-4">
+              <div className="bg-surface border border-danger/50/50 rounded-2xl shadow-2xl w-full max-w-lg p-8 text-center animate-in fade-in zoom-in duration-300 relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-full h-2 bg-danger"></div>
+                  <div className="w-20 h-20 bg-danger/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-danger/50/20">
+                      <Lock size={40} className="text-danger" />
                   </div>
-                  <h2 className="text-3xl font-bold text-white mb-4">Acesso Bloqueado</h2>
-                  <p className="text-slate-300 text-lg mb-2">
+                  <h2 className="text-3xl font-bold text-ink mb-4">Acesso Bloqueado</h2>
+                  <p className="text-muted text-lg mb-2">
                       Existem pendências financeiras ou cadastrais em sua conta.
                   </p>
-                  <p className="text-slate-400 mb-8 text-sm leading-relaxed">
+                  <p className="text-muted mb-8 text-sm leading-relaxed">
                       Por favor, entre em contato com nosso departamento financeiro para regularizar sua situação e restabelecer o acesso ao sistema.
                   </p>
                   
-                  <div className="bg-slate-800 rounded-xl p-4 border border-slate-700 mb-8">
-                      <p className="text-sm font-medium text-slate-400 mb-1">Canal de Atendimento:</p>
-                      <a href="mailto:suporte@virgulacontabil.com.br" className="text-primary hover:underline font-bold text-lg block">
+                  <div className="bg-sunken rounded-xl p-4 border border-line mb-8">
+                      <p className="text-sm font-medium text-muted mb-1">Canal de Atendimento:</p>
+                      <a href="mailto:suporte@virgulacontabil.com.br" className="text-brand hover:underline font-bold text-lg block">
                           suporte@virgulacontabil.com.br
                       </a>
                   </div>
 
                   <button 
                     onClick={handleLogout}
-                    className="flex items-center justify-center gap-2 w-full py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-medium transition-colors border border-slate-700"
+                    className="flex items-center justify-center gap-2 w-full py-3 bg-sunken hover:bg-sunken text-ink rounded-lg font-medium transition-colors border border-line"
                   >
                       <LogOut size={18} /> Sair do Sistema
                   </button>

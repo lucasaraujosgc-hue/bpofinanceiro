@@ -113,34 +113,34 @@ const IntegrationConfig: React.FC<IntegrationConfigProps> = ({ categories, banks
     };
 
     if (loading) {
-        return <div className="p-8 text-center text-slate-400">Carregando configurações...</div>;
+        return <div className="p-8 text-center text-muted">Carregando configurações...</div>;
     }
 
     return (
         <div className="space-y-6 animate-in fade-in zoom-in duration-300">
-            <div className="flex justify-between items-center bg-surface p-6 rounded-xl border border-slate-800">
+            <div className="flex justify-between items-center bg-surface p-6 rounded-xl border border-line">
                 <div className="flex items-center gap-4">
-                    <div className="p-3 bg-primary/10 rounded-lg">
-                        <Database className="text-primary w-8 h-8" />
+                    <div className="p-3 bg-brand/10 rounded-lg">
+                        <Database className="text-brand w-8 h-8" />
                     </div>
                     <div>
-                        <h2 className="text-2xl font-bold text-white">Integração NFe</h2>
-                        <p className="text-slate-400 text-sm">Importe notas fiscais automaticamente da Virgula Contábil</p>
+                        <h2 className="text-2xl font-bold text-ink">Integração NFe</h2>
+                        <p className="text-muted text-sm">Importe notas fiscais automaticamente da Virgula Contábil</p>
                     </div>
                 </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-surface p-6 rounded-xl border border-slate-800">
+                <div className="bg-surface p-6 rounded-xl border border-line">
                     <form onSubmit={handleSave} className="space-y-4">
                         <div>
-                            <label className="block text-sm font-medium text-slate-400 mb-1">Token de Exportação (Fornecido pela Contabilidade)</label>
+                            <label className="block text-sm font-medium text-muted mb-1">Token de Exportação (Fornecido pela Contabilidade)</label>
                             <input 
                                 type="text"
                                 value={form.token}
                                 onChange={(e) => setForm({...form, token: e.target.value})}
                                 placeholder="Insira o seu token aqui..."
-                                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary"
+                                className="w-full bg-surface border border-line rounded-lg px-4 py-2 text-ink focus:outline-none focus:border-brand"
                                 required
                             />
                         </div>
@@ -148,22 +148,22 @@ const IntegrationConfig: React.FC<IntegrationConfigProps> = ({ categories, banks
                         {form.token && (
                             <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-400 mb-1">Data de Início da Importação (Opcional)</label>
+                                    <label className="block text-sm font-medium text-muted mb-1">Data de Início da Importação (Opcional)</label>
                                     <input 
                                         type="date"
                                         value={form.start_date}
                                         onChange={(e) => setForm({...form, start_date: e.target.value})}
-                                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary"
+                                        className="w-full bg-surface border border-line rounded-lg px-4 py-2 text-ink focus:outline-none focus:border-brand"
                                     />
-                                    <p className="text-xs text-slate-500 mt-1">Busca notas emitidas a partir desta data.</p>
+                                    <p className="text-xs text-faint mt-1">Busca notas emitidas a partir desta data.</p>
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-400 mb-1">Destino dos Dados</label>
+                                    <label className="block text-sm font-medium text-muted mb-1">Destino dos Dados</label>
                                     <select 
                                         value={form.target_type}
                                         onChange={(e) => setForm({...form, target_type: e.target.value})}
-                                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary"
+                                        className="w-full bg-surface border border-line rounded-lg px-4 py-2 text-ink focus:outline-none focus:border-brand"
                                     >
                                         <option value="transaction">Lançamentos Realizados (Transactions)</option>
                                         <option value="forecast">Previsões Financeiras (Forecasts)</option>
@@ -172,11 +172,11 @@ const IntegrationConfig: React.FC<IntegrationConfigProps> = ({ categories, banks
 
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-sm font-medium text-slate-400 mb-1">Categoria Padrão (NFe Entrada / Compras)</label>
+                                        <label className="block text-sm font-medium text-muted mb-1">Categoria Padrão (NFe Entrada / Compras)</label>
                                         <select 
                                             value={form.category_in_id}
                                             onChange={(e) => setForm({...form, category_in_id: e.target.value})}
-                                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none border-primary"
+                                            className="w-full bg-surface border border-line rounded-lg px-4 py-2 text-ink focus:outline-none border-brand"
                                         >
                                             <option value="">Selecione...</option>
                                             {categories.filter(c => c.type === 'despesa' || c.type === 'debito').map(c => (
@@ -185,11 +185,11 @@ const IntegrationConfig: React.FC<IntegrationConfigProps> = ({ categories, banks
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-slate-400 mb-1">Categoria Padrão (NFe Saída / Vendas)</label>
+                                        <label className="block text-sm font-medium text-muted mb-1">Categoria Padrão (NFe Saída / Vendas)</label>
                                         <select 
                                             value={form.category_out_id}
                                             onChange={(e) => setForm({...form, category_out_id: e.target.value})}
-                                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary"
+                                            className="w-full bg-surface border border-line rounded-lg px-4 py-2 text-ink focus:outline-none focus:border-brand"
                                         >
                                             <option value="">Selecione...</option>
                                             {categories.filter(c => c.type === 'receita' || c.type === 'credito').map(c => (
@@ -201,11 +201,11 @@ const IntegrationConfig: React.FC<IntegrationConfigProps> = ({ categories, banks
 
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-sm font-medium text-slate-400 mb-1">Conta (NFe Entrada / Compras)</label>
+                                        <label className="block text-sm font-medium text-muted mb-1">Conta (NFe Entrada / Compras)</label>
                                         <select 
                                             value={form.bank_out_id}
                                             onChange={(e) => setForm({...form, bank_out_id: e.target.value})}
-                                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary"
+                                            className="w-full bg-surface border border-line rounded-lg px-4 py-2 text-ink focus:outline-none focus:border-brand"
                                         >
                                             <option value="">Automático / Sem Conta</option>
                                             {banks.map(b => (
@@ -214,11 +214,11 @@ const IntegrationConfig: React.FC<IntegrationConfigProps> = ({ categories, banks
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-slate-400 mb-1">Conta (NFe Saída / Vendas)</label>
+                                        <label className="block text-sm font-medium text-muted mb-1">Conta (NFe Saída / Vendas)</label>
                                         <select 
                                             value={form.bank_in_id}
                                             onChange={(e) => setForm({...form, bank_in_id: e.target.value})}
-                                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary"
+                                            className="w-full bg-surface border border-line rounded-lg px-4 py-2 text-ink focus:outline-none focus:border-brand"
                                         >
                                             <option value="">Automático / Sem Conta</option>
                                             {banks.map(b => (
@@ -233,7 +233,7 @@ const IntegrationConfig: React.FC<IntegrationConfigProps> = ({ categories, banks
                         <button 
                             type="submit" 
                             disabled={saving}
-                            className="w-full bg-primary text-slate-900 font-bold py-2 px-4 rounded-lg hover:bg-emerald-400 transition-colors flex items-center justify-center gap-2"
+                            className="w-full bg-brand text-white font-bold py-2 px-4 rounded-lg hover:bg-brand-strong transition-colors flex items-center justify-center gap-2"
                         >
                             {saving ? <RefreshCw className="animate-spin" size={18} /> : <Settings size={18} />}
                             {saving ? 'Salvando...' : 'Salvar Configurações'}
@@ -241,37 +241,37 @@ const IntegrationConfig: React.FC<IntegrationConfigProps> = ({ categories, banks
                     </form>
                 </div>
 
-                <div className="bg-surface p-6 rounded-xl border border-slate-700 shadow-xl overflow-hidden relative">
+                <div className="bg-surface p-6 rounded-xl border border-line shadow-xl overflow-hidden relative">
                     <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
                         <Database size={150} />
                     </div>
                     <div className="relative z-10 flex flex-col h-full">
-                        <h3 className="text-xl font-bold text-white mb-2">Painel de Sincronização</h3>
-                        <p className="text-slate-400 text-sm mb-6">Inicie a importação manual das notas fiscais configuradas.</p>
+                        <h3 className="text-xl font-bold text-ink mb-2">Painel de Sincronização</h3>
+                        <p className="text-muted text-sm mb-6">Inicie a importação manual das notas fiscais configuradas.</p>
                         
-                        <div className="bg-slate-900/50 p-4 rounded-lg border border-slate-700/50 mb-6 flex-1">
+                        <div className="bg-surface/50 p-4 rounded-lg border border-line/50 mb-6 flex-1">
                             <div className="flex justify-between items-center mb-2">
-                                <span className="text-slate-400 text-sm">Status Atual:</span>
+                                <span className="text-muted text-sm">Status Atual:</span>
                                 {settings?.token ? (
-                                    <span className="text-emerald-400 text-sm font-medium flex items-center gap-1"><CheckCircle size={14} /> Configurado</span>
+                                    <span className="text-ok text-sm font-medium flex items-center gap-1"><CheckCircle size={14} /> Configurado</span>
                                 ) : (
-                                    <span className="text-amber-400 text-sm font-medium">Aguardando Token</span>
+                                    <span className="text-warn text-sm font-medium">Aguardando Token</span>
                                 )}
                             </div>
                             <div className="flex justify-between items-center mb-2">
-                                <span className="text-slate-400 text-sm">Total Importado:</span>
-                                <span className="text-white font-mono">{settings?.total_imported || 0} notas</span>
+                                <span className="text-muted text-sm">Total Importado:</span>
+                                <span className="text-ink font-mono">{settings?.total_imported || 0} notas</span>
                             </div>
                             <div className="flex justify-between items-center">
-                                <span className="text-slate-400 text-sm">Última Sincronização:</span>
-                                <span className="text-slate-300 text-sm">
+                                <span className="text-muted text-sm">Última Sincronização:</span>
+                                <span className="text-muted text-sm">
                                     {settings?.last_sync ? new Date(settings.last_sync).toLocaleString('pt-BR') : 'Nunca'}
                                 </span>
                             </div>
                         </div>
 
                         {syncResult && (
-                            <div className={`p-4 rounded-lg mb-6 border ${syncResult.success ? 'bg-emerald-900/20 border-emerald-900/50 text-emerald-400' : 'bg-rose-900/20 border-rose-900/50 text-rose-400'}`}>
+                            <div className={`p-4 rounded-lg mb-6 border ${syncResult.success ? 'bg-ok/10 border-ok/30 text-white' : 'bg-danger/10 border-danger/30 text-white'}`}>
                                 {syncResult.success ? (
                                     <span>Importação concluída. <b>{syncResult.count}</b> notas importadas!</span>
                                 ) : (
@@ -283,7 +283,7 @@ const IntegrationConfig: React.FC<IntegrationConfigProps> = ({ categories, banks
                         <button
                             onClick={handleSync}
                             disabled={!settings?.token || syncing}
-                            className={`w-full py-3 px-4 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors ${!settings?.token ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-500'}`}
+                            className={`w-full py-3 px-4 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors ${!settings?.token ? 'bg-sunken text-faint cursor-not-allowed' : 'bg-info text-white hover:bg-info'}`}
                         >
                             <RefreshCw size={18} className={syncing ? 'animate-spin' : ''} />
                             {syncing ? 'Sincronizando...' : 'Sincronizar Agora'}

@@ -314,35 +314,35 @@ const OFXImports: React.FC<OFXImportsProps> = ({ token, userId, banks, keywordRu
       {/* Loading Overlay */}
       {isProcessing && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm">
-              <div className="bg-surface border border-slate-700 p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center">
+              <div className="bg-surface border border-line p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center">
                   <div className="relative w-16 h-16 mx-auto mb-4">
-                      <div className="absolute inset-0 border-4 border-slate-700 rounded-full"></div>
-                      <div className="absolute inset-0 border-4 border-primary rounded-full border-t-transparent animate-spin"></div>
+                      <div className="absolute inset-0 border-4 border-line rounded-full"></div>
+                      <div className="absolute inset-0 border-4 border-brand rounded-full border-t-transparent animate-spin"></div>
                   </div>
-                  <h3 className="text-xl font-bold text-white mb-2">{processingStatus}</h3>
-                  <div className="w-full bg-slate-800 rounded-full h-2 mb-2 overflow-hidden">
-                      <div className="bg-primary h-full transition-all duration-300" style={{width: `${progress}%`}}></div>
+                  <h3 className="text-xl font-bold text-ink mb-2">{processingStatus}</h3>
+                  <div className="w-full bg-sunken rounded-full h-2 mb-2 overflow-hidden">
+                      <div className="bg-brand h-full transition-all duration-300" style={{width: `${progress}%`}}></div>
                   </div>
-                  <p className="text-slate-400 text-sm font-mono">{progress}% concluído</p>
+                  <p className="text-muted text-sm font-mono">{progress}% concluído</p>
               </div>
           </div>
       )}
 
       <div>
-        <h1 className="text-2xl font-bold text-white">Gerenciador de OFX</h1>
-        <p className="text-slate-400">Importe e gerencie seus arquivos bancários</p>
+        <h1 className="text-2xl font-bold text-ink">Gerenciador de OFX</h1>
+        <p className="text-muted">Importe e gerencie seus arquivos bancários</p>
       </div>
 
       {/* Import Area */}
-      <div className="bg-surface p-6 rounded-xl border border-slate-800 shadow-sm">
-         <h2 className="text-lg font-semibold text-slate-200 mb-4 flex items-center gap-2">
-            <FileUp className="text-primary" size={20}/> Nova Importação
+      <div className="bg-surface p-6 rounded-xl border border-line shadow-sm">
+         <h2 className="text-lg font-semibold text-ink mb-4 flex items-center gap-2">
+            <FileUp className="text-brand" size={20}/> Nova Importação
          </h2>
          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
             <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-400">Conta Bancária</label>
+                <label className="text-sm font-medium text-muted">Conta Bancária</label>
                 <select 
-                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-white"
+                    className="w-full px-3 py-2 bg-surface border border-line rounded-lg focus:ring-2 focus:ring-brand/50 focus:border-brand outline-none text-ink"
                     value={importConfig.bankId}
                     onChange={e => setImportConfig({...importConfig, bankId: Number(e.target.value)})}
                 >
@@ -352,19 +352,19 @@ const OFXImports: React.FC<OFXImportsProps> = ({ token, userId, banks, keywordRu
                 </select>
             </div>
             <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-400">Data Inicial (Opcional)</label>
+                <label className="text-sm font-medium text-muted">Data Inicial (Opcional)</label>
                 <input 
                     type="date"
-                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-white"
+                    className="w-full px-3 py-2 bg-surface border border-line rounded-lg focus:ring-2 focus:ring-brand/50 focus:border-brand outline-none text-ink"
                     value={importConfig.startDate}
                     onChange={e => setImportConfig({...importConfig, startDate: e.target.value})}
                 />
             </div>
             <div className="space-y-1.5">
-                <label className="text-sm font-medium text-slate-400">Data Final (Opcional)</label>
+                <label className="text-sm font-medium text-muted">Data Final (Opcional)</label>
                 <input 
                     type="date"
-                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none text-white"
+                    className="w-full px-3 py-2 bg-surface border border-line rounded-lg focus:ring-2 focus:ring-brand/50 focus:border-brand outline-none text-ink"
                     value={importConfig.endDate}
                     onChange={e => setImportConfig({...importConfig, endDate: e.target.value})}
                 />
@@ -384,12 +384,12 @@ const OFXImports: React.FC<OFXImportsProps> = ({ token, userId, banks, keywordRu
              <button 
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isProcessing}
-                className="flex items-center gap-2 px-6 py-3 bg-primary text-slate-900 rounded-lg hover:bg-primaryHover font-medium transition-colors shadow-lg shadow-emerald-900/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-6 py-3 bg-brand text-white rounded-lg hover:bg-brand-strong font-medium transition-colors shadow-lg shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
              >
                 {isProcessing ? <Loader2 className="animate-spin" size={20}/> : <FileSpreadsheet size={20} />}
                 Selecionar Arquivo OFX
              </button>
-             <p className="text-sm text-slate-500">Selecione o arquivo .ofx fornecido pelo seu banco.</p>
+             <p className="text-sm text-faint">Selecione o arquivo .ofx fornecido pelo seu banco.</p>
          </div>
       </div>
 
@@ -397,61 +397,61 @@ const OFXImports: React.FC<OFXImportsProps> = ({ token, userId, banks, keywordRu
       {showConflictModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
               <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowConflictModal(false)} />
-              <div className="relative bg-surface w-full max-w-4xl max-h-[90vh] flex flex-col rounded-xl shadow-2xl border border-amber-500/30 animate-in fade-in zoom-in duration-200">
-                  <div className="px-6 py-4 border-b border-amber-500/20 bg-amber-950/30 flex justify-between items-center">
+              <div className="relative bg-surface w-full max-w-4xl max-h-[90vh] flex flex-col rounded-xl shadow-2xl border border-warn/30 animate-in fade-in zoom-in duration-200">
+                  <div className="px-6 py-4 border-b border-warn/20 bg-warn/10 flex justify-between items-center">
                       <div className="flex items-center gap-3">
-                          <AlertTriangle className="text-amber-500" size={24}/>
+                          <AlertTriangle className="text-warn" size={24}/>
                           <div>
-                              <h3 className="text-lg font-bold text-white">Conflitos de Duplicidade Detectados</h3>
-                              <p className="text-sm text-amber-200/70">Alguns lançamentos do arquivo já existem no sistema com a mesma data e valor.</p>
+                              <h3 className="text-lg font-bold text-ink">Conflitos de Duplicidade Detectados</h3>
+                              <p className="text-sm text-warn">Alguns lançamentos do arquivo já existem no sistema com a mesma data e valor.</p>
                           </div>
                       </div>
-                      <button onClick={() => setShowConflictModal(false)} className="text-slate-400 hover:text-white"><X size={24}/></button>
+                      <button onClick={() => setShowConflictModal(false)} className="text-muted hover:text-ink"><X size={24}/></button>
                   </div>
 
-                  <div className="p-4 bg-slate-900 border-b border-slate-800 flex justify-end gap-2">
-                      <span className="text-xs font-semibold text-slate-500 uppercase self-center mr-2">Aplicar a todos:</span>
-                      <button onClick={() => handleBulkAction('keep_old')} className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded text-xs text-slate-300 hover:bg-slate-700">Manter Existentes</button>
-                      <button onClick={() => handleBulkAction('replace_with_new')} className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded text-xs text-slate-300 hover:bg-slate-700">Substituir por Novos</button>
+                  <div className="p-4 bg-surface border-b border-line flex justify-end gap-2">
+                      <span className="text-xs font-semibold text-faint uppercase self-center mr-2">Aplicar a todos:</span>
+                      <button onClick={() => handleBulkAction('keep_old')} className="px-3 py-1.5 bg-sunken border border-line rounded text-xs text-muted hover:bg-sunken">Manter Existentes</button>
+                      <button onClick={() => handleBulkAction('replace_with_new')} className="px-3 py-1.5 bg-sunken border border-line rounded text-xs text-muted hover:bg-sunken">Substituir por Novos</button>
                   </div>
 
                   <div className="flex-1 overflow-y-auto custom-scroll p-6">
                       <table className="w-full text-sm">
                           <thead>
-                              <tr className="text-slate-500 text-xs uppercase border-b border-slate-800">
+                              <tr className="text-faint text-xs uppercase border-b border-line">
                                   <th className="pb-3 text-left w-1/3">No Sistema (Existente)</th>
                                   <th className="pb-3 text-center">Ação</th>
                                   <th className="pb-3 text-left w-1/3">No Arquivo (Novo)</th>
                               </tr>
                           </thead>
-                          <tbody className="divide-y divide-slate-800">
+                          <tbody className="divide-y divide-line">
                               {conflicts.map(c => (
-                                  <tr key={c.id} className="hover:bg-slate-800/30">
+                                  <tr key={c.id} className="hover:bg-sunken/30">
                                       <td className="py-3 pr-4 opacity-70">
-                                          <div className="font-mono text-xs text-slate-400">{new Date(c.oldTx.date).toLocaleDateString()}</div>
-                                          <div className="font-medium text-slate-300">{c.oldTx.description}</div>
-                                          <div className={c.oldTx.type === 'debito' ? 'text-rose-500' : 'text-emerald-500'}>R$ {c.oldTx.value.toFixed(2)}</div>
+                                          <div className="font-mono text-xs text-muted">{new Date(c.oldTx.date).toLocaleDateString()}</div>
+                                          <div className="font-medium text-muted">{c.oldTx.description}</div>
+                                          <div className={c.oldTx.type === 'debito' ? 'text-danger' : 'text-ok'}>R$ {c.oldTx.value.toFixed(2)}</div>
                                       </td>
                                       <td className="py-3 px-2">
                                           <div className="flex flex-col gap-2 items-center">
                                               <button 
                                                 onClick={() => handleConflictActionChange(c.id, 'keep_old')}
-                                                className={`w-full px-3 py-1.5 rounded text-xs font-bold border transition-colors ${c.action === 'keep_old' ? 'bg-slate-700 text-white border-slate-500' : 'bg-transparent text-slate-500 border-slate-800 hover:border-slate-600'}`}
+                                                className={`w-full px-3 py-1.5 rounded text-xs font-bold border transition-colors ${c.action === 'keep_old' ? 'bg-sunken text-ink border-line' : 'bg-transparent text-faint border-line hover:border-line'}`}
                                               >
                                                   Manter Existente
                                               </button>
                                               <button 
                                                 onClick={() => handleConflictActionChange(c.id, 'replace_with_new')}
-                                                className={`w-full px-3 py-1.5 rounded text-xs font-bold border transition-colors ${c.action === 'replace_with_new' ? 'bg-primary/20 text-primary border-primary/50' : 'bg-transparent text-slate-500 border-slate-800 hover:border-slate-600'}`}
+                                                className={`w-full px-3 py-1.5 rounded text-xs font-bold border transition-colors ${c.action === 'replace_with_new' ? 'bg-brand/20 text-brand border-brand/50' : 'bg-transparent text-faint border-line hover:border-line'}`}
                                               >
                                                   Substituir
                                               </button>
                                           </div>
                                       </td>
                                       <td className="py-3 pl-4">
-                                          <div className="font-mono text-xs text-primary">{new Date(c.newTx.date).toLocaleDateString()}</div>
-                                          <div className="font-medium text-white">{c.newTx.description}</div>
-                                          <div className={c.newTx.type === 'debito' ? 'text-rose-400' : 'text-emerald-400'}>R$ {c.newTx.value.toFixed(2)}</div>
+                                          <div className="font-mono text-xs text-brand">{new Date(c.newTx.date).toLocaleDateString()}</div>
+                                          <div className="font-medium text-ink">{c.newTx.description}</div>
+                                          <div className={c.newTx.type === 'debito' ? 'text-danger' : 'text-ok'}>R$ {c.newTx.value.toFixed(2)}</div>
                                       </td>
                                   </tr>
                               ))}
@@ -459,15 +459,15 @@ const OFXImports: React.FC<OFXImportsProps> = ({ token, userId, banks, keywordRu
                       </table>
                   </div>
 
-                  <div className="p-6 border-t border-slate-800 bg-slate-950 rounded-b-xl flex justify-between items-center">
-                      <span className="text-sm text-slate-400">
+                  <div className="p-6 border-t border-line bg-ground rounded-b-xl flex justify-between items-center">
+                      <span className="text-sm text-muted">
                           <strong>{cleanTransactions.length}</strong> novos lançamentos sem conflito serão importados automaticamente.
                       </span>
                       <div className="flex gap-3">
-                          <button onClick={() => setShowConflictModal(false)} className="px-4 py-2 border border-slate-700 rounded-lg text-slate-300 hover:bg-slate-800">Cancelar</button>
+                          <button onClick={() => setShowConflictModal(false)} className="px-4 py-2 border border-line rounded-lg text-muted hover:bg-sunken">Cancelar</button>
                           <button 
                             onClick={() => saveImport(cleanTransactions, conflicts, fileContent)}
-                            className="px-6 py-2 bg-primary text-slate-900 font-bold rounded-lg hover:bg-primaryHover flex items-center gap-2"
+                            className="px-6 py-2 bg-brand text-white font-bold rounded-lg hover:bg-brand-strong flex items-center gap-2"
                           >
                               <Save size={18}/> Confirmar Importação
                           </button>
@@ -478,12 +478,12 @@ const OFXImports: React.FC<OFXImportsProps> = ({ token, userId, banks, keywordRu
       )}
 
       {/* List Area */}
-      <div className="bg-surface rounded-xl border border-slate-800 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-800 bg-slate-950/30">
-           <h3 className="font-semibold text-slate-200">Histórico de Importações</h3>
+      <div className="bg-surface rounded-xl border border-line shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-line bg-ground/30">
+           <h3 className="font-semibold text-ink">Histórico de Importações</h3>
         </div>
         <table className="w-full text-sm text-left">
-            <thead className="bg-slate-950 text-slate-400 font-medium border-b border-slate-800">
+            <thead className="bg-ground text-muted font-medium border-b border-line">
                 <tr>
                     <th className="px-6 py-4">Data Importação</th>
                     <th className="px-6 py-4">Arquivo</th>
@@ -492,33 +492,33 @@ const OFXImports: React.FC<OFXImportsProps> = ({ token, userId, banks, keywordRu
                     <th className="px-6 py-4 text-center">Ações</th>
                 </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800">
+            <tbody className="divide-y divide-line">
                 {imports.length === 0 ? (
                     <tr>
-                        <td colSpan={5} className="px-6 py-8 text-center text-slate-500">Nenhuma importação realizada.</td>
+                        <td colSpan={5} className="px-6 py-8 text-center text-faint">Nenhuma importação realizada.</td>
                     </tr>
                 ) : (
                     imports.map(imp => {
                         const bank = banks.find(b => b.id === imp.bankId);
                         return (
-                            <tr key={imp.id} className="hover:bg-slate-800/50">
-                                <td className="px-6 py-4 text-slate-400">
+                            <tr key={imp.id} className="hover:bg-sunken/60">
+                                <td className="px-6 py-4 text-muted">
                                     {new Date(imp.importDate).toLocaleDateString()}
                                 </td>
-                                <td className="px-6 py-4 font-medium text-slate-200">{imp.fileName}</td>
-                                <td className="px-6 py-4 flex items-center gap-2 text-slate-300">
+                                <td className="px-6 py-4 font-medium text-ink">{imp.fileName}</td>
+                                <td className="px-6 py-4 flex items-center gap-2 text-muted">
                                     {bank && <img src={bank.logo} className="w-5 h-5 rounded-full bg-white p-0.5" />}
                                     {bank?.name || 'Desconhecido'}
                                 </td>
                                 <td className="px-6 py-4 text-center">
-                                    <span className="bg-sky-500/10 text-sky-500 px-2 py-1 rounded-md text-xs font-bold border border-sky-500/20">
+                                    <span className="bg-info/10 text-white px-2 py-1 rounded-md text-xs font-bold border border-info/40/20">
                                         {imp.transactionCount}
                                     </span>
                                 </td>
                                 <td className="px-6 py-4 text-center">
                                     <button 
                                         onClick={() => handleDeleteImport(imp.id)}
-                                        className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-500/10 rounded transition-colors"
+                                        className="p-2 text-faint hover:text-white hover:bg-danger/10 rounded transition-colors"
                                         title="Excluir Importação e Lançamentos"
                                     >
                                         <Trash2 size={18} />

@@ -1,0 +1,133 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+/* next-themes coloca a classe `.dark` no <html>; faz o `dark:` seguir ela
+   (o Tailwind v4 usaria prefers-color-scheme por padrão). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-brand: "Fraunces", ui-serif, Georgia, "Times New Roman", serif;
+
+  /* ---- wordmark "Vírgula," -------------------------------------------- */
+  --color-wordmark: oklch(0.36 0.06 165);        /* "Vírgula" — verde profundo */
+  --color-wordmark-comma: oklch(0.72 0.14 55);   /* a vírgula — dourado quente */
+  --color-wordmark-sub: oklch(0.48 0.02 160);    /* "CONTÁBIL" — apagado */
+
+  /* ---- Superfícies & tinta — paleta slate (claro) -------------------- */
+  --color-ground: #f8fafc;     /* fundo do app — slate-50 */
+  --color-surface: #ffffff;    /* cards, sheets */
+  --color-sunken: #f1f5f9;     /* inputs, insets, zebra de tabela — slate-100 */
+  --color-ink: #0f172a;        /* texto primário — slate-900 */
+  --color-muted: #64748b;      /* texto secundário — slate-500 */
+  --color-faint: #94a3b8;      /* texto terciário / micro-labels — slate-400 */
+  --color-line: #e2e8f0;       /* hairlines, bordas — slate-200 */
+
+  /* ---- Marca — emerald ---------------------------------------------- */
+  --color-brand: #10b981;         /* emerald-500 */
+  --color-brand-strong: #059669;  /* emerald-600 */
+  --color-brand-wash: #ecfdf5;    /* emerald-50 */
+  --color-brand-fg: #047857;      /* emerald-700 — texto/ícone sobre brand-wash */
+
+  --color-gold: #f59e0b;          /* amber-500 */
+
+  /* ---- Semântico --------------------------------------------------- */
+  --color-ok: #10b981;
+  --color-ok-wash: #ecfdf5;
+  --color-warn: #d97706;          /* amber-600 */
+  --color-warn-wash: #fffbeb;     /* amber-50 */
+  --color-danger: #e11d48;        /* rose-600 */
+  --color-danger-wash: #fff1f2;   /* rose-50 */
+  --color-info: #2563eb;          /* blue-600 */
+  --color-info-wash: #eff6ff;     /* blue-50 */
+
+  /* aliases legados (o index.html antigo usava estes nomes) */
+  --color-background: #f8fafc;
+  --color-surfaceHighlight: #f1f5f9;
+  --color-primary: #10b981;
+  --color-primaryHover: #059669;
+  --color-textMain: #0f172a;
+  --color-textMuted: #64748b;
+
+  /* ---- Forma & profundidade -------------------------------------- */
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+  --radius-3xl: 1.5rem;
+
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 6px 20px -6px rgba(15, 23, 42, 0.12), 0 2px 8px -3px rgba(15, 23, 42, 0.06);
+  --shadow-lg: 0 20px 44px -14px rgba(15, 23, 42, 0.18), 0 6px 16px -8px rgba(15, 23, 42, 0.08);
+}
+
+@layer base {
+  .dark {
+    --color-ground: #0f172a;     /* slate-900 */
+    --color-surface: #1e293b;    /* slate-800 */
+    --color-sunken: #334155;     /* slate-700 */
+    --color-ink: #f1f5f9;        /* slate-100 */
+    --color-muted: #94a3b8;      /* slate-400 */
+    --color-faint: #64748b;      /* slate-500 */
+    --color-line: #334155;       /* slate-700 */
+
+    --color-brand: #34d399;      /* emerald-400 */
+    --color-brand-strong: #6ee7b7;
+    --color-brand-wash: #064e3b; /* emerald-900 */
+    --color-brand-fg: #6ee7b7;   /* emerald-300 */
+
+    --color-ok: #34d399;
+    --color-ok-wash: #064e3b;
+    --color-warn: #fbbf24;       /* amber-400 */
+    --color-warn-wash: #451a03;  /* amber-950 */
+    --color-danger: #fb7185;     /* rose-400 */
+    --color-danger-wash: #4c0519;/* rose-950 */
+    --color-info: #60a5fa;       /* blue-400 */
+    --color-info-wash: #172554;  /* blue-950 */
+
+    --color-background: #0f172a;
+    --color-surfaceHighlight: #334155;
+    --color-primary: #34d399;
+    --color-primaryHover: #6ee7b7;
+    --color-textMain: #f1f5f9;
+    --color-textMuted: #94a3b8;
+
+    /* wordmark clareado para segurar sobre superfície escura */
+    --color-wordmark: oklch(0.9 0.045 165);
+    --color-wordmark-comma: oklch(0.78 0.13 60);
+    --color-wordmark-sub: oklch(0.66 0.02 160);
+
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.35);
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 8px 22px -8px rgba(0, 0, 0, 0.55);
+    --shadow-lg: 0 20px 44px -18px rgba(0, 0, 0, 0.65);
+  }
+
+  html { -webkit-text-size-adjust: 100%; text-rendering: optimizeLegibility; }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--color-ground);
+    color: var(--color-ink);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  .tabular, [class*="tabular-nums"] { font-variant-numeric: tabular-nums; }
+  .font-brand { font-family: var(--font-brand); }
+
+  :focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; border-radius: 2px; }
+  ::selection { background: color-mix(in srgb, var(--color-brand) 22%, transparent); }
+  .font-serif { font-weight: 700; letter-spacing: -0.02em; }
+
+  /* Scrollbar custom — segue o tema */
+  .custom-scroll::-webkit-scrollbar { height: 8px; width: 8px; }
+  .custom-scroll::-webkit-scrollbar-track { background: var(--color-sunken); }
+  .custom-scroll::-webkit-scrollbar-thumb { background: var(--color-faint); border-radius: 4px; }
+  .custom-scroll::-webkit-scrollbar-thumb:hover { background: var(--color-muted); }
+}

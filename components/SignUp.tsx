@@ -240,19 +240,19 @@ const SignUp: React.FC<SignUpProps> = ({ onBack, isLoading }) => {
 
   if (isSuccess) {
       return (
-        <div className="min-h-screen bg-background flex items-center justify-center p-4">
-            <div className="bg-surface w-full max-w-md rounded-2xl shadow-xl p-8 text-center animate-in fade-in zoom-in duration-300 border border-slate-800">
-            <div className="w-16 h-16 bg-emerald-500/10 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6 border border-emerald-500/20">
+        <div className="min-h-screen bg-ground flex items-center justify-center p-4">
+            <div className="bg-surface w-full max-w-md rounded-2xl shadow-xl p-8 text-center animate-in fade-in zoom-in duration-300 border border-line">
+            <div className="w-16 h-16 bg-brand/10 text-white rounded-full flex items-center justify-center mx-auto mb-6 border border-ok/20">
                 <CheckCircle2 size={32} />
             </div>
-            <h2 className="text-2xl font-bold text-white mb-2">Quase lá!</h2>
-            <p className="text-slate-400 mb-8">
+            <h2 className="text-2xl font-bold text-ink mb-2">Quase lá!</h2>
+            <p className="text-muted mb-8">
                 Enviamos um e-mail para <strong>{formData.email}</strong>. <br/>
                 Clique no link recebido para criar sua senha e ativar sua conta.
             </p>
             <button
                 onClick={onBack}
-                className="w-full bg-slate-800 text-white py-3 rounded-lg font-semibold hover:bg-slate-700 transition-colors border border-slate-700"
+                className="w-full bg-sunken text-ink py-3 rounded-lg font-semibold hover:bg-sunken transition-colors border border-line"
             >
                 Voltar para o Login
             </button>
@@ -262,17 +262,17 @@ const SignUp: React.FC<SignUpProps> = ({ onBack, isLoading }) => {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="bg-surface w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row border border-slate-800">
+    <div className="min-h-screen bg-ground flex items-center justify-center p-4">
+      <div className="bg-surface w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row border border-line">
         
         {/* Left Side - Hero */}
-        <div className="bg-slate-950 p-8 text-white md:w-2/5 flex flex-col justify-between relative overflow-hidden">
+        <div className="bg-ground p-8 text-ink md:w-2/5 flex flex-col justify-between relative overflow-hidden">
           <div className="relative z-10">
-            <div className="w-12 h-12 bg-primary/20 rounded-xl flex items-center justify-center mb-6 border border-primary/30">
-              <UserPlus className="w-6 h-6 text-primary" />
+            <div className="w-12 h-12 bg-brand/20 rounded-xl flex items-center justify-center mb-6 border border-brand/30">
+              <UserPlus className="w-6 h-6 text-brand" />
             </div>
             <h2 className="text-3xl font-bold mb-4">Primeiro Acesso</h2>
-            <p className="text-slate-400 text-sm leading-relaxed">
+            <p className="text-muted text-sm leading-relaxed">
               Cadastre sua empresa para ter controle total sobre suas finanças.
             </p>
           </div>
@@ -280,7 +280,7 @@ const SignUp: React.FC<SignUpProps> = ({ onBack, isLoading }) => {
           <div className="mt-8 relative z-10">
             <button 
               onClick={onBack}
-              className="flex items-center gap-2 text-sm font-medium text-slate-400 hover:text-white transition-colors"
+              className="flex items-center gap-2 text-sm font-medium text-muted hover:text-ink transition-colors"
             >
               <ArrowLeft size={16} /> Voltar para Login
             </button>
@@ -289,12 +289,12 @@ const SignUp: React.FC<SignUpProps> = ({ onBack, isLoading }) => {
 
         {/* Right Side - Form */}
         <div className="p-8 md:w-3/5">
-          <h3 className="text-xl font-bold text-white mb-6">Dados da Empresa</h3>
+          <h3 className="text-xl font-bold text-ink mb-6">Dados da Empresa</h3>
           <form onSubmit={handlePreSubmit} className="space-y-4">
             
             <div className="space-y-4">
               <div className="relative">
-                <FileText className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                <FileText className="absolute left-3 top-1/2 -translate-y-1/2 text-faint" size={18} />
                 <input
                   name="cnpj"
                   type="text"
@@ -302,38 +302,38 @@ const SignUp: React.FC<SignUpProps> = ({ onBack, isLoading }) => {
                   maxLength={18}
                   value={formData.cnpj}
                   onChange={handleChange}
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-sm text-white placeholder-slate-600"
+                  className="w-full pl-10 pr-4 py-2.5 bg-surface border border-line rounded-lg focus:border-brand focus:ring-1 focus:ring-brand outline-none transition-all text-sm text-ink placeholder-faint"
                   placeholder="CNPJ ou CPF"
                 />
               </div>
 
               <div className="relative">
-                <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 text-faint" size={18} />
                 <input
                   name="razaoSocial"
                   type="text"
                   required
                   value={formData.razaoSocial}
                   onChange={handleChange}
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-sm text-white placeholder-slate-600"
+                  className="w-full pl-10 pr-4 py-2.5 bg-surface border border-line rounded-lg focus:border-brand focus:ring-1 focus:ring-brand outline-none transition-all text-sm text-ink placeholder-faint"
                   placeholder="Razão Social / Nome Completo"
                 />
               </div>
 
               <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-faint" size={18} />
                   <input
                     name="email"
                     type="email"
                     required
                     value={formData.email}
                     onChange={handleChange}
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-sm text-white placeholder-slate-600"
+                    className="w-full pl-10 pr-4 py-2.5 bg-surface border border-line rounded-lg focus:border-brand focus:ring-1 focus:ring-brand outline-none transition-all text-sm text-ink placeholder-faint"
                     placeholder="Email Corporativo"
                   />
               </div>
               <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-faint" size={18} />
                   <input
                     name="phone"
                     type="tel"
@@ -341,7 +341,7 @@ const SignUp: React.FC<SignUpProps> = ({ onBack, isLoading }) => {
                     maxLength={15}
                     value={formData.phone}
                     onChange={handleChange}
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-sm text-white placeholder-slate-600"
+                    className="w-full pl-10 pr-4 py-2.5 bg-surface border border-line rounded-lg focus:border-brand focus:ring-1 focus:ring-brand outline-none transition-all text-sm text-ink placeholder-faint"
                     placeholder="Telefone / WhatsApp"
                   />
               </div>
@@ -351,7 +351,7 @@ const SignUp: React.FC<SignUpProps> = ({ onBack, isLoading }) => {
                     required
                     value={formData.businessType}
                     onChange={handleChange as any}
-                    className="w-full pl-4 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-lg focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all text-sm text-white"
+                    className="w-full pl-4 pr-4 py-2.5 bg-surface border border-line rounded-lg focus:border-brand focus:ring-1 focus:ring-brand outline-none transition-all text-sm text-ink"
                   >
                       <option value="servico">Prestação de Serviços</option>
                       <option value="comercio">Comércio</option>
@@ -365,7 +365,7 @@ const SignUp: React.FC<SignUpProps> = ({ onBack, isLoading }) => {
               <button
                 type="submit"
                 disabled={localLoading || isLoading}
-                className="w-full bg-primary text-slate-950 py-3 rounded-lg font-bold hover:bg-primaryHover transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-emerald-900/50"
+                className="w-full bg-brand text-white py-3 rounded-lg font-bold hover:bg-brand-strong transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-md"
               >
                 Avançar <ArrowRight size={18} />
               </button>
@@ -378,32 +378,32 @@ const SignUp: React.FC<SignUpProps> = ({ onBack, isLoading }) => {
       {showTermsModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
               <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowTermsModal(false)} />
-              <div className="relative bg-surface w-full max-w-2xl max-h-[85vh] rounded-xl shadow-2xl border border-slate-700 flex flex-col animate-in fade-in zoom-in duration-200">
-                  <div className="p-6 border-b border-slate-700 flex items-center justify-between bg-slate-950 rounded-t-xl">
+              <div className="relative bg-surface w-full max-w-2xl max-h-[85vh] rounded-xl shadow-2xl border border-line flex flex-col animate-in fade-in zoom-in duration-200">
+                  <div className="p-6 border-b border-line flex items-center justify-between bg-ground rounded-t-xl">
                       <div className="flex items-center gap-3">
-                          <ShieldCheck className="text-primary" size={24}/>
-                          <h3 className="text-xl font-bold text-white">Termos e Condições de Uso</h3>
+                          <ShieldCheck className="text-brand" size={24}/>
+                          <h3 className="text-xl font-bold text-ink">Termos e Condições de Uso</h3>
                       </div>
-                      <button onClick={() => setShowTermsModal(false)} className="text-slate-400 hover:text-white transition-colors">
+                      <button onClick={() => setShowTermsModal(false)} className="text-muted hover:text-ink transition-colors">
                           <X size={24}/>
                       </button>
                   </div>
                   
-                  <div className="flex-1 overflow-y-auto p-6 text-slate-300 text-sm leading-relaxed custom-scroll whitespace-pre-wrap">
+                  <div className="flex-1 overflow-y-auto p-6 text-muted text-sm leading-relaxed custom-scroll whitespace-pre-wrap">
                       {TERMS_CONTENT}
                   </div>
 
-                  <div className="p-6 border-t border-slate-700 bg-slate-950 rounded-b-xl flex justify-end gap-4">
+                  <div className="p-6 border-t border-line bg-ground rounded-b-xl flex justify-end gap-4">
                       <button 
                         onClick={() => setShowTermsModal(false)}
-                        className="px-4 py-2 border border-slate-600 text-slate-300 rounded-lg hover:bg-slate-800 transition-colors"
+                        className="px-4 py-2 border border-line text-muted rounded-lg hover:bg-sunken transition-colors"
                       >
                           Cancelar
                       </button>
                       <button 
                         onClick={handleFinalSubmit}
                         disabled={localLoading}
-                        className="px-6 py-2 bg-primary text-slate-900 font-bold rounded-lg hover:bg-primaryHover transition-colors flex items-center gap-2"
+                        className="px-6 py-2 bg-brand text-white font-bold rounded-lg hover:bg-brand-strong transition-colors flex items-center gap-2"
                       >
                           {localLoading ? 'Enviando...' : 'Li e Concordo'}
                       </button>

@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Transaction, TransactionType, Bank, Forecast, Category, CategoryType } from '../types';
 import { Wallet, CheckCircle2, TrendingUp, TrendingDown, Plus, Minus, X, ThumbsUp, ThumbsDown, Repeat, CalendarDays, AlertTriangle, CalendarClock, Check, Trash2, ChevronLeft, ChevronRight, Calculator, Calendar, ShieldCheck } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import PluggyConnectWidget from './PluggyConnectWidget';
 
 interface DashboardProps {
   token: string;
@@ -29,28 +28,13 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
   const [currentMonth, setCurrentMonth] = useState<number>(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState<number>(new Date().getFullYear());
   const [integrationStats, setIntegrationStats] = useState<{ total_imported: number } | null>(null);
-  const [pluggyAccounts, setPluggyAccounts] = useState<any[]>([]);
 
   React.useEffect(() => {
      fetch('/api/integration/settings', { headers: { 'Authorization': `Bearer ${token}` }})
      .then(res => res.json())
      .then(data => { if(data && data.total_imported !== undefined) setIntegrationStats(data); })
      .catch(e => console.error(e));
-
-     fetchPluggyAccounts();
   }, [token, onRefresh]);
-
-  const fetchPluggyAccounts = async () => {
-      try {
-          const res = await fetch('/api/pluggy/accounts', { headers: { 'Authorization': `Bearer ${token}` }});
-          if (res.ok) {
-              const data = await res.json();
-              if (data.accounts) setPluggyAccounts(data.accounts);
-          }
-      } catch (e) {
-          console.error("Failed to fetch pluggy accounts", e);
-      }
-  };
 
   const activeBanks = banks.filter(b => b.active);
   const activeBankIds = activeBanks.map(b => b.id);
@@ -287,59 +271,33 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
 
   return (
     <div className="space-y-4 pb-4">
-      <PluggyConnectWidget token={token} onSuccess={() => { fetchPluggyAccounts(); onRefresh(); }} />
-
-      {pluggyAccounts.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {pluggyAccounts.map((acc, idx) => (
-                  <div key={idx} className="bg-slate-900 border border-slate-700 p-3 rounded-xl flex flex-col justify-between h-full">
-                      <div className="flex items-center gap-2 mb-2">
-                           <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden p-1 shrink-0">
-                               {acc.imageUrl ? <img src={acc.imageUrl} alt="Bank Logo" className="w-full h-full object-contain" /> : <Wallet size={14} className="text-slate-400" />}
-                           </div>
-                           <div className="min-w-0">
-                               <h4 className="text-white text-xs font-bold truncate">{acc.name}</h4>
-                               <p className="text-slate-500 text-[10px] truncate">{acc.number}</p>
-                           </div>
-                      </div>
-                      <div>
-                          <span className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1">Saldo</span>
-                          <span className={`text-sm font-bold block ${acc.balance >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                              R$ {acc.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                          </span>
-                      </div>
-                  </div>
-              ))}
-          </div>
-      )}
-      
       {integrationStats && integrationStats.total_imported > 0 && (
-          <div className="bg-blue-950/40 border border-blue-500/30 p-3 rounded-xl">
+          <div className="bg-info/10 border border-info/30 p-3 rounded-xl">
               <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center border border-blue-500/30">
+                  <div className="w-8 h-8 rounded-full bg-info/20 text-white flex items-center justify-center border border-info/30">
                       <ShieldCheck size={16} />
                   </div>
                   <div>
-                      <h3 className="font-bold text-blue-400 text-sm">Integração Contábil Ativa</h3>
-                      <p className="text-xs text-blue-200/70">Foram importadas {integrationStats.total_imported} notas fiscais até o momento.</p>
+                      <h3 className="font-bold text-info text-sm">Integração Contábil Ativa</h3>
+                      <p className="text-xs text-info">Foram importadas {integrationStats.total_imported} notas fiscais até o momento.</p>
                   </div>
               </div>
           </div>
       )}
 
       {overdueForecasts.length > 0 && (
-          <div onClick={() => setIsOverdueModalOpen(true)} className="bg-amber-950/40 border border-amber-500/30 p-3 rounded-xl cursor-pointer hover:bg-amber-900/40 transition-all group">
+          <div onClick={() => setIsOverdueModalOpen(true)} className="bg-warn/10 border border-warn/30 p-3 rounded-xl cursor-pointer hover:bg-warn/10 transition-all group">
               <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center border border-amber-500/30">
+                      <div className="w-8 h-8 rounded-full bg-warn/15 text-white flex items-center justify-center border border-warn/30">
                           <AlertTriangle size={16} />
                       </div>
                       <div>
-                          <h3 className="font-bold text-amber-400 text-sm">Pendências</h3>
-                          <p className="text-xs text-amber-200/70">{overdueForecasts.length} previsões atrasadas.</p>
+                          <h3 className="font-bold text-warn text-sm">Pendências</h3>
+                          <p className="text-xs text-warn">{overdueForecasts.length} previsões atrasadas.</p>
                       </div>
                   </div>
-                  <div className="bg-amber-500 text-slate-900 px-3 py-1 rounded-lg text-xs font-bold">Resolver</div>
+                  <div className="bg-warn text-white px-3 py-1 rounded-lg text-xs font-bold">Resolver</div>
               </div>
           </div>
       )}
@@ -347,60 +305,60 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
       <div className="flex flex-col md:flex-row justify-between items-end gap-3">
         <div>
             <div className="flex items-center gap-2 mb-0.5">
-                 <button onClick={handlePrevMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400"><ChevronLeft size={16}/></button>
-                 <span className="text-white font-bold text-base capitalize">{MONTHS[currentMonth]} / {currentYear}</span>
-                 <button onClick={handleNextMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400"><ChevronRight size={16}/></button>
+                 <button onClick={handlePrevMonth} className="p-1 hover:bg-sunken rounded text-muted"><ChevronLeft size={16}/></button>
+                 <span className="text-ink font-bold text-base capitalize">{MONTHS[currentMonth]} / {currentYear}</span>
+                 <button onClick={handleNextMonth} className="p-1 hover:bg-sunken rounded text-muted"><ChevronRight size={16}/></button>
             </div>
-            <p className="text-slate-400 text-xs">Visão geral do fluxo de caixa</p>
+            <p className="text-muted text-xs">Visão geral do fluxo de caixa</p>
         </div>
         <div className="flex gap-2">
-            <button onClick={() => openModal(TransactionType.CREDIT)} className="w-9 h-9 rounded-lg bg-primary hover:bg-primaryHover text-slate-900 flex items-center justify-center shadow-lg transition-all" title="Nova Receita"><Plus size={20} /></button>
-            <button onClick={() => openModal(TransactionType.DEBIT)} className="w-9 h-9 rounded-lg bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center shadow-lg transition-all" title="Nova Despesa"><Minus size={20} /></button>
+            <button onClick={() => openModal(TransactionType.CREDIT)} className="w-9 h-9 rounded-lg bg-brand hover:bg-brand-strong text-white flex items-center justify-center shadow-lg transition-all" title="Nova Receita"><Plus size={20} /></button>
+            <button onClick={() => openModal(TransactionType.DEBIT)} className="w-9 h-9 rounded-lg bg-danger hover:bg-danger text-white flex items-center justify-center shadow-lg transition-all" title="Nova Despesa"><Minus size={20} /></button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-slate-900 rounded-xl p-4 border border-slate-800 relative overflow-hidden group">
+        <div className="bg-surface rounded-xl p-4 border border-line relative overflow-hidden group">
             <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                <Wallet size={48} className="text-slate-400"/>
+                <Wallet size={48} className="text-muted"/>
             </div>
             <div className="relative z-10">
-                <p className="text-slate-400 text-xs font-medium mb-1">Saldo Atual</p>
-                <h2 className="text-2xl font-bold text-white mb-1">R$ {totalBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
-                <p className="text-[10px] text-slate-500">Saldo consolidado (Inclui pendentes)</p>
+                <p className="text-muted text-xs font-medium mb-1">Saldo Atual</p>
+                <h2 className="text-2xl font-bold text-ink mb-1">R$ {totalBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
+                <p className="text-[10px] text-faint">Saldo consolidado (Inclui pendentes)</p>
             </div>
         </div>
 
-        <div className="bg-slate-900 rounded-xl p-4 border border-slate-800 relative overflow-hidden group">
+        <div className="bg-surface rounded-xl p-4 border border-line relative overflow-hidden group">
             <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                <CheckCircle2 size={48} className="text-emerald-500"/>
+                <CheckCircle2 size={48} className="text-ok"/>
             </div>
             <div className="relative z-10">
-                <p className="text-emerald-500 text-xs font-medium mb-1 flex items-center gap-1"><TrendingUp size={14}/> Receitas</p>
-                <h2 className="text-2xl font-bold text-emerald-400 mb-1">R$ {monthRealizedIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
-                <p className="text-[10px] text-slate-500">Previsto: <span className="text-emerald-500/70">+ R$ {monthForecastIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></p>
+                <p className="text-ok text-xs font-medium mb-1 flex items-center gap-1"><TrendingUp size={14}/> Receitas</p>
+                <h2 className="text-2xl font-bold text-ok mb-1">R$ {monthRealizedIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
+                <p className="text-[10px] text-faint">Previsto: <span className="text-ok/70">+ R$ {monthForecastIncome.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></p>
             </div>
         </div>
 
-        <div className="bg-slate-900 rounded-xl p-4 border border-slate-800 relative overflow-hidden group">
+        <div className="bg-surface rounded-xl p-4 border border-line relative overflow-hidden group">
             <div className="absolute right-0 top-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                <ShieldCheck size={48} className="text-rose-500"/>
+                <ShieldCheck size={48} className="text-danger"/>
             </div>
             <div className="relative z-10">
-                <p className="text-rose-500 text-xs font-medium mb-1 flex items-center gap-1"><TrendingDown size={14}/> Despesas</p>
-                <h2 className="text-2xl font-bold text-rose-400 mb-1">R$ {monthRealizedExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
-                <p className="text-[10px] text-slate-500">Previsto: <span className="text-rose-500/70">+ R$ {monthForecastExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></p>
+                <p className="text-danger text-xs font-medium mb-1 flex items-center gap-1"><TrendingDown size={14}/> Despesas</p>
+                <h2 className="text-2xl font-bold text-danger mb-1">R$ {monthRealizedExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h2>
+                <p className="text-[10px] text-faint">Previsto: <span className="text-danger/70">+ R$ {monthForecastExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span></p>
             </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         
-        <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex flex-col">
-             <h3 className="font-bold text-white mb-4 text-xs uppercase tracking-wider text-slate-400">Saldos por Banco</h3>
+        <div className="bg-surface p-4 rounded-xl border border-line flex flex-col">
+             <h3 className="font-bold text-ink mb-4 text-xs uppercase tracking-wider text-muted">Saldos por Banco</h3>
              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 overflow-y-auto max-h-[300px] custom-scroll pr-1">
                 {activeBanks.length === 0 ? (
-                    <div className="col-span-2 text-center py-4 text-slate-500 text-sm">Nenhum banco ativo. Cadastre uma conta.</div>
+                    <div className="col-span-2 text-center py-4 text-faint text-sm">Nenhum banco ativo. Cadastre uma conta.</div>
                 ) : activeBanks.map(bank => {
                     const bankTransactions = transactions.filter(t => t.bankId === bank.id);
                     const bankBalance = bankTransactions.reduce((acc, t) => {
@@ -424,26 +382,26 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
                         <div 
                             key={bank.id} 
                             onClick={() => setSelectedBankForForecasts(bank.id)}
-                            className="p-3 rounded-lg border border-slate-800 bg-black/20 hover:bg-slate-800/50 transition-all cursor-pointer group"
+                            className="p-3 rounded-lg border border-line bg-black/20 hover:bg-sunken/60 transition-all cursor-pointer group"
                         >
                             <div className="flex items-center gap-3 mb-3">
                                 <div className="w-8 h-8 rounded-md bg-white p-1 flex items-center justify-center overflow-hidden">
                                     <img src={bank.logo} alt={bank.name} className="max-w-full max-h-full object-contain" />
                                 </div>
                                 <div>
-                                    <h4 className="font-bold text-slate-200 text-xs">{bank.name}</h4>
+                                    <h4 className="font-bold text-ink text-xs">{bank.name}</h4>
                                 </div>
                             </div>
                             <div className="space-y-1">
                                 <div className="flex justify-between items-center text-[10px]">
-                                    <span className="text-slate-500">Atual</span>
-                                    <span className={bankBalance >= 0 ? 'text-emerald-500 font-bold' : 'text-rose-500 font-bold'}>
+                                    <span className="text-faint">Atual</span>
+                                    <span className={bankBalance >= 0 ? 'text-ok font-bold' : 'text-danger font-bold'}>
                                         R$ {bankBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                     </span>
                                 </div>
                                 <div className="flex justify-between items-center text-[10px]">
-                                    <span className="text-slate-500">Projetado</span>
-                                    <span className={projectedBalance >= 0 ? 'text-slate-300' : 'text-slate-300'}>
+                                    <span className="text-faint">Projetado</span>
+                                    <span className={projectedBalance >= 0 ? 'text-muted' : 'text-muted'}>
                                         R$ {projectedBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                                     </span>
                                 </div>
@@ -454,17 +412,17 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
              </div>
         </div>
 
-        <div className="bg-slate-900 p-4 rounded-xl border border-slate-800 flex flex-col">
-            <h3 className="font-bold text-white mb-4 text-xs uppercase tracking-wider text-slate-400">Receita x Despesa (Mensal)</h3>
+        <div className="bg-surface p-4 rounded-xl border border-line flex flex-col">
+            <h3 className="font-bold text-ink mb-4 text-xs uppercase tracking-wider text-muted">Receita x Despesa (Mensal)</h3>
             <div className="flex-1 w-full h-40">
                 <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartData} layout="horizontal" barSize={40}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
-                        <XAxis dataKey="name" tick={{fill: '#94a3b8', fontSize: 10}} axisLine={false} tickLine={false} />
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-line)" />
+                        <XAxis dataKey="name" tick={{fill: 'var(--color-faint)', fontSize: 10}} axisLine={false} tickLine={false} />
                         <YAxis hide />
                         <Tooltip 
-                            cursor={{fill: '#1e293b', opacity: 0.3}}
-                            contentStyle={{backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', color: '#fff', fontSize: '12px'}}
+                            cursor={{fill: 'var(--color-sunken)', opacity: 0.3}}
+                            contentStyle={{backgroundColor: 'var(--color-surface)', border: '1px solid var(--color-line)', borderRadius: '8px', color: 'var(--color-ink)', fontSize: '12px'}}
                         />
                         <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                             {chartData.map((entry, index) => (
@@ -479,54 +437,54 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
 
       {/* Analysis Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-slate-900 p-4 rounded-xl border border-slate-800">
-              <h3 className="font-bold text-white mb-4 text-xs uppercase tracking-wider text-slate-400">Análise de Receitas</h3>
+          <div className="bg-surface p-4 rounded-xl border border-line">
+              <h3 className="font-bold text-ink mb-4 text-xs uppercase tracking-wider text-muted">Análise de Receitas</h3>
               <div className="space-y-3">
                   {topIncomeCategories.map((cat, idx) => (
                       <div key={idx}>
                           <div className="flex justify-between items-center text-xs mb-1">
-                              <span className="text-slate-300 font-medium truncate max-w-[70%]">{cat.name}</span>
-                              <span className="text-emerald-400 font-bold">R$ {cat.value.toFixed(2)}</span>
+                              <span className="text-muted font-medium truncate max-w-[70%]">{cat.name}</span>
+                              <span className="text-ok font-bold">R$ {cat.value.toFixed(2)}</span>
                           </div>
-                          <div className="w-full bg-slate-800 rounded-full h-1.5">
-                              <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${cat.percent}%` }}></div>
+                          <div className="w-full bg-sunken rounded-full h-1.5">
+                              <div className="bg-brand h-1.5 rounded-full" style={{ width: `${cat.percent}%` }}></div>
                           </div>
                       </div>
                   ))}
-                  {topIncomeCategories.length === 0 && <p className="text-slate-500 text-xs italic">Sem receitas no mês.</p>}
+                  {topIncomeCategories.length === 0 && <p className="text-faint text-xs italic">Sem receitas no mês.</p>}
               </div>
           </div>
 
-          <div className="bg-slate-900 p-4 rounded-xl border border-slate-800">
-              <h3 className="font-bold text-white mb-4 text-xs uppercase tracking-wider text-slate-400">Análise de Despesas</h3>
+          <div className="bg-surface p-4 rounded-xl border border-line">
+              <h3 className="font-bold text-ink mb-4 text-xs uppercase tracking-wider text-muted">Análise de Despesas</h3>
               <div className="space-y-3">
                   {topExpenseCategories.map((cat, idx) => (
                       <div key={idx}>
                           <div className="flex justify-between items-center text-xs mb-1">
-                              <span className="text-slate-300 font-medium truncate max-w-[70%]">{cat.name}</span>
-                              <span className="text-rose-400 font-bold">R$ {cat.value.toFixed(2)}</span>
+                              <span className="text-muted font-medium truncate max-w-[70%]">{cat.name}</span>
+                              <span className="text-danger font-bold">R$ {cat.value.toFixed(2)}</span>
                           </div>
-                          <div className="w-full bg-slate-800 rounded-full h-1.5">
-                              <div className="bg-rose-500 h-1.5 rounded-full" style={{ width: `${cat.percent}%` }}></div>
+                          <div className="w-full bg-sunken rounded-full h-1.5">
+                              <div className="bg-danger h-1.5 rounded-full" style={{ width: `${cat.percent}%` }}></div>
                           </div>
                       </div>
                   ))}
-                  {topExpenseCategories.length === 0 && <p className="text-slate-500 text-xs italic">Sem despesas no mês.</p>}
+                  {topExpenseCategories.length === 0 && <p className="text-faint text-xs italic">Sem despesas no mês.</p>}
               </div>
           </div>
       </div>
 
-      <div className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-800 flex justify-between items-center bg-slate-950/50">
-              <h3 className="font-bold text-white text-xs uppercase tracking-wider text-slate-400">Últimos 5 Lançamentos - {MONTHS[currentMonth]} / {currentYear}</h3>
+      <div className="bg-surface rounded-xl border border-line overflow-hidden">
+          <div className="px-4 py-3 border-b border-line flex justify-between items-center bg-ground/50">
+              <h3 className="font-bold text-ink text-xs uppercase tracking-wider text-muted">Últimos 5 Lançamentos - {MONTHS[currentMonth]} / {currentYear}</h3>
               <div className="flex gap-1">
-                  <button onClick={handlePrevMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400"><ChevronLeft size={14}/></button>
-                  <button onClick={handleNextMonth} className="p-1 hover:bg-slate-800 rounded text-slate-400"><ChevronRight size={14}/></button>
+                  <button onClick={handlePrevMonth} className="p-1 hover:bg-sunken rounded text-muted"><ChevronLeft size={14}/></button>
+                  <button onClick={handleNextMonth} className="p-1 hover:bg-sunken rounded text-muted"><ChevronRight size={14}/></button>
               </div>
           </div>
           <div className="overflow-x-auto">
               <table className="w-full text-xs text-left">
-                  <thead className="bg-slate-950 text-slate-400 font-medium border-b border-slate-800">
+                  <thead className="bg-ground text-muted font-medium border-b border-line">
                       <tr>
                           <th className="px-4 py-3">Data</th>
                           <th className="px-4 py-3">Descrição</th>
@@ -537,34 +495,34 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
                           <th className="px-4 py-3 text-center">Ações</th>
                       </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800">
+                  <tbody className="divide-y divide-line">
                       {recentTransactions.length === 0 ? (
-                          <tr><td colSpan={7} className="px-4 py-6 text-center text-slate-500">Nenhum lançamento neste mês.</td></tr>
+                          <tr><td colSpan={7} className="px-4 py-6 text-center text-faint">Nenhum lançamento neste mês.</td></tr>
                       ) : (
                           recentTransactions.map(t => {
                               const bank = banks.find(b => b.id === t.bankId);
                               const category = categories.find(c => c.id === t.categoryId);
                               return (
-                                  <tr key={t.id} className="hover:bg-slate-800/30">
-                                      <td className="px-4 py-2 text-slate-400 font-mono">{new Date(t.date).toLocaleDateString('pt-BR')}</td>
-                                      <td className="px-4 py-2 text-slate-200 font-medium">{t.description}</td>
-                                      <td className="px-4 py-2 text-slate-400">{category?.name || '-'}</td>
-                                      <td className="px-4 py-2 text-slate-400 flex items-center gap-2">
+                                  <tr key={t.id} className="hover:bg-sunken/30">
+                                      <td className="px-4 py-2 text-muted font-mono">{new Date(t.date).toLocaleDateString('pt-BR')}</td>
+                                      <td className="px-4 py-2 text-ink font-medium">{t.description}</td>
+                                      <td className="px-4 py-2 text-muted">{category?.name || '-'}</td>
+                                      <td className="px-4 py-2 text-muted flex items-center gap-2">
                                           {bank && <img src={bank.logo} className="w-4 h-4 rounded-full bg-white p-0.5" />}
                                           {bank?.name || 'Desconhecido'}
                                       </td>
-                                      <td className={`px-4 py-2 text-right font-bold ${t.type === TransactionType.CREDIT ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                      <td className={`px-4 py-2 text-right font-bold ${t.type === TransactionType.CREDIT ? 'text-ok' : 'text-danger'}`}>
                                           {t.type === TransactionType.CREDIT ? '+' : '-'} R$ {t.value.toFixed(2)}
                                       </td>
                                       <td className="px-4 py-2">
                                           {t.reconciled ? (
-                                              <span className="flex items-center gap-1 text-emerald-500 text-[10px] font-bold"><CheckCircle2 size={12}/> Conciliado</span>
+                                              <span className="flex items-center gap-1 text-ok text-[10px] font-bold"><CheckCircle2 size={12}/> Conciliado</span>
                                           ) : (
-                                              <span className="flex items-center gap-1 text-slate-500 text-[10px] font-bold"><CheckCircle2 size={12}/> Pendente</span>
+                                              <span className="flex items-center gap-1 text-faint text-[10px] font-bold"><CheckCircle2 size={12}/> Pendente</span>
                                           )}
                                       </td>
                                       <td className="px-4 py-2 text-center">
-                                          <button onClick={() => handleDeleteTransaction(t.id)} className="p-1 text-slate-500 hover:text-rose-500 transition-colors">
+                                          <button onClick={() => handleDeleteTransaction(t.id)} className="p-1 text-faint hover:text-danger transition-colors">
                                               <Trash2 size={14}/>
                                           </button>
                                       </td>
@@ -580,23 +538,23 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
        {isOverdueModalOpen && (
          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setIsOverdueModalOpen(false)} />
-            <div className="relative bg-surface border border-amber-500/30 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-                <div className="px-6 py-4 border-b border-amber-500/20 bg-amber-950/30 flex justify-between items-center">
+            <div className="relative bg-surface border border-warn/30 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+                <div className="px-6 py-4 border-b border-warn/20 bg-warn/10 flex justify-between items-center">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-amber-500/10 rounded-lg text-amber-500">
+                        <div className="p-2 bg-warn/10 rounded-lg text-white">
                             <CalendarClock size={20}/>
                         </div>
                         <div>
-                            <h3 className="font-bold text-white">Pendências Anteriores</h3>
-                            <p className="text-xs text-amber-200/70">Itens previstos até o mês passado não realizados</p>
+                            <h3 className="font-bold text-ink">Pendências Anteriores</h3>
+                            <p className="text-xs text-warn">Itens previstos até o mês passado não realizados</p>
                         </div>
                     </div>
-                    <button onClick={() => setIsOverdueModalOpen(false)}><X size={20} className="text-slate-400 hover:text-white"/></button>
+                    <button onClick={() => setIsOverdueModalOpen(false)}><X size={20} className="text-muted hover:text-ink"/></button>
                 </div>
                 
                 <div className="p-6 overflow-y-auto max-h-[60vh] custom-scroll">
                     <table className="w-full text-sm text-left">
-                        <thead className="text-slate-400 font-medium border-b border-slate-800">
+                        <thead className="text-muted font-medium border-b border-line">
                             <tr>
                                 <th className="pb-3 pl-2">Data</th>
                                 <th className="pb-3">Descrição</th>
@@ -604,34 +562,34 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
                                 <th className="pb-3 text-center">Ações</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-800">
+                        <tbody className="divide-y divide-line">
                             {overdueForecasts.map(f => (
-                                <tr key={f.id} className="hover:bg-slate-800/30 transition-colors">
-                                    <td className="py-3 pl-2 text-amber-400 font-mono text-xs">
+                                <tr key={f.id} className="hover:bg-sunken/30 transition-colors">
+                                    <td className="py-3 pl-2 text-warn font-mono text-xs">
                                         {new Date(f.date).toLocaleDateString('pt-BR')}
                                     </td>
-                                    <td className="py-3 font-medium text-slate-200">
+                                    <td className="py-3 font-medium text-ink">
                                         {f.description}
                                         {f.installmentTotal ? (
-                                            <span className="ml-2 text-xs bg-slate-800 px-1.5 py-0.5 rounded text-slate-400">
+                                            <span className="ml-2 text-xs bg-sunken px-1.5 py-0.5 rounded text-muted">
                                                 {f.installmentCurrent}/{f.installmentTotal}
                                             </span>
                                         ) : null}
                                     </td>
-                                    <td className={`py-3 text-right font-bold ${f.type === TransactionType.DEBIT ? 'text-rose-500' : 'text-emerald-500'}`}>
+                                    <td className={`py-3 text-right font-bold ${f.type === TransactionType.DEBIT ? 'text-danger' : 'text-ok'}`}>
                                         R$ {f.value.toFixed(2)}
                                     </td>
                                     <td className="py-3 flex justify-center gap-2">
                                         <button 
                                             onClick={() => openRealizeModal(f)}
-                                            className="p-1.5 bg-emerald-500/10 text-emerald-500 rounded hover:bg-emerald-500/20 border border-emerald-500/20"
+                                            className="p-1.5 bg-brand/10 text-white rounded hover:bg-brand/20 border border-ok/20"
                                             title="Efetivar Lançamento"
                                         >
                                             <Check size={16}/>
                                         </button>
                                         <button 
                                             onClick={() => handleDeleteForecast(f.id)}
-                                            className="p-1.5 bg-rose-500/10 text-rose-500 rounded hover:bg-rose-500/20 border border-rose-500/20"
+                                            className="p-1.5 bg-danger/10 text-white rounded hover:bg-danger/20 border border-danger/20"
                                             title="Excluir Previsão"
                                         >
                                             <Trash2 size={16}/>
@@ -650,50 +608,50 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
        {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
-          <div className="relative bg-surface border border-slate-800 rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200 text-slate-200">
-            <div className={`px-6 py-4 border-b border-slate-800 flex justify-between items-center ${formData.type === TransactionType.CREDIT ? 'bg-emerald-950/30' : 'bg-rose-950/30'}`}>
-              <h3 className={`font-bold ${formData.type === TransactionType.CREDIT ? 'text-emerald-400' : 'text-rose-400'}`}>
+          <div className="relative bg-surface border border-line rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200 text-ink">
+            <div className={`px-6 py-4 border-b border-line flex justify-between items-center ${formData.type === TransactionType.CREDIT ? 'bg-ok/10' : 'bg-danger/10'}`}>
+              <h3 className={`font-bold ${formData.type === TransactionType.CREDIT ? 'text-ok' : 'text-danger'}`}>
                   {formData.type === TransactionType.CREDIT ? 'Nova Receita' : 'Nova Despesa'}
               </h3>
-              <button onClick={() => setIsModalOpen(false)}><X size={20} className="text-slate-400 hover:text-slate-200"/></button>
+              <button onClick={() => setIsModalOpen(false)}><X size={20} className="text-muted hover:text-ink"/></button>
             </div>
             
             <div className="p-6 space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                      <div>
-                         <label className="text-sm text-slate-400 font-medium">Data</label>
+                         <label className="text-sm text-muted font-medium">Data</label>
                          <input 
                             type="date"
-                            className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-primary"
+                            className="w-full mt-1 bg-surface border border-line rounded-lg p-2 text-ink outline-none focus:border-brand"
                             value={formData.date}
                             onChange={e => setFormData({...formData, date: e.target.value})}
                          />
                      </div>
                      <div>
-                         <label className="text-sm text-slate-400 font-medium">Valor</label>
+                         <label className="text-sm text-muted font-medium">Valor</label>
                          <input 
                             type="number" step="0.01" required
-                            className={`w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg p-2 font-bold outline-none focus:border-primary ${formData.type === TransactionType.CREDIT ? 'text-emerald-500' : 'text-rose-500'}`}
+                            className={`w-full mt-1 bg-surface border border-line rounded-lg p-2 font-bold outline-none focus:border-brand ${formData.type === TransactionType.CREDIT ? 'text-ok' : 'text-danger'}`}
                             value={formData.value}
                             onChange={e => setFormData({...formData, value: e.target.value})}
                          />
                      </div>
                 </div>
                 <div>
-                     <label className="text-sm text-slate-400 font-medium">Descrição</label>
+                     <label className="text-sm text-muted font-medium">Descrição</label>
                      <input 
                         type="text" required
                         placeholder="Ex: Supermercado"
-                        className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-primary"
+                        className="w-full mt-1 bg-surface border border-line rounded-lg p-2 text-ink outline-none focus:border-brand"
                         value={formData.description}
                         onChange={e => setFormData({...formData, description: e.target.value})}
                      />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                      <div>
-                         <label className="text-sm text-slate-400 font-medium">Banco</label>
+                         <label className="text-sm text-muted font-medium">Banco</label>
                          <select 
-                            className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-primary"
+                            className="w-full mt-1 bg-surface border border-line rounded-lg p-2 text-ink outline-none focus:border-brand"
                             value={formData.bankId}
                             onChange={e => setFormData({...formData, bankId: Number(e.target.value)})}
                          >
@@ -701,9 +659,9 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
                          </select>
                      </div>
                      <div>
-                         <label className="text-sm text-slate-400 font-medium">Categoria</label>
+                         <label className="text-sm text-muted font-medium">Categoria</label>
                          <select 
-                            className="w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-primary"
+                            className="w-full mt-1 bg-surface border border-line rounded-lg p-2 text-ink outline-none focus:border-brand"
                             value={formData.categoryId}
                             onChange={e => setFormData({...formData, categoryId: Number(e.target.value)})}
                          >
@@ -713,8 +671,8 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
                      </div>
                 </div>
 
-                <div className="bg-slate-900 p-3 rounded-lg border border-slate-800">
-                    <label className="text-xs font-semibold text-slate-500 mb-2 block flex items-center gap-2">
+                <div className="bg-surface p-3 rounded-lg border border-line">
+                    <label className="text-xs font-semibold text-faint mb-2 block flex items-center gap-2">
                         <Repeat size={12}/> RECORRÊNCIA (OPCIONAL)
                     </label>
                     <div className="flex items-center gap-4 mb-2">
@@ -723,31 +681,31 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
                                 type="checkbox"
                                 checked={formData.isFixed}
                                 onChange={e => setFormData({...formData, isFixed: e.target.checked})}
-                                className="w-4 h-4 text-primary rounded border-slate-700 bg-slate-800"
+                                className="w-4 h-4 text-brand rounded border-line bg-sunken"
                             />
-                            <span className="text-sm text-slate-300">Fixo Mensal</span>
+                            <span className="text-sm text-muted">Fixo Mensal</span>
                         </label>
                     </div>
                     {!formData.isFixed && (
                             <div className="flex items-center gap-2">
-                            <CalendarDays className="text-slate-500" size={16}/>
+                            <CalendarDays className="text-faint" size={16}/>
                             <input 
                                 type="number" min="1" max="360"
-                                className="w-16 bg-slate-950 border border-slate-700 rounded p-1 text-center text-sm text-white"
+                                className="w-16 bg-ground border border-line rounded p-1 text-center text-sm text-ink"
                                 value={formData.installments}
                                 onChange={e => setFormData({...formData, installments: Number(e.target.value)})}
                             />
-                            <span className="text-sm text-slate-400">parcelas</span>
+                            <span className="text-sm text-muted">parcelas</span>
                         </div>
                     )}
                 </div>
 
                 <div className="pt-2 flex gap-3">
-                    <button type="button" onClick={() => handleQuickSave('forecast')} className="flex-1 flex flex-col items-center justify-center gap-1 py-3 border border-slate-700 rounded-lg hover:bg-slate-800 text-slate-400 transition-colors">
-                        <ThumbsDown size={20} className="text-slate-500" />
+                    <button type="button" onClick={() => handleQuickSave('forecast')} className="flex-1 flex flex-col items-center justify-center gap-1 py-3 border border-line rounded-lg hover:bg-sunken text-muted transition-colors">
+                        <ThumbsDown size={20} className="text-faint" />
                         <span className="text-xs font-semibold">Previsão (Futuro)</span>
                     </button>
-                    <button type="button" onClick={() => handleQuickSave('transaction')} className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 text-slate-900 rounded-lg shadow-sm transition-colors ${formData.type === TransactionType.CREDIT ? 'bg-primary hover:bg-primaryHover' : 'bg-rose-600 hover:bg-rose-700'}`}>
+                    <button type="button" onClick={() => handleQuickSave('transaction')} className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 text-white rounded-lg shadow-sm transition-colors ${formData.type === TransactionType.CREDIT ? 'bg-brand hover:bg-brand-strong' : 'bg-danger hover:bg-danger'}`}>
                         <ThumbsUp size={20} />
                         <span className="text-xs font-semibold">{formData.installments > 1 || formData.isFixed ? 'Lançar 1ª + Previsões' : 'Lançamento (Hoje)'}</span>
                     </button>
