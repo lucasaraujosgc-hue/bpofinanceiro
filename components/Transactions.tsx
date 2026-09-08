@@ -230,7 +230,7 @@ const Transactions: React.FC<TransactionsProps> = ({
                     </button>
                     <button 
                         onClick={() => { setEditingId(null); setIsModalOpen(true); }}
-                        className="px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-strong font-medium flex items-center gap-2 shadow-sm shadow-md"
+                        className="px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-strong font-medium flex items-center gap-2 shadow-sm"
                     >
                         <Plus size={18}/> Novo Lançamento
                     </button>
@@ -263,7 +263,7 @@ const Transactions: React.FC<TransactionsProps> = ({
                        <button onClick={toggleBatchMode} className="px-4 py-1.5 text-muted hover:text-ink text-sm">Cancelar</button>
                        <button 
                            onClick={handleBatchApply}
-                           className="px-4 py-1.5 bg-info hover:bg-info text-white rounded-lg text-sm font-bold flex items-center gap-2"
+                           className="px-4 py-1.5 bg-info hover:bg-info/90 text-white rounded-lg text-sm font-bold flex items-center gap-2"
                        >
                            <Save size={16} /> Aplicar e Conciliar
                        </button>
@@ -421,7 +421,7 @@ const Transactions: React.FC<TransactionsProps> = ({
                         </td>
                         <td className="px-6 py-4 font-medium text-ink">{t.description}</td>
                         <td className="px-6 py-4">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${!category ? 'bg-danger/10 text-white border border-danger/30' : 'bg-sunken text-muted border border-line'}`}>
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${!category ? 'bg-danger/10 text-danger border border-danger/30' : 'bg-sunken text-muted border border-line'}`}>
                             {category?.name || 'Sem Categoria'}
                           </span>
                         </td>
@@ -441,13 +441,13 @@ const Transactions: React.FC<TransactionsProps> = ({
                         </td>
                         <td className="px-6 py-4 text-center">
                           {t.reconciled ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-brand/10 text-white border border-ok/20 text-xs font-medium">
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-brand/10 text-brand-fg border border-ok/20 text-xs font-medium">
                               <Check size={12} /> Conciliado
                             </span>
                           ) : (
                             <button 
                                 onClick={(e) => { e.stopPropagation(); onReconcile(t.id); }}
-                                className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-warn/10 text-white border border-warn/20 text-xs font-medium hover:bg-warn/15 transition-colors"
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-warn/10 text-warn border border-warn/20 text-xs font-medium hover:bg-warn/15 transition-colors"
                             >
                               Pendente
                             </button>
@@ -464,7 +464,7 @@ const Transactions: React.FC<TransactionsProps> = ({
                             </button>
                             <button 
                                 onClick={(e) => { e.stopPropagation(); onDeleteTransaction(t.id); }}
-                                className="p-1.5 text-faint hover:text-white hover:bg-danger/10 rounded transition-colors"
+                                className="p-1.5 text-faint hover:text-brand-fg hover:bg-danger/10 rounded transition-colors"
                                 title="Excluir"
                             >
                                 <Trash2 size={16} />
@@ -612,7 +612,7 @@ const Transactions: React.FC<TransactionsProps> = ({
                 </button>
                 <button 
                     type="submit"
-                    className="flex-1 px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-strong font-medium transition-colors shadow-sm shadow-md"
+                    className="flex-1 px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-strong font-medium transition-colors shadow-sm"
                 >
                     {editingId ? 'Salvar e Conciliar' : 'Salvar'}
                 </button>

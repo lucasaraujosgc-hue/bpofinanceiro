@@ -39,7 +39,7 @@ const PreSignUp: React.FC<PreSignUpProps> = ({ onBack, isLoading }) => {
       return (
         <div className="min-h-screen bg-ground flex items-center justify-center p-4">
             <div className="bg-surface w-full max-w-md rounded-2xl shadow-xl p-8 text-center animate-in fade-in zoom-in duration-300 border border-line">
-            <div className="w-16 h-16 bg-brand/10 text-white rounded-full flex items-center justify-center mx-auto mb-6 border border-ok/20">
+            <div className="w-16 h-16 bg-brand/10 text-brand-fg rounded-full flex items-center justify-center mx-auto mb-6 border border-ok/20">
                 <CheckCircle2 size={32} />
             </div>
             <h2 className="text-2xl font-bold text-ink mb-2">Verifique seu E-mail</h2>
@@ -88,7 +88,7 @@ const PreSignUp: React.FC<PreSignUpProps> = ({ onBack, isLoading }) => {
             <button
               type="submit"
               disabled={localLoading || isLoading}
-              className="w-full bg-brand text-white py-3 rounded-lg font-bold hover:bg-brand-strong transition-colors flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed shadow-lg shadow-md"
+              className="w-full bg-brand text-white py-3 rounded-lg font-bold hover:bg-brand-strong transition-colors flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed shadow-md"
             >
               {localLoading ? (
                 'Enviando...'

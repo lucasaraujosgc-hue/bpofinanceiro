@@ -274,7 +274,7 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
       {integrationStats && integrationStats.total_imported > 0 && (
           <div className="bg-info/10 border border-info/30 p-3 rounded-xl">
               <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-info/20 text-white flex items-center justify-center border border-info/30">
+                  <div className="w-8 h-8 rounded-full bg-info/20 text-info flex items-center justify-center border border-info/30">
                       <ShieldCheck size={16} />
                   </div>
                   <div>
@@ -289,7 +289,7 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
           <div onClick={() => setIsOverdueModalOpen(true)} className="bg-warn/10 border border-warn/30 p-3 rounded-xl cursor-pointer hover:bg-warn/10 transition-all group">
               <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-warn/15 text-white flex items-center justify-center border border-warn/30">
+                      <div className="w-8 h-8 rounded-full bg-warn/15 text-warn flex items-center justify-center border border-warn/30">
                           <AlertTriangle size={16} />
                       </div>
                       <div>
@@ -313,7 +313,7 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
         </div>
         <div className="flex gap-2">
             <button onClick={() => openModal(TransactionType.CREDIT)} className="w-9 h-9 rounded-lg bg-brand hover:bg-brand-strong text-white flex items-center justify-center shadow-lg transition-all" title="Nova Receita"><Plus size={20} /></button>
-            <button onClick={() => openModal(TransactionType.DEBIT)} className="w-9 h-9 rounded-lg bg-danger hover:bg-danger text-white flex items-center justify-center shadow-lg transition-all" title="Nova Despesa"><Minus size={20} /></button>
+            <button onClick={() => openModal(TransactionType.DEBIT)} className="w-9 h-9 rounded-lg bg-danger hover:bg-danger/90 text-white flex items-center justify-center shadow-lg transition-all" title="Nova Despesa"><Minus size={20} /></button>
         </div>
       </div>
 
@@ -541,7 +541,7 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
             <div className="relative bg-surface border border-warn/30 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
                 <div className="px-6 py-4 border-b border-warn/20 bg-warn/10 flex justify-between items-center">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-warn/10 rounded-lg text-white">
+                        <div className="p-2 bg-warn/10 rounded-lg text-warn">
                             <CalendarClock size={20}/>
                         </div>
                         <div>
@@ -582,14 +582,14 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
                                     <td className="py-3 flex justify-center gap-2">
                                         <button 
                                             onClick={() => openRealizeModal(f)}
-                                            className="p-1.5 bg-brand/10 text-white rounded hover:bg-brand/20 border border-ok/20"
+                                            className="p-1.5 bg-brand/10 text-brand-fg rounded hover:bg-brand/20 border border-ok/20"
                                             title="Efetivar Lançamento"
                                         >
                                             <Check size={16}/>
                                         </button>
                                         <button 
                                             onClick={() => handleDeleteForecast(f.id)}
-                                            className="p-1.5 bg-danger/10 text-white rounded hover:bg-danger/20 border border-danger/20"
+                                            className="p-1.5 bg-danger/10 text-danger rounded hover:bg-danger/20 border border-danger/20"
                                             title="Excluir Previsão"
                                         >
                                             <Trash2 size={16}/>
@@ -705,7 +705,7 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
                         <ThumbsDown size={20} className="text-faint" />
                         <span className="text-xs font-semibold">Previsão (Futuro)</span>
                     </button>
-                    <button type="button" onClick={() => handleQuickSave('transaction')} className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 text-white rounded-lg shadow-sm transition-colors ${formData.type === TransactionType.CREDIT ? 'bg-brand hover:bg-brand-strong' : 'bg-danger hover:bg-danger'}`}>
+                    <button type="button" onClick={() => handleQuickSave('transaction')} className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 text-white rounded-lg shadow-sm transition-colors ${formData.type === TransactionType.CREDIT ? 'bg-brand hover:bg-brand-strong' : 'bg-danger hover:bg-danger/90'}`}>
                         <ThumbsUp size={20} />
                         <span className="text-xs font-semibold">{formData.installments > 1 || formData.isFixed ? 'Lançar 1ª + Previsões' : 'Lançamento (Hoje)'}</span>
                     </button>

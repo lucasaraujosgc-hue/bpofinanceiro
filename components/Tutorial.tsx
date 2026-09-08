@@ -130,7 +130,7 @@ const Tutorial: React.FC = () => {
                       onClick={() => setActiveTopic(topic.id)}
                       className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200
                           ${activeTopic === topic.id 
-                              ? 'bg-surface border border-brand/30 text-brand shadow-lg shadow-md' 
+                              ? 'bg-surface border border-brand/30 text-brand shadow-md' 
                               : 'bg-surface/50 border border-line text-muted hover:text-ink hover:bg-surface'}
                       `}
                   >

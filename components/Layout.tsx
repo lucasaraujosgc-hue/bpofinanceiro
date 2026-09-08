@@ -180,7 +180,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
           <div className="p-3 border-t border-line">
             <button 
               onClick={onLogout}
-              className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-white hover:bg-danger/10 rounded-lg transition-colors"
+              className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-brand-fg hover:bg-danger/10 rounded-lg transition-colors"
             >
               <LogOut size={16} />
               Sair

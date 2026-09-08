@@ -271,7 +271,7 @@ const IntegrationConfig: React.FC<IntegrationConfigProps> = ({ categories, banks
                         </div>
 
                         {syncResult && (
-                            <div className={`p-4 rounded-lg mb-6 border ${syncResult.success ? 'bg-ok/10 border-ok/30 text-white' : 'bg-danger/10 border-danger/30 text-white'}`}>
+                            <div className={`p-4 rounded-lg mb-6 border ${syncResult.success ? 'bg-ok/10 border-ok/30 text-brand-fg' : 'bg-danger/10 border-danger/30 text-danger'}`}>
                                 {syncResult.success ? (
                                     <span>Importação concluída. <b>{syncResult.count}</b> notas importadas!</span>
                                 ) : (
@@ -283,7 +283,7 @@ const IntegrationConfig: React.FC<IntegrationConfigProps> = ({ categories, banks
                         <button
                             onClick={handleSync}
                             disabled={!settings?.token || syncing}
-                            className={`w-full py-3 px-4 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors ${!settings?.token ? 'bg-sunken text-faint cursor-not-allowed' : 'bg-info text-white hover:bg-info'}`}
+                            className={`w-full py-3 px-4 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors ${!settings?.token ? 'bg-sunken text-faint cursor-not-allowed' : 'bg-info text-white hover:bg-info/90'}`}
                         >
                             <RefreshCw size={18} className={syncing ? 'animate-spin' : ''} />
                             {syncing ? 'Sincronizando...' : 'Sincronizar Agora'}

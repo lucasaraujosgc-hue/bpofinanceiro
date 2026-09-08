@@ -252,16 +252,16 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ token, onLogout }) => {
               <h1 className="font-bold text-lg text-ink">Admin Master</h1>
           </div>
           <nav className="flex-1 p-4 space-y-2">
-              <button onClick={() => handleTabChange('dashboard')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${activeTab === 'dashboard' ? 'bg-danger/10 text-white' : 'text-muted hover:text-ink hover:bg-sunken'}`}>
+              <button onClick={() => handleTabChange('dashboard')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${activeTab === 'dashboard' ? 'bg-danger/10 text-danger' : 'text-muted hover:text-ink hover:bg-sunken'}`}>
                   <LayoutDashboard size={20}/> Dashboard
               </button>
-              <button onClick={() => handleTabChange('users')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${activeTab === 'users' ? 'bg-danger/10 text-white' : 'text-muted hover:text-ink hover:bg-sunken'}`}>
+              <button onClick={() => handleTabChange('users')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${activeTab === 'users' ? 'bg-danger/10 text-danger' : 'text-muted hover:text-ink hover:bg-sunken'}`}>
                   <Users size={20}/> Usuários
               </button>
-              <button onClick={() => handleTabChange('banks')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${activeTab === 'banks' ? 'bg-danger/10 text-white' : 'text-muted hover:text-ink hover:bg-sunken'}`}>
+              <button onClick={() => handleTabChange('banks')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${activeTab === 'banks' ? 'bg-danger/10 text-danger' : 'text-muted hover:text-ink hover:bg-sunken'}`}>
                   <Landmark size={20}/> Bancos Globais
               </button>
-              <button onClick={() => handleTabChange('audit')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${activeTab === 'audit' ? 'bg-danger/10 text-white' : 'text-muted hover:text-ink hover:bg-sunken'}`}>
+              <button onClick={() => handleTabChange('audit')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-colors ${activeTab === 'audit' ? 'bg-danger/10 text-danger' : 'text-muted hover:text-ink hover:bg-sunken'}`}>
                   <FileText size={20}/> Auditoria
               </button>
           </nav>
@@ -338,29 +338,29 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ token, onLogout }) => {
                                               </td>
                                               <td className="px-6 py-4 text-center">
                                                   {u.blocked ? (
-                                                      <span className="bg-danger/20 text-white px-2 py-1 rounded text-xs font-bold border border-danger/30">BLOQUEADO</span>
+                                                      <span className="bg-danger/20 text-danger px-2 py-1 rounded text-xs font-bold border border-danger/30">BLOQUEADO</span>
                                                   ) : (
-                                                      <span className="bg-brand/20 text-white px-2 py-1 rounded text-xs font-bold border border-ok/30">ATIVO</span>
+                                                      <span className="bg-brand/20 text-brand-fg px-2 py-1 rounded text-xs font-bold border border-ok/30">ATIVO</span>
                                                   )}
                                               </td>
                                               <td className="px-6 py-4 text-center flex items-center justify-center gap-2">
                                                   <button 
                                                     onClick={() => handleOpenUser(u)} 
-                                                    className="p-2 bg-info/10 text-white rounded hover:bg-info/20" 
+                                                    className="p-2 bg-info/10 text-info rounded hover:bg-info/20" 
                                                     title="Ver Detalhes"
                                                   >
                                                       <Eye size={18}/>
                                                   </button> 
                                                   <button 
                                                     onClick={() => handleBlockUser(u.id, u.blocked)} 
-                                                    className={`p-2 rounded ${u.blocked ? 'bg-brand/10 text-white hover:bg-brand/20' : 'bg-warn/10 text-white hover:bg-warn/10'}`}
+                                                    className={`p-2 rounded ${u.blocked ? 'bg-brand/10 text-brand-fg hover:bg-brand/20' : 'bg-warn/10 text-warn hover:bg-warn/10'}`}
                                                     title={u.blocked ? "Desbloquear Usuário" : "Bloquear Usuário"}
                                                   >
                                                       {u.blocked ? <CheckCircle size={18}/> : <Ban size={18}/>}
                                                   </button>
                                                   <button 
                                                     onClick={() => handleDeleteUser(u.id, u.email)} 
-                                                    className="p-2 bg-danger/10 text-white rounded hover:bg-danger/20" 
+                                                    className="p-2 bg-danger/10 text-danger rounded hover:bg-danger/20" 
                                                     title="Excluir Usuário"
                                                   >
                                                       <Trash2 size={18}/>
@@ -410,8 +410,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ token, onLogout }) => {
                                           <span className="font-medium text-ink">{bank.name}</span>
                                       </div>
                                       <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                          <button onClick={() => handleEditBankClick(bank)} className="p-2 text-white hover:bg-info/10 rounded"><Edit2 size={16}/></button>
-                                          <button onClick={() => handleDeleteBank(bank.id)} className="p-2 text-white hover:bg-danger/10 rounded"><Trash2 size={16}/></button>
+                                          <button onClick={() => handleEditBankClick(bank)} className="p-2 text-brand-fg hover:bg-info/10 rounded"><Edit2 size={16}/></button>
+                                          <button onClick={() => handleDeleteBank(bank.id)} className="p-2 text-brand-fg hover:bg-danger/10 rounded"><Trash2 size={16}/></button>
                                       </div>
                                   </div>
                               ))}
@@ -594,7 +594,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ token, onLogout }) => {
                                                     <td className="px-6 py-4 text-right">
                                                         <button 
                                                             onClick={() => downloadOriginalOFX(file.file_name || file.fileName, file.content)}
-                                                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-info/10 text-white hover:bg-info/20 border border-info/20 rounded text-xs font-bold transition-colors"
+                                                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-info/10 text-info hover:bg-info/20 border border-info/20 rounded text-xs font-bold transition-colors"
                                                         >
                                                             <Download size={14}/> Baixar OFX
                                                         </button>

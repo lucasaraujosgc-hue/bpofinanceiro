@@ -64,7 +64,7 @@ const BankCard: React.FC<BankCardProps> = ({ bank, onEdit, onDelete }) => (
                 </button>
                 <button 
                     onClick={() => onDelete(bank.id)}
-                    className="p-1.5 text-faint hover:text-white hover:bg-danger/10 rounded-lg transition-colors"
+                    className="p-1.5 text-faint hover:text-brand-fg hover:bg-danger/10 rounded-lg transition-colors"
                     title="Excluir Definitivamente"
                 >
                     <Trash2 size={16} />
@@ -94,7 +94,7 @@ const BankCard: React.FC<BankCardProps> = ({ bank, onEdit, onDelete }) => (
 
 const CreditCardCard: React.FC<CreditCardCardProps> = ({ card, bank, invoiceAmount, onEdit, onDelete }) => (
     <div className="group bg-surface rounded-xl p-6 border border-line shadow-sm hover:border-info/40/50 hover:shadow-lg hover:shadow-md transition-all duration-200 relative overflow-hidden">
-        <div className="absolute top-0 right-0 bg-info/10 text-white text-[10px] px-2 py-1 rounded-bl-lg border-b border-l border-info/40/20 flex items-center gap-1">
+        <div className="absolute top-0 right-0 bg-info/10 text-info text-[10px] px-2 py-1 rounded-bl-lg border-b border-l border-info/40/20 flex items-center gap-1">
             <CreditCardIcon size={10} /> Cartão de Crédito
         </div>
 
@@ -122,7 +122,7 @@ const CreditCardCard: React.FC<CreditCardCardProps> = ({ card, bank, invoiceAmou
                 </button>
                 <button 
                     onClick={() => onDelete(card.id)}
-                    className="p-1.5 text-faint hover:text-white hover:bg-danger/10 rounded-lg transition-colors"
+                    className="p-1.5 text-faint hover:text-brand-fg hover:bg-danger/10 rounded-lg transition-colors"
                     title="Excluir"
                 >
                     <Trash2 size={16} />
@@ -286,14 +286,14 @@ const BankList: React.FC<BankListProps> = ({ banks, creditCards, transactions, o
         <div className="flex gap-2">
             <button 
                 onClick={() => setIsAddCardModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-info text-white rounded-lg hover:bg-info font-medium transition-colors shadow-lg shadow-md"
+                className="flex items-center gap-2 px-4 py-2 bg-info text-white rounded-lg hover:bg-info/90 font-medium transition-colors shadow-md"
             >
             <Plus size={18} />
             Novo Cartão
             </button>
             <button 
                 onClick={() => setIsAddModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-strong font-medium transition-colors shadow-lg shadow-md"
+                className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-strong font-medium transition-colors shadow-md"
             >
             <Plus size={18} />
             Nova Conta
@@ -403,7 +403,7 @@ const BankList: React.FC<BankListProps> = ({ banks, creditCards, transactions, o
                                     onClick={() => setSelectedPreset(preset)}
                                     className="flex flex-col items-center gap-3 p-4 rounded-xl border border-line bg-surface hover:border-brand hover:bg-sunken/80 transition-all text-center group"
                                 >
-                                    <div className="w-12 h-12 rounded-lg bg-white p-2 flex items-center justify-center group-hover:shadow-sm shadow-md">
+                                    <div className="w-12 h-12 rounded-lg bg-white p-2 flex items-center justify-center group-hover:shadow-sm">
                                         <img src={preset.logo} alt={preset.name} className="max-w-full max-h-full object-contain" />
                                     </div>
                                     <span className="font-medium text-muted text-sm group-hover:text-ink">{preset.name}</span>
@@ -457,7 +457,7 @@ const BankList: React.FC<BankListProps> = ({ banks, creditCards, transactions, o
                             </button>
                             <button 
                                 type="submit"
-                                className="flex-1 px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-strong font-medium transition-colors shadow-sm shadow-md"
+                                className="flex-1 px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-strong font-medium transition-colors shadow-sm"
                             >
                                 Criar Conta
                             </button>
@@ -549,7 +549,7 @@ const BankList: React.FC<BankListProps> = ({ banks, creditCards, transactions, o
                         </button>
                         <button 
                             type="submit"
-                            className="flex-1 px-4 py-2 bg-info text-white rounded-lg hover:bg-info font-medium transition-colors shadow-sm shadow-md"
+                            className="flex-1 px-4 py-2 bg-info text-white rounded-lg hover:bg-info/90 font-medium transition-colors shadow-sm"
                         >
                             {editingCard ? 'Salvar Alterações' : 'Criar Cartão'}
                         </button>
@@ -599,8 +599,8 @@ const BankList: React.FC<BankListProps> = ({ banks, creditCards, transactions, o
                     onClick={() => setEditingBank({...editingBank, active: !editingBank.active})}
                     className={`w-full flex items-center justify-center gap-2 px-3 py-3 rounded-lg text-sm font-medium transition-colors border ${
                         editingBank.active 
-                        ? 'bg-danger/10 text-white border-danger/30 hover:bg-danger/20' 
-                        : 'bg-brand/10 text-white border-ok/30 hover:bg-brand/20'
+                        ? 'bg-danger/10 text-danger border-danger/30 hover:bg-danger/20' 
+                        : 'bg-brand/10 text-brand-fg border-ok/30 hover:bg-brand/20'
                     }`}
                  >
                     <Power size={16} />
@@ -624,7 +624,7 @@ const BankList: React.FC<BankListProps> = ({ banks, creditCards, transactions, o
                 </button>
                 <button 
                     type="submit"
-                    className="flex-1 px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-strong font-medium transition-colors shadow-sm shadow-md"
+                    className="flex-1 px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-strong font-medium transition-colors shadow-sm"
                 >
                     Salvar Alterações
                 </button>

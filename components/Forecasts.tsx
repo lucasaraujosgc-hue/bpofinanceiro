@@ -374,7 +374,7 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
            
            <button 
              onClick={() => { setEditingId(null); setIsModalOpen(true); }}
-             className="px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-strong font-medium flex items-center gap-2 shadow-sm shadow-md"
+             className="px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand-strong font-medium flex items-center gap-2 shadow-sm"
            >
                <Plus size={18}/> Nova Previsão
            </button>
@@ -455,7 +455,7 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
                                    </td>
                                    <td className="px-6 py-3 text-muted">
                                        {day}/{selectedMonth+1}
-                                       {isVirtual && <span className="ml-2 text-[10px] bg-info/20 text-white px-1.5 py-0.5 rounded">Fatura</span>}
+                                       {isVirtual && <span className="ml-2 text-[10px] bg-info/20 text-info px-1.5 py-0.5 rounded">Fatura</span>}
                                    </td>
                                    <td className="px-6 py-3 font-medium text-ink">{f.description}</td>
                                    <td className={`px-6 py-3 text-right font-bold ${f.type === TransactionType.DEBIT ? 'text-danger' : 'text-ok'}`}>
@@ -463,37 +463,37 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
                                    </td>
                                    <td className="px-6 py-3 text-center">
                                        {isFixed ? (
-                                            <span className="flex items-center justify-center gap-1 text-xs font-semibold text-white bg-info/10 px-2 py-0.5 rounded border border-info/30">
+                                            <span className="flex items-center justify-center gap-1 text-xs font-semibold text-brand-fg bg-info/10 px-2 py-0.5 rounded border border-info/30">
                                                 <Infinity size={12}/> Fixo
                                             </span>
                                        ) : f.installmentTotal ? (
-                                           <span className="bg-info/10 text-white px-2 py-0.5 rounded text-xs font-semibold border border-info/30">
+                                           <span className="bg-info/10 text-info px-2 py-0.5 rounded text-xs font-semibold border border-info/30">
                                                {f.installmentCurrent}/{f.installmentTotal}
                                            </span>
                                        ) : '-'}
                                    </td>
                                    <td className="px-6 py-3 text-center">
                                        {f.realized ? (
-                                           <span className="bg-brand/10 text-white px-2 py-1 rounded text-xs font-bold border border-ok/20">Realizado</span>
+                                           <span className="bg-brand/10 text-brand-fg px-2 py-1 rounded text-xs font-bold border border-ok/20">Realizado</span>
                                        ) : (
-                                           <span className="bg-warn/10 text-white px-2 py-1 rounded text-xs font-bold border border-warn/20">Pendente</span>
+                                           <span className="bg-warn/10 text-warn px-2 py-1 rounded text-xs font-bold border border-warn/20">Pendente</span>
                                        )}
                                    </td>
                                    <td className="px-6 py-3 text-center flex justify-center gap-2">
                                        {!f.realized && (
                                            <>
-                                            <button onClick={() => handleRealize(f)} className="p-1.5 bg-brand/10 text-white rounded hover:bg-brand/20" title="Efetivar">
+                                            <button onClick={() => handleRealize(f)} className="p-1.5 bg-brand/10 text-brand-fg rounded hover:bg-brand/20" title="Efetivar">
                                                 <Check size={16}/>
                                             </button>
                                             {!isVirtual && (
-                                                <button onClick={() => handleEditClick(f)} className="p-1.5 bg-info/10 text-white rounded hover:bg-info/20" title="Editar">
+                                                <button onClick={() => handleEditClick(f)} className="p-1.5 bg-info/10 text-info rounded hover:bg-info/20" title="Editar">
                                                     <Edit2 size={16}/>
                                                 </button>
                                             )}
                                            </>
                                        )}
                                        {!isVirtual && (
-                                           <button onClick={() => handleDeleteClick(f.id)} className="p-1.5 bg-danger/10 text-white rounded hover:bg-danger/20" title="Excluir">
+                                           <button onClick={() => handleDeleteClick(f.id)} className="p-1.5 bg-danger/10 text-danger rounded hover:bg-danger/20" title="Excluir">
                                                <Trash2 size={16}/>
                                            </button>
                                        )}
@@ -652,7 +652,7 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                 <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setDeleteModal({ isOpen: false, id: null })} />
                 <div className="relative bg-surface border border-line rounded-xl shadow-xl w-full max-w-sm p-6 text-center animate-in fade-in zoom-in duration-200">
-                    <div className="w-12 h-12 bg-danger/10 rounded-full flex items-center justify-center mx-auto mb-4 text-white">
+                    <div className="w-12 h-12 bg-danger/10 rounded-full flex items-center justify-center mx-auto mb-4 text-danger">
                         <Trash2 size={24}/>
                     </div>
                     <h3 className="text-lg font-bold text-ink mb-2">Excluir Previsão</h3>
@@ -665,7 +665,7 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
                         <button onClick={() => confirmDelete('future')} className="w-full py-2.5 bg-sunken border border-line hover:bg-sunken text-ink rounded-lg font-medium text-sm">
                             Esta e as futuras
                         </button>
-                        <button onClick={() => confirmDelete('all')} className="w-full py-2.5 bg-danger hover:bg-danger text-white rounded-lg font-medium text-sm shadow-sm">
+                        <button onClick={() => confirmDelete('all')} className="w-full py-2.5 bg-danger hover:bg-danger/90 text-white rounded-lg font-medium text-sm shadow-sm">
                             Todas as ocorrências
                         </button>
                     </div>

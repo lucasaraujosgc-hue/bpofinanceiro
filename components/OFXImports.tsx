@@ -384,7 +384,7 @@ const OFXImports: React.FC<OFXImportsProps> = ({ token, userId, banks, keywordRu
              <button 
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isProcessing}
-                className="flex items-center gap-2 px-6 py-3 bg-brand text-white rounded-lg hover:bg-brand-strong font-medium transition-colors shadow-lg shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-6 py-3 bg-brand text-white rounded-lg hover:bg-brand-strong font-medium transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
              >
                 {isProcessing ? <Loader2 className="animate-spin" size={20}/> : <FileSpreadsheet size={20} />}
                 Selecionar Arquivo OFX
@@ -511,14 +511,14 @@ const OFXImports: React.FC<OFXImportsProps> = ({ token, userId, banks, keywordRu
                                     {bank?.name || 'Desconhecido'}
                                 </td>
                                 <td className="px-6 py-4 text-center">
-                                    <span className="bg-info/10 text-white px-2 py-1 rounded-md text-xs font-bold border border-info/40/20">
+                                    <span className="bg-info/10 text-info px-2 py-1 rounded-md text-xs font-bold border border-info/40/20">
                                         {imp.transactionCount}
                                     </span>
                                 </td>
                                 <td className="px-6 py-4 text-center">
                                     <button 
                                         onClick={() => handleDeleteImport(imp.id)}
-                                        className="p-2 text-faint hover:text-white hover:bg-danger/10 rounded transition-colors"
+                                        className="p-2 text-faint hover:text-brand-fg hover:bg-danger/10 rounded transition-colors"
                                         title="Excluir Importação e Lançamentos"
                                     >
                                         <Trash2 size={18} />

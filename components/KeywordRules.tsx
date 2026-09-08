@@ -163,7 +163,7 @@ const KeywordRules: React.FC<KeywordRulesProps> = ({ categories, rules, banks, o
                                       </td>
                                       <td className="px-6 py-4 font-mono text-muted">"{rule.keyword}"</td>
                                       <td className="px-6 py-4">
-                                          <span className={`px-2 py-1 rounded text-xs font-bold border ${rule.type === TransactionType.CREDIT ? 'bg-brand/10 text-white border-ok/20' : 'bg-danger/10 text-white border-danger/20'}`}>
+                                          <span className={`px-2 py-1 rounded text-xs font-bold border ${rule.type === TransactionType.CREDIT ? 'bg-brand/10 text-brand-fg border-ok/20' : 'bg-danger/10 text-danger border-danger/20'}`}>
                                               {rule.type === TransactionType.CREDIT ? 'Receita' : 'Despesa'}
                                           </span>
                                       </td>
@@ -174,7 +174,7 @@ const KeywordRules: React.FC<KeywordRulesProps> = ({ categories, rules, banks, o
                                       <td className="px-6 py-4 text-center">
                                           <button 
                                             onClick={() => onDeleteRule(rule.id)}
-                                            className="p-2 text-faint hover:text-white hover:bg-danger/10 rounded transition-colors"
+                                            className="p-2 text-faint hover:text-brand-fg hover:bg-danger/10 rounded transition-colors"
                                             title="Excluir Regra"
                                           >
                                               <Trash2 size={16}/>
