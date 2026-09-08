@@ -36,21 +36,18 @@ Legenda: 🔴 crítico · 🟠 alto · 🟡 médio · ⚪ baixo / higiene
 | tabela órfã `pluggy_connections` | ✅ `DROP TABLE IF EXISTS` no `db_init` |
 | favicon / título | ✅ favicon → `virgulacontabil.com.br/.../icon-192.png`; `<title>` = "Ferramenta Financeira \| Vírgula Contábil" |
 | DRE / plano de contas | ✅ reescrito conforme art. 187 (ver `docs/RELATORIOS.md`); grupos contábeis, análise vertical/horizontal, ponto de equilíbrio |
+| §9 `server.js` monolítico | ✅ **split** (branch `refactor/split-server`): `src/server/{config,db,schema,accounting}.js` + `middleware/` + `services/` + `lib/` + `routes/*.routes.js` (10 módulos). `server.js` virou bootstrap de ~100 linhas. Handlers movidos verbatim, rotas/ordem preservadas. Shim SQLite→PG segue em `db.js` (documentado) |
+| §2 modelo de sessão | ✅ **access curto (15 min) + refresh rotativo (~90 d) com detecção de reuso** — tabela `auth_sessions` (digest sha256), `POST /api/auth/refresh` + `/api/auth/logout`, reset de senha e block/delete revogam a sessão. Frontend: patch de `window.fetch` (`lib/http.ts`) renova em 401 de forma transparente (single-flight). Token inválido → 401 `token_expired` (era 403) |
 
 **Verificação (contra PGlite via `preview-boot.mjs` — dados simulados):**
 `npm run build` OK · boot produção OK · login OK · IDOR `POST /api/forecasts`
 com `bankId` alheio → **403** · 9 logins errados → **429** · header CSP presente
 em produção sem violações no SPA · DRE/Análise/Fluxo renderizam com dados reais.
+Split + sessão: 51 checagens de API (24 base + 13 helpers de módulo + 14 sessão)
++ teste de navegador (renovação transparente, single-flight, logout forçado).
 
 ### Pendente (não feito)
 
-- **`server.js` continua monolítico** (§9) — o split em `routes/`+`services/`
-  (e matar o shim SQLite→PG) é refatoração estrutural, não correção de bug.
-  Recomendo branch própria; é a maior peça que sobra.
-- **Modelo de sessão** (§2) — ainda é um único bearer de 24 h sem revogação nem
-  refresh rotativo. `blocked` já barra a API (cache 30 s) e o token roubado só
-  vale até expirar, mas o ideal é access curto + refresh rotativo com detecção
-  de reuso (como o `cliente_final`). Toca o `apiFetch` do frontend também.
 - **zod / validação de schema** (§5) — nenhum endpoint de escrita valida tipo,
   faixa ou formato. Só coerção pontual (`Number(value)`, `|| null`).
 - QA visual das telas internas nos dois temas.
@@ -213,23 +210,23 @@ então é auto-corretivo. Só vira problema em conjunto com 1.3.
 
 ## 2. 🟠 JWT em localStorage
 
-`App.tsx:51,91,237,240` — token em `localStorage`/`sessionStorage`.
+`App.tsx` — tokens em `localStorage`/`sessionStorage`.
 
-- Qualquer XSS → roubo do token → **account takeover**. Token de 24 h (admin
-  12 h), **sem revogação server-side**, sem refresh rotativo, sem tabela de
-  sessões. Token roubado vale até expirar.
-- Combinado com CSP desligada (§3 / §7) e scripts de terceiros no `index.html`
-  (Tailwind CDN, importmap `esm.sh`), a superfície de XSS→exfiltração é ampla.
-- `JWT_SECRET` (`server.js:22`) cai para `crypto.randomBytes(64)` se a env não
-  existir: em produção multi-instância (Cloud Run) cada instância assina com
-  segredo diferente → 403 aleatório; e não há fail-fast.
+**Estado:** access token agora vive 15 min (era 24 h / admin 12 h) e existe
+`auth_sessions` com refresh rotativo + detecção de reuso + revogação
+server-side (reset de senha, block, delete). Um token roubado ainda vale até o
+access expirar (janela de 15 min, aceita como troca por não bater no banco a
+cada request — mesmo modelo do `cliente_final`); o refresh roubado é detectado
+na primeira rotação e mata a sessão.
 
-**Ação (em ordem de esforço):**
-1. `JWT_SECRET` obrigatório — abortar boot se ausente (como no `cliente_final`).
-2. Access token curto (10–15 min) + refresh token httpOnly + rotação.
-3. CSP real (§7).
-4. Longo prazo: cookie `httpOnly; Secure; SameSite=Lax` + token anti-CSRF, em
-   vez de localStorage.
+Restante:
+- Persistência em `localStorage` continua exposta a XSS. Mitigado pela CSP real
+  em produção (§7) e pela remoção dos scripts de terceiros do `index.html`.
+- `JWT_SECRET` já é fail-fast em produção (§0/§4).
+
+**Ação restante (longo prazo):**
+- Cookie `httpOnly; Secure; SameSite=Lax` para o refresh + token anti-CSRF, em
+  vez de `localStorage`.
 
 ---
 
@@ -393,7 +390,14 @@ Fraquezas em volta:
 
 ## 9. 🟡 `server.js` monolítico + shim SQLite→PG por regex
 
-`server.js:129-220` (`db` adapter) + `_convertQuery` (`:130`).
+**Estado:** o monólito foi quebrado (branch `refactor/split-server`) em
+`src/server/{config,db,schema,accounting}.js` + `middleware/` + `services/` +
+`lib/` + `routes/*.routes.js`. `server.js` é bootstrap. O shim `db.*` foi
+isolado em `src/server/db.js` (com comentário do porquê) mas **não** foi
+removido — as ~40 queries que o usam continuam passando por `_convertQuery`.
+Os modos de falha abaixo seguem válidos até o shim morrer.
+
+`src/server/db.js` (`db` adapter) + `_convertQuery`.
 
 Modos de falha concretos:
 
@@ -528,9 +532,9 @@ cru.
 9. CSP real + remover Tailwind CDN/importmap (§7, §12).
 
 **Sprint 2 (estrutural):**
-10. zod em todos os endpoints de escrita (§5).
-11. Migrations no lugar do `db_init` (§10).
-12. Matar o shim SQLite→PG, quebrar `server.js` em módulos (§9).
-13. AES-GCM + migração do formato dos blobs (§4).
-14. Modelo de sessão: access curto + refresh rotativo, ou cookie httpOnly (§2).
-15. `logAudit` nas ações de admin + endpoint para ler `audit_logs` (§7).
+10. zod em todos os endpoints de escrita (§5). — **pendente**
+11. Migrations no lugar do `db_init` (§10). — pendente
+12. ~~Quebrar `server.js` em módulos~~ ✅ (`refactor/split-server`); matar o shim SQLite→PG ainda pendente (§9).
+13. ✅ AES-GCM + leitura do formato CBC legado (§4).
+14. ✅ Modelo de sessão: access 15 min + refresh rotativo com detecção de reuso + `auth_sessions` (§2).
+15. ✅ `logAudit` nas ações de admin + `GET /api/admin/audit` (§7).
