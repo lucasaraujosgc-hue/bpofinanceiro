@@ -367,35 +367,88 @@ const INITIAL_BANKS_SEED = [
 ];
 
 const INITIAL_CATEGORIES_SEED = [
-  { name: 'Vendas de Mercadorias', type: 'receita', group: 'receita_bruta' },
-  { name: 'Prestação de Serviços', type: 'receita', group: 'receita_bruta' },
-  { name: 'Comissões Recebidas', type: 'receita', group: 'receita_bruta' },
-  { name: 'Receita Financeira', type: 'receita', group: 'receita_financeira' },
-  { name: 'Receita de Aluguel', type: 'receita', group: 'outras_receitas' },
-  { name: 'Outras Receitas Operacionais', type: 'receita', group: 'outras_receitas' },
-  { name: 'Reembolsos de Clientes', type: 'receita', group: 'outras_receitas' },
-  { name: 'Venda de Ativo Imobilizado', type: 'receita', group: 'receita_nao_operacional' },
-  { name: 'Aportes de Sócios / Investimentos', type: 'receita', group: 'nao_operacional' },
-  { name: 'Transferências Internas (Entrada)', type: 'receita', group: 'nao_operacional' },
-  { name: 'Compra de Mercadorias', type: 'despesa', group: 'custo_operacional' },
-  { name: 'Custos de Serviços Prestados', type: 'despesa', group: 'custo_operacional' },
-  { name: 'Fretes sobre Compras', type: 'despesa', group: 'custo_operacional' },
-  { name: 'Salários e Ordenados', type: 'despesa', group: 'despesa_pessoal' },
-  { name: 'Pró-Labore', type: 'despesa', group: 'despesa_pessoal' },
-  { name: 'FGTS, INSS IRRF', type: 'despesa', group: 'despesa_pessoal' },
-  { name: 'Aluguel e Condomínio', type: 'despesa', group: 'despesa_administrativa' },
-  { name: 'Energia, Água e Internet', type: 'despesa', group: 'despesa_administrativa' },
-  { name: 'Material de Escritório e Limpeza', type: 'despesa', group: 'despesa_administrativa' },
-  { name: 'Seguros', type: 'despesa', group: 'despesa_administrativa' },
-  { name: 'Serviços de Terceiros (Contabilidade, Admin e Jurídico)', type: 'despesa', group: 'despesa_administrativa' },
-  { name: 'Sistemas / Marketing e Publicidade', type: 'despesa', group: 'despesa_operacional' },
-  { name: 'Combustível, Deslocamento / Manutenção e Reparos', type: 'despesa', group: 'despesa_operacional' },
-  { name: 'Impostos sobre o Faturamento (DAS, ISS, ICMS)', type: 'despesa', group: 'impostos' },
-  { name: 'Tarifas Bancárias/Juros e Multas Pagos', type: 'despesa', group: 'despesa_financeira' },
-  { name: 'Distribuição de Lucros', type: 'despesa', group: 'nao_operacional' },
-  { name: 'Serviços Eventuais Não Operacionais', type: 'despesa', group: 'nao_operacional' },
-  { name: 'Transferências Internas (Saída)', type: 'despesa', group: 'nao_operacional' }
+  // ---- Receitas -------------------------------------------------------
+  { name: 'Vendas de Mercadorias', type: 'receita', group: 'receita_bruta', behavior: 'variavel' },
+  { name: 'Prestação de Serviços', type: 'receita', group: 'receita_bruta', behavior: 'variavel' },
+  { name: 'Comissões Recebidas', type: 'receita', group: 'receita_bruta', behavior: 'variavel' },
+  { name: 'Receita de Aluguel', type: 'receita', group: 'outras_receitas', behavior: 'fixa' },
+  { name: 'Outras Receitas Operacionais', type: 'receita', group: 'outras_receitas', behavior: 'variavel' },
+  { name: 'Reembolsos de Clientes', type: 'receita', group: 'outras_receitas', behavior: 'variavel' },
+  { name: 'Receitas Financeiras (juros, rendimentos)', type: 'receita', group: 'receita_financeira', behavior: 'variavel' },
+  { name: 'Venda de Ativo Imobilizado', type: 'receita', group: 'receita_nao_operacional', behavior: 'variavel' },
+  { name: 'Aportes de Sócios / Investimentos', type: 'receita', group: 'nao_operacional', behavior: 'variavel' },
+  { name: 'Empréstimos Recebidos', type: 'receita', group: 'nao_operacional', behavior: 'variavel' },
+  { name: 'Transferências entre Contas (Entrada)', type: 'receita', group: 'nao_operacional', behavior: 'variavel' },
+  // ---- Custos (CMV / CPV / CSP) --------------------------------------
+  { name: 'Compra de Mercadorias', type: 'despesa', group: 'custo_operacional', behavior: 'variavel' },
+  { name: 'Custos de Serviços Prestados', type: 'despesa', group: 'custo_operacional', behavior: 'variavel' },
+  { name: 'Insumos e Matéria-Prima', type: 'despesa', group: 'custo_operacional', behavior: 'variavel' },
+  { name: 'Frete sobre Compras', type: 'despesa', group: 'custo_operacional', behavior: 'variavel' },
+  // ---- Despesas com Vendas -----------------------------------------
+  { name: 'Comissões sobre Vendas', type: 'despesa', group: 'despesa_com_vendas', behavior: 'variavel' },
+  { name: 'Marketing e Publicidade', type: 'despesa', group: 'despesa_com_vendas', behavior: 'variavel' },
+  { name: 'Frete sobre Vendas', type: 'despesa', group: 'despesa_com_vendas', behavior: 'variavel' },
+  // ---- Despesas com Pessoal ---------------------------------------
+  { name: 'Salários e Ordenados', type: 'despesa', group: 'despesa_pessoal', behavior: 'fixa' },
+  { name: 'Pró-Labore', type: 'despesa', group: 'despesa_pessoal', behavior: 'fixa' },
+  { name: 'Encargos (FGTS, INSS, IRRF)', type: 'despesa', group: 'despesa_pessoal', behavior: 'fixa' },
+  { name: 'Benefícios (VT, VR, Plano de Saúde)', type: 'despesa', group: 'despesa_pessoal', behavior: 'fixa' },
+  // ---- Despesas Administrativas ----------------------------------
+  { name: 'Aluguel e Condomínio', type: 'despesa', group: 'despesa_administrativa', behavior: 'fixa' },
+  { name: 'Energia, Água e Internet', type: 'despesa', group: 'despesa_administrativa', behavior: 'fixa' },
+  { name: 'Material de Escritório e Limpeza', type: 'despesa', group: 'despesa_administrativa', behavior: 'variavel' },
+  { name: 'Seguros', type: 'despesa', group: 'despesa_administrativa', behavior: 'fixa' },
+  { name: 'Sistemas e Softwares (assinaturas)', type: 'despesa', group: 'despesa_administrativa', behavior: 'fixa' },
+  { name: 'Serviços de Terceiros (Contabilidade, Jurídico)', type: 'despesa', group: 'despesa_administrativa', behavior: 'fixa' },
+  // ---- Despesas Gerais / Operacionais ---------------------------
+  { name: 'Combustível e Deslocamento', type: 'despesa', group: 'despesa_operacional', behavior: 'variavel' },
+  { name: 'Manutenção e Reparos', type: 'despesa', group: 'despesa_operacional', behavior: 'variavel' },
+  // ---- Deduções e Tributos -------------------------------------
+  { name: 'Impostos sobre Vendas (DAS, ISS, ICMS, PIS/COFINS)', type: 'despesa', group: 'impostos', behavior: 'variavel' },
+  { name: 'IRPJ e CSLL', type: 'despesa', group: 'impostos_sobre_lucro', behavior: 'variavel' },
+  // ---- Resultado Financeiro -----------------------------------
+  { name: 'Tarifas Bancárias', type: 'despesa', group: 'despesa_financeira', behavior: 'fixa' },
+  { name: 'Juros e Multas Pagos', type: 'despesa', group: 'despesa_financeira', behavior: 'variavel' },
+  // ---- Não operacional / patrimonial (fora do DRE) ------------
+  { name: 'Distribuição de Lucros', type: 'despesa', group: 'nao_operacional', behavior: 'variavel' },
+  { name: 'Pagamento de Empréstimos', type: 'despesa', group: 'nao_operacional', behavior: 'variavel' },
+  { name: 'Compra de Ativo Imobilizado', type: 'despesa', group: 'nao_operacional', behavior: 'variavel' },
+  { name: 'Transferências entre Contas (Saída)', type: 'despesa', group: 'nao_operacional', behavior: 'variavel' }
 ];
+
+// ---------------------------------------------------------------------------
+// Plano de contas gerencial — fonte única da verdade.
+// Cada group_type de uma categoria mapeia para uma linha do DRE.
+// `dre: null` => movimento patrimonial/interno: NÃO entra no DRE.
+// ---------------------------------------------------------------------------
+const ACCOUNTING_GROUPS = {
+  // receitas
+  receita_bruta:            { type: 'receita', label: 'Receita Bruta',                       dre: 'receita_bruta' },
+  outras_receitas:          { type: 'receita', label: 'Outras Receitas Operacionais',        dre: 'outras_receitas_op' },
+  receita_financeira:       { type: 'receita', label: 'Receitas Financeiras',                dre: 'receita_financeira' },
+  receita_nao_operacional:  { type: 'receita', label: 'Receitas Não Operacionais',           dre: 'receita_nao_op' },
+  // despesas
+  impostos:                 { type: 'despesa', label: 'Impostos sobre Vendas',               dre: 'deducoes' },
+  custo_operacional:        { type: 'despesa', label: 'Custos (CMV / CPV / CSP)',             dre: 'cmv' },
+  despesa_com_vendas:       { type: 'despesa', label: 'Despesas com Vendas',                 dre: 'desp_vendas' },
+  despesa_pessoal:          { type: 'despesa', label: 'Despesas com Pessoal',                dre: 'desp_pessoal' },
+  despesa_administrativa:   { type: 'despesa', label: 'Despesas Administrativas',            dre: 'desp_admin' },
+  despesa_operacional:      { type: 'despesa', label: 'Despesas Gerais e Operacionais',      dre: 'desp_gerais' },
+  despesa_financeira:       { type: 'despesa', label: 'Despesas Financeiras',                dre: 'despesa_financeira' },
+  despesa_nao_operacional:  { type: 'despesa', label: 'Despesas Não Operacionais',           dre: 'despesa_nao_op' },
+  impostos_sobre_lucro:     { type: 'despesa', label: 'IRPJ e CSLL',                         dre: 'irpj_csll' },
+  // patrimonial / interno — fora do DRE
+  nao_operacional:          { type: 'ambos',   label: 'Movimentações Patrimoniais / Internas', dre: null },
+};
+
+// Resolve o "bucket" de DRE de uma linha de transação a partir do group_type.
+// Sem categoria/grupo: receita entra em receita_bruta, despesa em desp_gerais
+// (mantém o comportamento anterior de não "sumir" com lançamentos soltos).
+function dreBucketFor(row) {
+  const g = ACCOUNTING_GROUPS[row.group_type];
+  if (g) return g.dre; // pode ser null (fora do DRE)
+  return row.type === 'credito' ? 'receita_bruta' : 'desp_gerais';
+}
 
 const db_init = async () => {
   try {
@@ -562,8 +615,8 @@ app.post('/api/complete-signup', (req, res) => {
                 if (err) return res.status(500).json({ error: err.message });
                 const userId = this.lastID;
                 
-                const stmtCat = db.prepare("INSERT INTO categories (user_id, name, type, group_type, affects_dre, affects_cashflow, affects_balance) VALUES (?, ?, ?, ?, true, true, false)");
-                INITIAL_CATEGORIES_SEED.forEach(c => stmtCat.run(userId, c.name, c.type, c.group));
+                const stmtCat = db.prepare("INSERT INTO categories (user_id, name, type, group_type, behavior_type, affects_dre, affects_cashflow, affects_balance) VALUES (?, ?, ?, ?, ?, true, true, false)");
+                INITIAL_CATEGORIES_SEED.forEach(c => stmtCat.run(userId, c.name, c.type, c.group, c.behavior || 'variavel'));
                 stmtCat.finalize();
 
                 db.run("DELETE FROM pending_signups WHERE email = ?", [pending.email]);
@@ -676,8 +729,8 @@ app.delete('/api/credit-cards/:id', authenticateToken, async (req, res) => {
 app.get('/api/categories', authenticateToken, (req, res) => {
     db.all(`SELECT * FROM categories WHERE user_id = ? ORDER BY name`, [req.userId], (err, rows) => {
         if(rows && rows.length === 0) {
-            const stmt = db.prepare("INSERT INTO categories (user_id, name, type, group_type, affects_dre, affects_cashflow, affects_balance) VALUES (?, ?, ?, ?, true, true, false)");
-            INITIAL_CATEGORIES_SEED.forEach(c => stmt.run(req.userId, c.name, c.type, c.group));
+            const stmt = db.prepare("INSERT INTO categories (user_id, name, type, group_type, behavior_type, affects_dre, affects_cashflow, affects_balance) VALUES (?, ?, ?, ?, ?, true, true, false)");
+            INITIAL_CATEGORIES_SEED.forEach(c => stmt.run(req.userId, c.name, c.type, c.group, c.behavior || 'variavel'));
             stmt.finalize(() => {
                 db.all(`SELECT * FROM categories WHERE user_id = ?`, [req.userId], (err, newRows) => {
                     res.json((newRows || []).map(r => ({ ...r, groupType: r.group_type, mainGroup: r.main_group, subGroup: r.sub_group, costClassification: r.cost_classification, behaviorType: r.behavior_type, affectsDre: r.affects_dre, affectsCashflow: r.affects_cashflow, affectsBalance: r.affects_balance })));
@@ -1029,20 +1082,48 @@ app.get('/api/reports/daily-flow', authenticateToken, async (req, res) => {
     if (!startDate || !endDate) return res.status(400).json({ error: 'Datas necessárias' });
 
     try {
+        // Saldo de abertura: tudo que entrou/saiu ANTES de startDate.
+        const openRes = await pool.query(
+            `SELECT COALESCE(SUM(CASE WHEN type = 'credito' THEN value ELSE -value END), 0) AS saldo
+             FROM transactions WHERE user_id = $1 AND date::date < $2::date`,
+            [req.userId, startDate]
+        );
+        const openingBalance = Number(openRes.rows[0].saldo || 0);
+
+        // ::date normaliza lançamentos que vierem com hora (ex.: import de NFe).
         const { rows } = await pool.query(
-            `SELECT date, type, SUM(value) as total FROM transactions WHERE user_id = $1 AND date BETWEEN $2 AND $3 GROUP BY date, type ORDER BY date ASC`,
+            `SELECT (date::date)::text AS d, type, SUM(value) AS total
+             FROM transactions
+             WHERE user_id = $1 AND date::date >= $2::date AND date::date <= $3::date
+             GROUP BY date::date, type`,
             [req.userId, startDate, endDate]
         );
-        const grouped = {};
-        rows.forEach(row => {
-            if (!grouped[row.date]) grouped[row.date] = { date: row.date, income: 0, expense: 0, net: 0 };
-            const total = Number(row.total);
-            if (row.type === 'credito') grouped[row.date].income += total;
-            else grouped[row.date].expense += total;
-            grouped[row.date].net = grouped[row.date].income - grouped[row.date].expense;
+        const byDay = {};
+        rows.forEach(r => {
+            if (!byDay[r.d]) byDay[r.d] = { income: 0, expense: 0 };
+            if (r.type === 'credito') byDay[r.d].income += Number(r.total);
+            else byDay[r.d].expense += Number(r.total);
         });
-        res.json(Object.values(grouped));
-    } catch(err) {
+
+        // Série contínua (todos os dias) para a linha de saldo acumulado não ter buracos.
+        const series = [];
+        let running = openingBalance;
+        let minSaldo = openingBalance, minDate = startDate;
+        const cur = new Date(startDate + 'T00:00:00Z');
+        const end = new Date(endDate + 'T00:00:00Z');
+        let guard = 0;
+        while (cur <= end && guard++ < 1100) {
+            const key = cur.toISOString().split('T')[0];
+            const d = byDay[key] || { income: 0, expense: 0 };
+            const net = d.income - d.expense;
+            running += net;
+            if (running < minSaldo) { minSaldo = running; minDate = key; }
+            series.push({ date: key, income: d.income, expense: d.expense, net, saldo: running });
+            cur.setUTCDate(cur.getUTCDate() + 1);
+        }
+
+        res.json({ openingBalance, closingBalance: running, minSaldo, minDate, series });
+    } catch (err) {
         console.error("Daily Flow Error:", err.stack);
         res.status(500).json({ error: err.message });
     }
@@ -1133,324 +1214,388 @@ app.get('/api/reports/dre', authenticateToken, async (req, res) => {
     }
 });
 
+// DRE gerencial — estrutura do art. 187 da Lei 6.404/76 adaptada ao regime de
+// caixa (o sistema só conhece lançamentos realizados). Base da análise
+// vertical (AV): Receita Operacional Líquida.
 app.get('/api/reports/dre-hierarchical', authenticateToken, async (req, res) => {
-    const { year, month } = req.query;
     const userId = req.userId;
-    const y = parseInt(year);
-    const m = month ? parseInt(month) : null;
+    const y = parseInt(req.query.year);
+    const m = req.query.month !== undefined && req.query.month !== '' && req.query.month !== 'null'
+        ? parseInt(req.query.month) : null;
 
-    let query = `SELECT t.*, c.name as category_name, c.group_type, c.main_group, c.sub_group, c.nature, c.affects_dre, c.cost_classification 
-                 FROM transactions t 
-                 LEFT JOIN categories c ON t.category_id = c.id 
+    let query = `SELECT t.type, t.value, c.name AS category_name, c.group_type
+                 FROM transactions t
+                 LEFT JOIN categories c ON t.category_id = c.id
                  WHERE t.user_id = $1 AND EXTRACT(YEAR FROM t.date::date) = $2`;
     const params = [userId, y];
-    if (m !== null) { 
-        query += ` AND EXTRACT(MONTH FROM t.date::date) = $3`; 
-        params.push(m + 1); 
-    }
+    if (m !== null) { query += ` AND EXTRACT(MONTH FROM t.date::date) = $3`; params.push(m + 1); }
 
     try {
         const { rows } = await pool.query(query, params);
-        
-        let rb = { label: 'Receita Bruta', value: 0, children: [] };
-        let deducoes = { label: '(-) Deduções da Receita Bruta', value: 0, children: [] };
-        let cmv = { label: '(-) Custos (CMV/CSP/CPV)', value: 0, children: [] };
-        let despesasOperacionais = { label: '(-) Despesas Operacionais', value: 0, children: [] };
-        let resultFinanceiro = { label: '(+/-) Resultado Financeiro', value: 0, children: [] };
-        let resultNaoOpe = { label: '(+/-) Resultado Não Operacional', value: 0, children: [] };
 
-        const addToGroup = (groupObj, childLabel, val) => {
-            let child = groupObj.children.find(c => c.label === childLabel);
-            if (!child) {
-                child = { label: childLabel, value: 0 };
-                groupObj.children.push(child);
-            }
-            child.value += val;
-            groupObj.value += val;
+        const buckets = {};
+        const add = (bk, cat, val) => {
+            if (!buckets[bk]) buckets[bk] = { total: 0, children: {} };
+            buckets[bk].total += val;
+            buckets[bk].children[cat] = (buckets[bk].children[cat] || 0) + val;
         };
-
         rows.forEach(r => {
-            const isIgnored = r.affects_dre === false;
-            // Migrating legacy behavior_type to nature / effects
-            if (isIgnored || r.group_type === 'patrimonial' || r.nature === 'patrimonial') return;
-
-            const val = Number(r.value);
-            const catName = r.category_name || 'Outros';
-
-            if (r.type === 'credito') {
-                if (r.group_type === 'receita_bruta' || r.main_group === 'Receitas Operacionais' || !r.group_type) {
-                    addToGroup(rb, catName, val);
-                } else if (r.group_type === 'receita_financeira' || r.nature === 'financeira') {
-                    addToGroup(resultFinanceiro, catName, val);
-                } else {
-                    addToGroup(resultNaoOpe, catName, val);
-                }
-            } else {
-                if (r.group_type === 'impostos' || r.main_group === 'Deduções') {
-                    addToGroup(deducoes, catName, val);
-                } else if (r.group_type === 'custo_operacional' || r.cost_classification) {
-                    addToGroup(cmv, catName, val);
-                } else if (['despesa_operacional', 'despesa_pessoal', 'despesa_administrativa'].includes(r.group_type) || r.nature === 'operacional') {
-                    addToGroup(despesasOperacionais, catName, val);
-                } else if (r.group_type === 'despesa_financeira' || r.nature === 'financeira') {
-                    addToGroup(resultFinanceiro, catName, -val);
-                } else {
-                    addToGroup(resultNaoOpe, catName, -val);
-                }
-            }
+            const bk = dreBucketFor(r);
+            if (!bk) return; // movimento patrimonial/interno — fora do DRE
+            add(bk, r.category_name || 'Sem categoria', Number(r.value) || 0);
         });
+        const B = k => (buckets[k] ? buckets[k].total : 0);
+        const kids = (k, mult = 1) => Object.entries(buckets[k] ? buckets[k].children : {})
+            .map(([label, value]) => ({ label, value: value * mult }))
+            .sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
 
-        const receitaLiquida = rb.value - deducoes.value;
-        const lucroBruto = receitaLiquida - cmv.value;
-        const ebitda = lucroBruto - despesasOperacionais.value;
-        const lucroLiquido = ebitda + resultFinanceiro.value + resultNaoOpe.value;
+        const receitaBruta = B('receita_bruta');
+        const deducoes = B('deducoes');
+        const receitaLiquida = receitaBruta - deducoes;
+        const cmv = B('cmv');
+        const lucroBruto = receitaLiquida - cmv;
+        const dVendas = B('desp_vendas');
+        const dPessoal = B('desp_pessoal');
+        const dAdmin = B('desp_admin');
+        const dGerais = B('desp_gerais');
+        const outrasRecOp = B('outras_receitas_op');
+        const despesasOperacionais = dVendas + dPessoal + dAdmin + dGerais;
+        const resultadoOperacional = lucroBruto - despesasOperacionais + outrasRecOp;
+        const recFin = B('receita_financeira');
+        const despFin = B('despesa_financeira');
+        const resultadoFinanceiro = recFin - despFin;
+        const resultadoAntesTributos = resultadoOperacional + resultadoFinanceiro;
+        const recNaoOp = B('receita_nao_op');
+        const despNaoOp = B('despesa_nao_op');
+        const resultadoNaoOperacional = recNaoOp - despNaoOp;
+        const irpjCsll = B('irpj_csll');
+        const lucroLiquido = resultadoAntesTributos + resultadoNaoOperacional - irpjCsll;
 
-        const dre = [
-            rb,
-            deducoes,
-            { label: '= Receita Líquida', value: receitaLiquida, children: [] },
-            cmv,
-            { label: '= Lucro Bruto', value: lucroBruto, children: [] },
-            despesasOperacionais,
-            { label: '= EBITDA', value: ebitda, children: [] },
-            resultFinanceiro,
-            resultNaoOpe,
-            { label: '= Lucro Líquido', value: lucroLiquido, children: [] }
+        const base = receitaLiquida !== 0 ? Math.abs(receitaLiquida) : 1;
+        const pct = v => (v / base) * 100;
+
+        const lines = [
+            { key: 'rb', kind: 'group', label: 'Receita Operacional Bruta', value: receitaBruta, pct: pct(receitaBruta), children: kids('receita_bruta') },
+            { key: 'ded', kind: 'group', label: '(-) Impostos e Deduções sobre Vendas', value: -deducoes, pct: pct(-deducoes), children: kids('deducoes', -1) },
+            { key: 'rl', kind: 'subtotal', label: '= Receita Operacional Líquida', value: receitaLiquida, pct: pct(receitaLiquida) },
+            { key: 'cmv', kind: 'group', label: '(-) Custos (CMV / CPV / CSP)', value: -cmv, pct: pct(-cmv), children: kids('cmv', -1) },
+            { key: 'lb', kind: 'subtotal', label: '= Lucro Bruto', value: lucroBruto, pct: pct(lucroBruto) },
+            { key: 'dv', kind: 'group', label: '(-) Despesas com Vendas', value: -dVendas, pct: pct(-dVendas), children: kids('desp_vendas', -1) },
+            { key: 'dp', kind: 'group', label: '(-) Despesas com Pessoal', value: -dPessoal, pct: pct(-dPessoal), children: kids('desp_pessoal', -1) },
+            { key: 'da', kind: 'group', label: '(-) Despesas Administrativas', value: -dAdmin, pct: pct(-dAdmin), children: kids('desp_admin', -1) },
+            { key: 'dg', kind: 'group', label: '(-) Despesas Gerais e Operacionais', value: -dGerais, pct: pct(-dGerais), children: kids('desp_gerais', -1) },
         ];
+        if (outrasRecOp) lines.push({ key: 'oro', kind: 'group', label: '(+) Outras Receitas Operacionais', value: outrasRecOp, pct: pct(outrasRecOp), children: kids('outras_receitas_op') });
+        lines.push({ key: 'ebit', kind: 'subtotal', label: '= Resultado Operacional (EBIT)', value: resultadoOperacional, pct: pct(resultadoOperacional) });
+        lines.push({
+            key: 'rf', kind: 'group', label: '(+/-) Resultado Financeiro', value: resultadoFinanceiro, pct: pct(resultadoFinanceiro),
+            children: [...kids('receita_financeira'), ...kids('despesa_financeira', -1)],
+        });
+        lines.push({ key: 'rat', kind: 'subtotal', label: '= Resultado Antes dos Tributos', value: resultadoAntesTributos, pct: pct(resultadoAntesTributos) });
+        if (recNaoOp || despNaoOp) lines.push({
+            key: 'rno', kind: 'group', label: '(+/-) Outras Receitas e Despesas Não Operacionais', value: resultadoNaoOperacional, pct: pct(resultadoNaoOperacional),
+            children: [...kids('receita_nao_op'), ...kids('despesa_nao_op', -1)],
+        });
+        if (irpjCsll) lines.push({ key: 'ir', kind: 'group', label: '(-) IRPJ e CSLL', value: -irpjCsll, pct: pct(-irpjCsll), children: kids('irpj_csll', -1) });
+        lines.push({ key: 'll', kind: 'total', label: '= Lucro / Prejuízo Líquido do Exercício', value: lucroLiquido, pct: pct(lucroLiquido) });
 
-        res.json(dre);
-    } catch(err) {
+        res.json({
+            meta: { regime: 'caixa', baseAV: 'Receita Operacional Líquida', ano: y, mes: m !== null ? m + 1 : null },
+            indicadores: {
+                receitaBruta, deducoes, receitaLiquida, cmv, lucroBruto,
+                margemBrutaPct: receitaLiquida ? (lucroBruto / receitaLiquida) * 100 : 0,
+                despesasOperacionais, outrasReceitasOperacionais: outrasRecOp,
+                resultadoOperacional, margemOperacionalPct: receitaLiquida ? (resultadoOperacional / receitaLiquida) * 100 : 0,
+                resultadoFinanceiro, resultadoAntesTributos, resultadoNaoOperacional, irpjCsll,
+                lucroLiquido, margemLiquidaPct: receitaLiquida ? (lucroLiquido / receitaLiquida) * 100 : 0,
+            },
+            lines,
+        });
+    } catch (err) {
+        console.error('DRE Report Error:', err.stack);
         res.status(500).json({ error: err.message });
     }
 });
 
 app.get('/api/reports/analysis', authenticateToken, async (req, res) => {
-    const { year, month } = req.query;
     const userId = req.userId;
-    const y = parseInt(year);
-    const m = month !== undefined && month !== null && month !== 'null' && month !== '' ? parseInt(month) : null;
+    const y = parseInt(req.query.year);
+    const m = req.query.month !== undefined && req.query.month !== '' && req.query.month !== 'null'
+        ? parseInt(req.query.month) : null;
 
-    let targetYear = y;
-    let targetMonth = m !== null ? m + 1 : null;
-    let prevYear = targetMonth ? (targetMonth === 1 ? y - 1 : y) : y - 1;
-    let prevMonth = targetMonth ? (targetMonth === 1 ? 12 : targetMonth - 1) : null;
+    const targetYear = y;
+    const targetMonth = m !== null ? m + 1 : null;
+    const prevYear = targetMonth ? (targetMonth === 1 ? y - 1 : y) : y - 1;
+    const prevMonth = targetMonth ? (targetMonth === 1 ? 12 : targetMonth - 1) : null;
 
-    let queryCurrentAndPrev = `
-        SELECT t.*, c.name as category_name, c.group_type, c.main_group, c.sub_group, c.nature, c.affects_dre, c.cost_classification, c.behavior_type 
-        FROM transactions t 
-        LEFT JOIN categories c ON t.category_id = c.id 
-        WHERE t.user_id = $1 
-    `;
+    let q = `SELECT t.type, t.value, t.date,
+                    c.name AS category_name, c.group_type, c.behavior_type
+             FROM transactions t
+             LEFT JOIN categories c ON t.category_id = c.id
+             WHERE t.user_id = $1 AND (`;
     const params = [userId];
-
     if (targetMonth !== null) {
-        queryCurrentAndPrev += ` AND ( (EXTRACT(YEAR FROM t.date::date) = $2 AND EXTRACT(MONTH FROM t.date::date) = $3) OR (EXTRACT(YEAR FROM t.date::date) = $4 AND EXTRACT(MONTH FROM t.date::date) = $5) )`;
+        q += `(EXTRACT(YEAR FROM t.date::date) = $2 AND EXTRACT(MONTH FROM t.date::date) = $3)
+              OR (EXTRACT(YEAR FROM t.date::date) = $4 AND EXTRACT(MONTH FROM t.date::date) = $5))`;
         params.push(targetYear, targetMonth, prevYear, prevMonth);
     } else {
-        queryCurrentAndPrev += ` AND ( EXTRACT(YEAR FROM t.date::date) = $2 OR EXTRACT(YEAR FROM t.date::date) = $3 )`;
+        q += `EXTRACT(YEAR FROM t.date::date) = $2 OR EXTRACT(YEAR FROM t.date::date) = $3)`;
         params.push(targetYear, prevYear);
     }
 
-    try {
-        const { rows } = await pool.query(queryCurrentAndPrev, params);
-        
-        let currentRows = [];
-        let prevRows = [];
-        
+    // Custos/despesas operacionais que entram no cálculo de fixo x variável.
+    const OPERACIONAIS = new Set(['cmv', 'desp_vendas', 'desp_pessoal', 'desp_admin', 'desp_gerais']);
+
+    // Reduz um conjunto de linhas ao DRE + composição fixo/variável + Pareto.
+    function computeDre(rows) {
+        const B = {};                // bucket -> soma
+        const catDespesa = {};       // categoria -> soma (só despesas que afetam o DRE)
+        const catReceita = {};       // categoria -> soma (só receitas operacionais)
+        let custosFixos = 0, custosVariaveis = 0;
+        let nReceitaBruta = 0;
+        let entradasCaixa = 0, saidasCaixa = 0;   // movimento real de caixa (tudo)
+
         rows.forEach(r => {
-            const d = new Date(Math.max(Date.parse(r.date), 0)); // Ensure valid date fallback
-            const rYear = d.getUTCFullYear();
-            const rMonth = d.getUTCMonth() + 1;
-            if (targetMonth) {
-                if (rYear === targetYear && rMonth === targetMonth) currentRows.push(r);
-                if (rYear === prevYear && rMonth === prevMonth) prevRows.push(r);
-            } else {
-                if (rYear === targetYear) currentRows.push(r);
-                if (rYear === prevYear) prevRows.push(r);
-            }
-        });
+            const val = Number(r.value) || 0;
+            if (r.type === 'credito') entradasCaixa += val; else saidasCaixa += val;
 
-        // Current Month calc
-        const receitas = {};
-        const despesas = {};
-        const despesasDetalhadas = {};
-        const receitasDetalhadas = {};
-        
-        let totalReceitas = 0;
-        let totalDespesas = 0;
-        let dre = { receitaBruta: 0, cmv: 0, despesasOperacionais: 0, despesasFinanceiras: 0, impostos: 0, lucroLiquidoParcial: 0, ticketCount: 0 };
-        let despesasFixas = 0;
-        let despesasVariaveis = 0;
+            const bk = dreBucketFor(r);
+            if (!bk) return; // patrimonial/interno — fora do DRE
+            B[bk] = (B[bk] || 0) + val;
 
-        currentRows.forEach(r => {
-            const val = Number(r.value);
-            const isIgnored = r.affects_dre === false || r.nature === 'patrimonial' || r.group_type === 'patrimonial';
-            const catName = r.category_name || 'Outros';
-
+            const cat = r.category_name || 'Sem categoria';
             if (r.type === 'credito') {
-                if (!isIgnored) {
-                    receitas[catName] = (receitas[catName] || 0) + val;
-                    if(r.group_type === 'receita_bruta' || r.main_group === 'Receitas Operacionais' || !r.group_type) dre.receitaBruta += val;
-                    dre.lucroLiquidoParcial += val;
-                    dre.ticketCount += 1;
-                    receitasDetalhadas[catName] = (receitasDetalhadas[catName] || 0) + val;
-                }
-                totalReceitas += val;
+                if (bk === 'receita_bruta') { nReceitaBruta += 1; catReceita[cat] = (catReceita[cat] || 0) + val; }
+                if (bk === 'outras_receitas_op') catReceita[cat] = (catReceita[cat] || 0) + val;
             } else {
-                if (!isIgnored) {
-                    despesas[catName] = (despesas[catName] || 0) + val;
-                    if(r.group_type === 'custo_operacional' || r.cost_classification) dre.cmv += val;
-                    else if(['despesa_operacional', 'despesa_pessoal', 'despesa_administrativa'].includes(r.group_type) || r.nature === 'operacional') dre.despesasOperacionais += val;
-                    else if(r.group_type === 'despesa_financeira' || r.nature === 'financeira') dre.despesasFinanceiras += val;
-                    else if(r.group_type === 'impostos') dre.impostos += val;
-                    
-                    if (r.behavior_type === 'fixa') despesasFixas += val;
-                    else despesasVariaveis += val;
-                    
-                    dre.lucroLiquidoParcial -= val;
-                    despesasDetalhadas[catName] = (despesasDetalhadas[catName] || 0) + val;
+                if (OPERACIONAIS.has(bk)) {
+                    catDespesa[cat] = (catDespesa[cat] || 0) + val;
+                    if (r.behavior_type === 'fixa') custosFixos += val;
+                    else custosVariaveis += val;
                 }
-                totalDespesas += val;
             }
         });
+        const g = k => B[k] || 0;
 
-        // Prev Month calc
-        let prevReceitas = 0;
-        let prevDespesas = 0;
-        prevRows.forEach(r => {
-            const val = Number(r.value);
-            if (r.type === 'credito') prevReceitas += val;
-            if (r.type === 'debito') prevDespesas += val;
-        });
+        const receitaBruta = g('receita_bruta');
+        const deducoes = g('deducoes');
+        const receitaLiquida = receitaBruta - deducoes;
+        const cmv = g('cmv');
+        const lucroBruto = receitaLiquida - cmv;
+        const despVendas = g('desp_vendas'), despPessoal = g('desp_pessoal'),
+              despAdmin = g('desp_admin'), despGerais = g('desp_gerais');
+        const despesasOperacionais = despVendas + despPessoal + despAdmin + despGerais;
+        const outrasRecOp = g('outras_receitas_op');
+        const resultadoOperacional = lucroBruto - despesasOperacionais + outrasRecOp;
+        const resultadoFinanceiro = g('receita_financeira') - g('despesa_financeira');
+        const despesasFinanceiras = g('despesa_financeira');
+        const resultadoAntesTributos = resultadoOperacional + resultadoFinanceiro;
+        const resultadoNaoOperacional = g('receita_nao_op') - g('despesa_nao_op');
+        const irpjCsll = g('irpj_csll');
+        const lucroLiquido = resultadoAntesTributos + resultadoNaoOperacional - irpjCsll;
 
-        const momReceita = prevReceitas > 0 ? ((totalReceitas - prevReceitas) / prevReceitas) * 100 : 0;
-        const momDespesa = prevDespesas > 0 ? ((totalDespesas - prevDespesas) / prevDespesas) * 100 : 0;
+        // Margem de contribuição = RL − (custos e despesas VARIÁVEIS)
+        const custosDespVariaveis = custosVariaveis;
+        const margemContribuicao = receitaLiquida - custosDespVariaveis;
+        const margemContribuicaoPct = receitaLiquida > 0 ? (margemContribuicao / receitaLiquida) * 100 : 0;
+        const custosDespFixas = custosFixos;
+        // Ponto de equilíbrio contábil (R$ de receita líquida)
+        const pontoEquilibrio = margemContribuicaoPct > 0 ? custosDespFixas / (margemContribuicaoPct / 100) : null;
+        const margemSegurancaPct = (pontoEquilibrio && receitaLiquida > 0)
+            ? ((receitaLiquida - pontoEquilibrio) / receitaLiquida) * 100 : null;
+        const grauAlavancagem = resultadoOperacional !== 0 ? margemContribuicao / resultadoOperacional : null;
 
-        const receitaLiquida = dre.receitaBruta - dre.impostos;
-        const margemContribuicaoVal = receitaLiquida - dre.cmv;
-        const margemContribuicaoPct = receitaLiquida > 0 ? (margemContribuicaoVal / receitaLiquida) * 100 : 0;
-        
-        const resultadoOperacional = margemContribuicaoVal - dre.despesasOperacionais;
-        const resultadoOperacionalPct = receitaLiquida > 0 ? (resultadoOperacional / receitaLiquida) * 100 : 0;
-        
-        const ebitda = resultadoOperacional;
-        const lucroLiquidoVal = dre.lucroLiquidoParcial;
-        const resultadoLiquidoPct = receitaLiquida > 0 ? (lucroLiquidoVal / receitaLiquida) * 100 : 0;
+        return {
+            receitaBruta, deducoes, receitaLiquida, cmv, lucroBruto,
+            despVendas, despPessoal, despAdmin, despGerais, despesasOperacionais, outrasRecOp,
+            resultadoOperacional, resultadoFinanceiro, despesasFinanceiras,
+            resultadoAntesTributos, resultadoNaoOperacional, irpjCsll, lucroLiquido,
+            margemBrutaPct: receitaLiquida > 0 ? (lucroBruto / receitaLiquida) * 100 : 0,
+            margemOperacionalPct: receitaLiquida > 0 ? (resultadoOperacional / receitaLiquida) * 100 : 0,
+            margemLiquidaPct: receitaLiquida > 0 ? (lucroLiquido / receitaLiquida) * 100 : 0,
+            margemContribuicao, margemContribuicaoPct,
+            custosDespFixas, custosDespVariaveis,
+            pctCustoFixo: (custosFixos + custosVariaveis) > 0 ? (custosFixos / (custosFixos + custosVariaveis)) * 100 : 0,
+            pontoEquilibrio, margemSegurancaPct, grauAlavancagem,
+            nReceitaBruta, ticketMedio: nReceitaBruta > 0 ? receitaBruta / nReceitaBruta : 0,
+            entradasCaixa, saidasCaixa, geracaoCaixa: entradasCaixa - saidasCaixa,
+            catDespesa, catReceita,
+        };
+    }
 
-        const ebitdaPct = receitaLiquida > 0 ? (ebitda / receitaLiquida) * 100 : 0;
-        const ticketMedio = dre.ticketCount > 0 ? totalReceitas / dre.ticketCount : 0;
-        const pctDespesasReceita = totalReceitas > 0 ? (totalDespesas / totalReceitas) * 100 : 0;
-        const pctDespesasFixas = (despesasFixas + despesasVariaveis) > 0 ? (despesasFixas / (despesasFixas + despesasVariaveis)) * 100 : 0;
+    try {
+        const { rows } = await pool.query(q, params);
+        const inPeriod = (r, yy, mm) => {
+            const d = new Date((r.date || '').slice(0, 10) + 'T00:00:00Z');
+            if (isNaN(d)) return false;
+            return d.getUTCFullYear() === yy && (mm === null || d.getUTCMonth() + 1 === mm);
+        };
+        const cur = computeDre(rows.filter(r => inPeriod(r, targetYear, targetMonth)));
+        const prev = computeDre(rows.filter(r => inPeriod(r, prevYear, prevMonth)));
 
-        // Pareto Accumulation
-        let cumDesp = 0;
-        const totalBaseDesp = Object.values(despesasDetalhadas).reduce((a,b)=>a+b, 0);
-        const paretoDespesas = Object.entries(despesasDetalhadas).map(([nome, valor]) => {
-            return { nome, valor, impacto: totalBaseDesp > 0 ? (valor / totalBaseDesp) * 100 : 0 };
-        }).sort((a,b) => b.valor - a.valor).map(i => {
-            cumDesp += i.impacto;
-            return { ...i, acumulado: cumDesp };
-        });
+        // Análise vertical (% da Receita Líquida)
+        const baseAV = cur.receitaLiquida > 0 ? cur.receitaLiquida : 1;
+        const av = [
+            ['Receita Operacional Bruta', cur.receitaBruta],
+            ['(-) Deduções sobre Vendas', -cur.deducoes],
+            ['= Receita Operacional Líquida', cur.receitaLiquida],
+            ['(-) Custos (CMV/CPV/CSP)', -cur.cmv],
+            ['= Lucro Bruto', cur.lucroBruto],
+            ['(-) Despesas com Vendas', -cur.despVendas],
+            ['(-) Despesas com Pessoal', -cur.despPessoal],
+            ['(-) Despesas Administrativas', -cur.despAdmin],
+            ['(-) Despesas Gerais', -cur.despGerais],
+            ['(+/-) Resultado Financeiro', cur.resultadoFinanceiro],
+            ['= Resultado Operacional', cur.resultadoOperacional],
+            ['= Lucro Líquido', cur.lucroLiquido],
+        ].map(([label, valor]) => ({ label, valor, pct: (valor / baseAV) * 100 }));
 
-        let cumRec = 0;
-        const totalBaseRec = Object.values(receitasDetalhadas).reduce((a,b)=>a+b, 0);
-        const paretoReceitas = Object.entries(receitasDetalhadas).map(([nome, valor]) => {
-            return { nome, valor, impacto: totalBaseRec > 0 ? (valor / totalBaseRec) * 100 : 0 };
-        }).sort((a,b) => b.valor - a.valor).map(i => {
-            cumRec += i.impacto;
-            return { ...i, acumulado: cumRec };
-        });
+        // Análise horizontal (período atual x anterior)
+        const ah = [
+            ['Receita Bruta', cur.receitaBruta, prev.receitaBruta],
+            ['Receita Líquida', cur.receitaLiquida, prev.receitaLiquida],
+            ['Lucro Bruto', cur.lucroBruto, prev.lucroBruto],
+            ['Despesas Operacionais', cur.despesasOperacionais, prev.despesasOperacionais],
+            ['Resultado Operacional', cur.resultadoOperacional, prev.resultadoOperacional],
+            ['Lucro Líquido', cur.lucroLiquido, prev.lucroLiquido],
+        ].map(([label, atual, anterior]) => ({
+            label, atual, anterior,
+            varAbs: atual - anterior,
+            varPct: anterior !== 0 ? ((atual - anterior) / Math.abs(anterior)) * 100 : null,
+        }));
 
-        // Categorized Insights
-        let insights = []; // { type: 'alerta'|'insight'|'recomendacao', message: string }
-        if (pctDespesasReceita > 70) insights.push({ type: 'alerta', message: "Despesas representam mais de 70% da receita. Margem perigosa."});
-        if (margemContribuicaoPct < 20 && totalReceitas > 0) insights.push({ type: 'alerta', message: "Margem de contribuição baixa. Produto/serviço não está pagando os próprios custos diretos."});
-        if (dre.despesasFinanceiras > (totalReceitas * 0.1)) insights.push({ type: 'recomendacao', message: "As despesas financeiras estão altas. Recomendamos renegociar dívidas ou taxas."});
-        if (totalReceitas > 0 && totalDespesas > totalReceitas) insights.push({ type: 'alerta', message: "Queima de caixa! As despesas superaram as receitas no período analisado."});
-        if (momReceita > 0) insights.push({ type: 'insight', message: `Excelente! Sua receita cresceu ${momReceita.toFixed(1)}% em relação ao período anterior.` });
-        else if (momReceita < 0) insights.push({ type: 'alerta', message: `Sua receita caiu ${Math.abs(momReceita).toFixed(1)}% em relação ao período anterior.` });
-        
-        if (momDespesa > 10) insights.push({ type: 'alerta', message: `Suas despesas aumentaram ${momDespesa.toFixed(1)}% de um período para o outro.`});
-        else if (momDespesa < 0) insights.push({ type: 'insight', message: `Ótimo controle! Despesas reduziram ${Math.abs(momDespesa).toFixed(1)}%.`});
+        // Composição das despesas operacionais
+        const composicaoDespesas = [
+            ['Custos (CMV/CPV/CSP)', cur.cmv],
+            ['Despesas com Vendas', cur.despVendas],
+            ['Despesas com Pessoal', cur.despPessoal],
+            ['Despesas Administrativas', cur.despAdmin],
+            ['Despesas Gerais', cur.despGerais],
+        ].filter(([, v]) => v > 0);
+        const totalComp = composicaoDespesas.reduce((s, [, v]) => s + v, 0) || 1;
 
-        let financialHealthScore = 100;
-        if (totalReceitas === 0 && totalDespesas === 0) {
-            financialHealthScore = 0; // Se não tem dado nenhum, o score não deve ser 100 nem começar alto. Pode ser 0 para indicar falta de dados.
-        } else {
-            if (pctDespesasReceita > 80) financialHealthScore -= 20;
-            if (margemContribuicaoPct < 20 && totalReceitas > 0) financialHealthScore -= 20;
-            if (margemContribuicaoPct < 0 && totalReceitas === 0) financialHealthScore -= 20;
-            if (ebitda < 0) financialHealthScore -= 30;
-            if (dre.despesasFinanceiras > (totalReceitas * 0.05)) financialHealthScore -= 10;
-            if (lucroLiquidoVal < 0) financialHealthScore -= 20;
+        // Curva ABC (Pareto) por categoria
+        const pareto = (obj) => {
+            const total = Object.values(obj).reduce((a, b) => a + b, 0) || 1;
+            let acc = 0;
+            return Object.entries(obj)
+                .map(([nome, valor]) => ({ nome, valor, impacto: (valor / total) * 100 }))
+                .sort((a, b) => b.valor - a.valor)
+                .map(i => { acc += i.impacto; return { ...i, acumulado: acc }; });
+        };
+        const paretoDespesas = pareto(cur.catDespesa);
+        const paretoReceitas = pareto(cur.catReceita);
+
+        // MoM
+        const momReceita = prev.receitaLiquida > 0
+            ? ((cur.receitaLiquida - prev.receitaLiquida) / prev.receitaLiquida) * 100 : null;
+        const momDespesa = prev.despesasOperacionais > 0
+            ? ((cur.despesasOperacionais - prev.despesasOperacionais) / prev.despesasOperacionais) * 100 : null;
+
+        const pctDespesasReceita = cur.receitaLiquida > 0
+            ? ((cur.cmv + cur.despesasOperacionais + cur.despesasFinanceiras) / cur.receitaLiquida) * 100 : 0;
+
+        // Score financeiro (0–100)
+        let score = 100;
+        const hasData = cur.receitaBruta > 0 || cur.saidasCaixa > 0;
+        if (!hasData) score = 0;
+        else {
+            if (cur.margemLiquidaPct < 0) score -= 25;
+            else if (cur.margemLiquidaPct < 5) score -= 10;
+            if (cur.resultadoOperacional < 0) score -= 20;
+            if (cur.receitaLiquida > 0 && cur.margemContribuicaoPct < 25) score -= 15;
+            if (cur.margemContribuicaoPct > 0 && cur.custosDespFixas > cur.margemContribuicao) score -= 20;
+            if (cur.receitaLiquida > 0 && cur.despesasFinanceiras > cur.receitaLiquida * 0.05) score -= 10;
+            if (pctDespesasReceita > 90) score -= 10;
         }
-        financialHealthScore = Math.max(0, financialHealthScore);
+        score = Math.max(0, Math.min(100, score));
 
-        // Caixa vs Lucro
-        const geracaoCaixa = totalReceitas - totalDespesas;
-        if (lucroLiquidoVal > 0 && geracaoCaixa < 0) insights.push({ type: 'alerta', message: "Lucro positivo, mas Caixa Negativo. Dinheiro pode estar retido em clientes a receber ou sendo consumido por empréstimos."});
-        if (geracaoCaixa > 0 && lucroLiquidoVal < 0) insights.push({ type: 'insight', message: "Você tem dinheiro no caixa, mas no DRE registrou Prejuízo. Cuidado com empréstimos disfarçados de lucro."});
+        // Insights
+        const insights = [];
+        const p1 = v => `${v > 0 ? '+' : ''}${v.toFixed(1)}%`;
+        if (cur.lucroLiquido < 0) insights.push({ type: 'alerta', message: `Prejuízo de R$ ${Math.abs(cur.lucroLiquido).toFixed(2)} no período. Margem líquida de ${cur.margemLiquidaPct.toFixed(1)}%.` });
+        if (cur.resultadoOperacional < 0) insights.push({ type: 'alerta', message: 'A operação em si (antes de juros e impostos) está no vermelho — o problema não é financeiro, é operacional.' });
+        if (cur.margemContribuicaoPct > 0 && cur.margemContribuicaoPct < 25 && cur.receitaLiquida > 0) insights.push({ type: 'alerta', message: `Margem de contribuição de ${cur.margemContribuicaoPct.toFixed(1)}%: cada venda deixa pouco para cobrir os custos fixos.` });
+        if (cur.pontoEquilibrio && cur.receitaLiquida > 0 && cur.receitaLiquida < cur.pontoEquilibrio) insights.push({ type: 'alerta', message: `Faturamento abaixo do ponto de equilíbrio (R$ ${cur.pontoEquilibrio.toFixed(2)}). Faltam R$ ${(cur.pontoEquilibrio - cur.receitaLiquida).toFixed(2)} de receita para empatar.` });
+        else if (cur.margemSegurancaPct !== null && cur.margemSegurancaPct > 0) insights.push({ type: 'insight', message: `Margem de segurança de ${cur.margemSegurancaPct.toFixed(1)}%: a receita pode cair até esse ponto antes de dar prejuízo.` });
+        if (cur.receitaLiquida > 0 && cur.despesasFinanceiras > cur.receitaLiquida * 0.08) insights.push({ type: 'recomendacao', message: 'Despesas financeiras acima de 8% da receita líquida. Vale renegociar dívidas, taxas de maquininha e tarifas.' });
+        if (cur.pctCustoFixo > 65 && cur.custosDespFixas > 0) insights.push({ type: 'recomendacao', message: `${cur.pctCustoFixo.toFixed(0)}% dos custos são fixos. Estrutura pesada: uma queda de receita derruba o resultado rápido.` });
+        if (momReceita !== null && momReceita < -10) insights.push({ type: 'alerta', message: `Receita líquida caiu ${p1(momReceita)} vs. período anterior.` });
+        else if (momReceita !== null && momReceita > 10) insights.push({ type: 'insight', message: `Receita líquida cresceu ${p1(momReceita)} vs. período anterior.` });
+        if (momDespesa !== null && momReceita !== null && momDespesa > momReceita + 10) insights.push({ type: 'alerta', message: `Despesas subindo (${p1(momDespesa)}) mais rápido que a receita (${p1(momReceita)}).` });
+        if (cur.lucroLiquido > 0 && cur.geracaoCaixa < 0) insights.push({ type: 'alerta', message: 'DRE com lucro mas caixa negativo no período — dinheiro saiu para investimentos, empréstimos ou retiradas.' });
+        if (cur.lucroLiquido < 0 && cur.geracaoCaixa > 0) insights.push({ type: 'insight', message: 'Caixa positivo apesar do prejuízo contábil — provavelmente entrou aporte ou empréstimo. Cuidado ao confundir com lucro.' });
 
-        // Resumo Executivo
-        let resumo = [];
-        if (totalReceitas > 0) {
-            let res1 = `Sua receita no período foi de R$ ${totalReceitas.toFixed(2)}`;
-            if (momReceita !== 0) res1 += `, uma variação de ${momReceita > 0 ? '+' : ''}${momReceita.toFixed(1)}% vs anterior.`;
-            else res1 += '.';
-            resumo.push(res1);
-            
-            let res2 = `No mesmo período, as despesas consumiram ${pctDespesasReceita.toFixed(1)}% da receita.`;
-            if (momDespesa !== 0) res2 += ` Em comparação, elas variaram ${momDespesa > 0 ? '+' : ''}${momDespesa.toFixed(1)}%.`;
-            resumo.push(res2);
-
-            if (lucroLiquidoVal > 0) resumo.push(`A operação gerou Lucro Líquido de R$ ${lucroLiquidoVal.toFixed(2)}.`);
-            else resumo.push(`A operação resultou em Prejuízo Limpo de R$ ${Math.abs(lucroLiquidoVal).toFixed(2)}.`);
-
-            if (pctDespesasFixas > 60) resumo.push(`Note que ${pctDespesasFixas.toFixed(1)}% das suas despesas são fixas, o que tira a capacidade de adaptação se a receita cair.`);
+        // Resumo executivo
+        const fmt = v => `R$ ${v.toFixed(2)}`;
+        const resumo = [];
+        if (cur.receitaBruta > 0) {
+            resumo.push(`Receita líquida de ${fmt(cur.receitaLiquida)}${momReceita !== null ? ` (${p1(momReceita)} vs. período anterior)` : ''}.`);
+            resumo.push(`Lucro bruto de ${fmt(cur.lucroBruto)} (${cur.margemBrutaPct.toFixed(1)}%) e resultado operacional de ${fmt(cur.resultadoOperacional)} (${cur.margemOperacionalPct.toFixed(1)}%).`);
+            resumo.push(cur.lucroLiquido >= 0
+                ? `A operação fechou com lucro líquido de ${fmt(cur.lucroLiquido)} — margem de ${cur.margemLiquidaPct.toFixed(1)}%.`
+                : `A operação fechou com prejuízo de ${fmt(Math.abs(cur.lucroLiquido))}.`);
+            if (cur.pontoEquilibrio) resumo.push(`Ponto de equilíbrio no período: ${fmt(cur.pontoEquilibrio)} de receita líquida.`);
         } else {
-            resumo.push("Não há volume de receitas suficiente no período para formular uma conclusão gerencial abrangente.");
+            resumo.push('Sem receita registrada no período — cadastre os lançamentos para gerar a análise gerencial.');
         }
 
-        // Forecast / Projeção do Mês
+        // Projeção linear (ritmo do mês)
         let projecao = null;
-        const hj = new Date();
-        if (targetMonth && hj.getUTCFullYear() === targetYear && (hj.getUTCMonth() + 1) === targetMonth) {
-            const passedDays = Math.max(1, hj.getUTCDate());
-            const daysInMonth = new Date(targetYear, targetMonth, 0).getUTCDate(); // e.g. 30, 31
-            if (passedDays < daysInMonth) {
-                const percRealizado = passedDays / daysInMonth;
+        const hoje = new Date();
+        if (targetMonth && hoje.getFullYear() === targetYear && hoje.getMonth() + 1 === targetMonth) {
+            const diaAtual = Math.max(1, hoje.getDate());
+            const diasNoMes = new Date(targetYear, targetMonth, 0).getDate();
+            if (diaAtual < diasNoMes) {
+                const f = diasNoMes / diaAtual;
                 projecao = {
-                    receita: totalReceitas / percRealizado,
-                    despesa: totalDespesas / percRealizado,
-                    lucro: (totalReceitas - totalDespesas) / percRealizado,
+                    receitaLiquida: cur.receitaLiquida * f,
+                    despesas: (cur.cmv + cur.despesasOperacionais) * f,
+                    resultadoOperacional: cur.resultadoOperacional * f,
+                    lucroLiquido: cur.lucroLiquido * f,
+                    diaAtual, diasNoMes,
                 };
             }
         }
 
         res.json({
-            receitas, despesas, totalReceitas, totalDespesas,
-            kpis: { 
-                margemContribuicaoPct, resultadoOperacionalPct, resultadoLiquidoPct, 
-                ebitda, ebitdaPct, ticketMedio, pctDespesasReceita, financialHealthScore,
-                pctDespesasFixas
+            periodo: { ano: targetYear, mes: targetMonth },
+            dre: cur,
+            kpis: {
+                margemBrutaPct: cur.margemBrutaPct,
+                margemOperacionalPct: cur.margemOperacionalPct,
+                margemLiquidaPct: cur.margemLiquidaPct,
+                margemContribuicaoPct: cur.margemContribuicaoPct,
+                pontoEquilibrio: cur.pontoEquilibrio,
+                margemSegurancaPct: cur.margemSegurancaPct,
+                grauAlavancagem: cur.grauAlavancagem,
+                ticketMedio: cur.ticketMedio,
+                pctCustoFixo: cur.pctCustoFixo,
+                pctDespesasReceita,
+                financialHealthScore: score,
             },
             advanced: {
+                verticalAnalysis: av,
+                horizontalAnalysis: ah,
+                composicaoDespesas: composicaoDespesas.map(([label, value]) => ({ label, value, pct: (value / totalComp) * 100 })),
                 paretoDespesas: paretoDespesas.slice(0, 10),
                 paretoReceitas: paretoReceitas.slice(0, 10),
+                fixoVariavel: { fixo: cur.custosDespFixas, variavel: cur.custosDespVariaveis },
+                geracaoCaixa: cur.geracaoCaixa,
+                lucroLiquidoVal: cur.lucroLiquido,
+                resultadoOperacional: cur.resultadoOperacional,
+                momReceita, momDespesa,
                 insights,
-                geracaoCaixa,
-                lucroLiquidoVal,
-                momReceita,
-                momDespesa,
-                resumoExecutivo: resumo.join(" "),
-                projecao
-            }
+                resumoExecutivo: resumo.join(' '),
+                projecao,
+            },
         });
-    } catch(err) {
-        console.error("Analysis Report Error:", err.stack);
+    } catch (err) {
+        console.error('Analysis Report Error:', err.stack);
         res.status(500).json({ error: err.message });
     }
 });
+
 
 app.get('/api/reports/forecasts', authenticateToken, async (req, res) => {
     const { year, month } = req.query;
