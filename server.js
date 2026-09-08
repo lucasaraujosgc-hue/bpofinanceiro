@@ -116,7 +116,25 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.set('trust proxy', 1);
-app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+// CSP: só em produção (o dev server do Vite usa inline script + eval).
+// O SPA buildado carrega JS/CSS próprios; fontes vêm do Google Fonts;
+// favicon e logos podem ser data: URIs; recharts usa style="" inline.
+app.use(helmet({
+    contentSecurityPolicy: IS_PROD ? {
+        useDefaults: true,
+        directives: {
+            'default-src': ["'self'"],
+            'script-src': ["'self'"],
+            'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+            'font-src': ["'self'", 'https://fonts.gstatic.com'],
+            'img-src': ["'self'", 'data:', 'https:'],
+            'connect-src': ["'self'"],
+            'object-src': ["'none'"],
+            'frame-ancestors': ["'self'"],
+        },
+    } : false,
+    crossOriginEmbedderPolicy: false,
+}));
 
 // CORS: allowlist explícita via CORS_ORIGINS (lista separada por vírgula).
 // Sem a env: em produção nega qualquer Origin cross-site; em dev libera geral.
@@ -131,12 +149,36 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '10mb' }));
 
+// URL base da aplicação para montar links de e-mail (reset de senha, ativação).
+// NUNCA usar req.get('host') — o cliente controla o header Host (poisoning).
+const APP_URL = (process.env.APP_URL || '').replace(/\/+$/, '');
+if (IS_PROD && !APP_URL && corsOrigins.length === 0) {
+    console.warn('⚠️  APP_URL não definida — links de e-mail vão usar o header Host (inseguro).');
+}
+const appBaseUrl = (req) => APP_URL || corsOrigins[0] || `${req.protocol}://${req.get('host')}`;
+
 const apiLimiter = rateLimit({
-	windowMs: 15 * 60 * 1000, 
-	limit: 500, 
-    message: { error: "Muitas requisições. Tente novamente mais tarde." }
+    windowMs: 15 * 60 * 1000,
+    limit: 500,
+    standardHeaders: true, legacyHeaders: false,
+    message: { error: "Muitas requisições. Tente novamente mais tarde." },
 });
 app.use('/api/', apiLimiter);
+
+// Limites mais apertados nos endpoints sensíveis (brute force / bombardeio de e-mail).
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, limit: 8, skipSuccessfulRequests: true,
+    standardHeaders: true, legacyHeaders: false,
+    message: { error: "Muitas tentativas. Aguarde alguns minutos e tente de novo." },
+});
+const flowLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, limit: 15,
+    standardHeaders: true, legacyHeaders: false,
+    message: { error: "Muitas solicitações. Tente novamente mais tarde." },
+});
+app.use('/api/login', loginLimiter);
+app.use(['/api/recover-password', '/api/reset-password-confirm'], loginLimiter);
+app.use(['/api/request-signup', '/api/complete-signup', '/api/validate-signup-token'], flowLimiter);
 
 // --- DATABASE SETUP ---
 const PERSISTENT_LOGO_DIR = fs.existsSync('/backup') ? '/backup/logos' : './backup/logos';
@@ -573,7 +615,7 @@ app.post('/api/request-signup', (req, res) => {
             async function(err) {
                 if (err) return res.status(500).json({ error: err.message });
                 
-                const link = `${req.protocol}://${req.get('host')}/?action=finalize&token=${token}`;
+                const link = `${appBaseUrl(req)}/?action=finalize&token=${token}`;
                 const html = `
                 <div style="font-family: 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8fafc; padding: 20px; border-radius: 8px;">
                     <div style="background-color: #ffffff; padding: 30px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center;">
@@ -596,17 +638,25 @@ app.post('/api/request-signup', (req, res) => {
     });
 });
 
+// Link de ativação expira em 72h.
+const SIGNUP_TTL_MS = 72 * 60 * 60 * 1000;
+
 app.get('/api/validate-signup-token/:token', (req, res) => {
-    db.get("SELECT * FROM pending_signups WHERE token = ?", [req.params.token], (err, row) => {
-        if (!row) return res.status(404).json({ error: "Inválido" });
+    db.get("SELECT * FROM pending_signups WHERE token = ? AND created_at > ?",
+        [req.params.token, Date.now() - SIGNUP_TTL_MS], (err, row) => {
+        if (!row) return res.status(404).json({ error: "Link inválido ou expirado." });
         res.json({ email: row.email, razaoSocial: decrypt(row.razao_social) });
     });
 });
 
 app.post('/api/complete-signup', (req, res) => {
     const { token, password } = req.body;
-    db.get("SELECT * FROM pending_signups WHERE token = ?", [token], (err, pending) => {
-        if (!pending) return res.status(400).json({ error: "Inválido" });
+    if (!password || String(password).length < 8) {
+        return res.status(400).json({ error: "A senha precisa ter ao menos 8 caracteres." });
+    }
+    db.get("SELECT * FROM pending_signups WHERE token = ? AND created_at > ?",
+        [token, Date.now() - SIGNUP_TTL_MS], (err, pending) => {
+        if (!pending) return res.status(400).json({ error: "Link inválido ou expirado." });
 
         const hash = bcrypt.hashSync(password, 10);
         db.run(`INSERT INTO users (email, password, cnpj, razao_social, phone, business_type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -627,14 +677,20 @@ app.post('/api/complete-signup', (req, res) => {
     });
 });
 
+const sha256 = (s) => crypto.createHash('sha256').update(String(s)).digest('hex');
+
 app.post('/api/recover-password', (req, res) => {
     const { email } = req.body;
     const token = crypto.randomBytes(32).toString('hex');
-    db.run("UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE email = ?", [token, Date.now() + 3600000, email], function(err) {
+    // Guarda só o hash do token — vazamento de DB não permite tomar contas.
+    db.run("UPDATE users SET reset_token = ?, reset_token_expires = ? WHERE email = ?",
+        [sha256(token), Date.now() + 3600000, email], function(err) {
         if(this.changes && this.changes > 0) {
-            const link = `${req.protocol}://${req.get('host')}/?action=reset&token=${token}`;
-            const html = `<a href="${link}">Redefinir Senha</a>`;
-            sendEmail(email, "Recuperação de Senha", html);
+            const link = `${appBaseUrl(req)}/?action=reset&token=${token}`;
+            const html = `<p>Recebemos um pedido para redefinir sua senha.</p>
+                <p><a href="${link}">Clique aqui para criar uma nova senha</a> (o link vale 1 hora).</p>
+                <p>Se não foi você, ignore este e-mail.</p>`;
+            sendEmail(email, "Recuperação de Senha - Vírgula Contábil", html);
         }
         res.json({ message: "Enviado se existir." });
     });
@@ -642,9 +698,14 @@ app.post('/api/recover-password', (req, res) => {
 
 app.post('/api/reset-password-confirm', (req, res) => {
     const { token, newPassword } = req.body;
-    db.get("SELECT * FROM users WHERE reset_token = ? AND reset_token_expires > ?", [token, Date.now()], (err, user) => {
-        if(!user) return res.status(400).json({ error: "Inválido" });
-        db.run("UPDATE users SET password = ?, reset_token = NULL WHERE id = ?", [bcrypt.hashSync(newPassword, 10), user.id], () => res.json({ success: true }));
+    if (!newPassword || String(newPassword).length < 8) {
+        return res.status(400).json({ error: "A senha precisa ter ao menos 8 caracteres." });
+    }
+    db.get("SELECT * FROM users WHERE reset_token = ? AND reset_token_expires > ?",
+        [sha256(token), Date.now()], (err, user) => {
+        if(!user) return res.status(400).json({ error: "Link inválido ou expirado." });
+        db.run("UPDATE users SET password = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?",
+            [bcrypt.hashSync(newPassword, 10), user.id], () => res.json({ success: true }));
     });
 });
 
@@ -695,13 +756,20 @@ app.get('/api/credit-cards', authenticateToken, (req, res) => {
         })));
     });
 });
-app.post('/api/credit-cards', authenticateToken, (req, res) => {
+app.post('/api/credit-cards', authenticateToken, async (req, res) => {
     const { bankId, name, closingDay, dueDay, limitValue } = req.body;
-    db.run(`INSERT INTO credit_cards (user_id, bank_id, name, closing_day, due_day, limit_value) VALUES (?, ?, ?, ?, ?, ?)`, 
-        [req.userId, bankId, name, closingDay, dueDay, limitValue], function(err) {
-        if(err) return res.status(500).json({error: err.message});
-        res.json({id: this.lastID});
-    });
+    try {
+        const owned = await assertUserOwns(req.userId, { bankId });
+        if (!owned.ok) return res.status(403).json({ error: owned.error });
+        const ins = await pool.query(
+            `INSERT INTO credit_cards (user_id, bank_id, name, closing_day, due_day, limit_value)
+             VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+            [req.userId, bankId || null, name, closingDay || null, dueDay || null, limitValue || null]);
+        res.json({ id: ins.rows[0].id });
+    } catch (err) {
+        console.error('POST /credit-cards error:', err.message);
+        res.status(500).json({ error: err.message });
+    }
 });
 app.put('/api/credit-cards/:id', authenticateToken, (req, res) => {
     const { name, closingDay, dueDay, limitValue } = req.body;
@@ -806,18 +874,24 @@ app.post('/api/transactions', authenticateToken, async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-app.put('/api/transactions/:id', authenticateToken, (req, res) => {
+app.put('/api/transactions/:id', authenticateToken, async (req, res) => {
     const { date, description, value, type, categoryId, bankId, creditCardId, reconciled } = req.body;
-    db.get(`SELECT * FROM transactions WHERE id = ? AND user_id = ?`, [req.params.id, req.userId], (err, oldTx) => {
-        if(!oldTx) return res.status(404).json({error: "Não encontrado"});
-        db.run(`UPDATE transactions SET date=?, description=?, value=?, type=?, category_id=?, bank_id=?, credit_card_id=?, reconciled=? WHERE id=? AND user_id=?`,
-            [date, description, value, type, categoryId, bankId, creditCardId, reconciled?1:0, req.params.id, req.userId], (err) => {
-                if (!oldTx.credit_card_id) recalculateBankBalance(oldTx.bank_id);
-                if (!creditCardId) recalculateBankBalance(bankId);
-                
-                res.json({success: true});
-            });
-    });
+    try {
+        const owned = await assertUserOwns(req.userId, { bankId, categoryId, creditCardId });
+        if (!owned.ok) return res.status(403).json({ error: owned.error });
+        const { rows: [oldTx] } = await pool.query(
+            `SELECT * FROM transactions WHERE id = $1 AND user_id = $2`, [req.params.id, req.userId]);
+        if (!oldTx) return res.status(404).json({ error: "Não encontrado" });
+        await pool.query(
+            `UPDATE transactions SET date=$1, description=$2, value=$3, type=$4, category_id=$5, bank_id=$6, credit_card_id=$7, reconciled=$8 WHERE id=$9 AND user_id=$10`,
+            [date, description, value, type, categoryId || null, bankId || null, creditCardId || null, reconciled ? 1 : 0, req.params.id, req.userId]);
+        if (!oldTx.credit_card_id) recalculateBankBalance(oldTx.bank_id);
+        if (!creditCardId && bankId) recalculateBankBalance(bankId);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('PUT /transactions error:', err.message);
+        res.status(500).json({ error: err.message });
+    }
 });
 app.delete('/api/transactions/:id', authenticateToken, (req, res) => {
     db.get(`SELECT bank_id, credit_card_id FROM transactions WHERE id = ? AND user_id = ?`, [req.params.id, req.userId], (err, row) => {
@@ -865,16 +939,34 @@ app.get('/api/forecasts', authenticateToken, (req, res) => {
         res.json((rows || []).map(r => ({...r, realized: !!r.realized, categoryId: r.category_id, bankId: r.bank_id, creditCardId: r.credit_card_id, installmentCurrent: r.installment_current, installmentTotal: r.installment_total, groupId: r.group_id})));
     });
 });
-app.post('/api/forecasts', authenticateToken, (req, res) => {
+app.post('/api/forecasts', authenticateToken, async (req, res) => {
     const { date, description, value, type, categoryId, bankId, creditCardId, realized, installmentCurrent, installmentTotal, groupId } = req.body;
-    db.run(`INSERT INTO forecasts (user_id, date, description, value, type, category_id, bank_id, credit_card_id, realized, installment_current, installment_total, group_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [req.userId, date, description, value, type, categoryId, bankId, creditCardId, realized?1:0, installmentCurrent, installmentTotal, groupId], function(err) {
-            res.json({ id: this.lastID });
-        });
+    try {
+        const owned = await assertUserOwns(req.userId, { bankId, categoryId, creditCardId });
+        if (!owned.ok) return res.status(403).json({ error: owned.error });
+        const ins = await pool.query(
+            `INSERT INTO forecasts (user_id, date, description, value, type, category_id, bank_id, credit_card_id, realized, installment_current, installment_total, group_id)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+            [req.userId, date, description, value, type, categoryId || null, bankId || null, creditCardId || null, realized ? 1 : 0, installmentCurrent || null, installmentTotal || null, groupId || null]);
+        res.json({ id: ins.rows[0].id });
+    } catch (err) {
+        console.error('POST /forecasts error:', err.message);
+        res.status(500).json({ error: err.message });
+    }
 });
-app.put('/api/forecasts/:id', authenticateToken, (req, res) => {
+app.put('/api/forecasts/:id', authenticateToken, async (req, res) => {
     const { date, description, value, type, categoryId, bankId, creditCardId } = req.body;
-    db.run(`UPDATE forecasts SET date=?, description=?, value=?, type=?, category_id=?, bank_id=?, credit_card_id=? WHERE id=? AND user_id=?`, [date, description, value, type, categoryId, bankId, creditCardId, req.params.id, req.userId], (err) => res.json({success: !err}));
+    try {
+        const owned = await assertUserOwns(req.userId, { bankId, categoryId, creditCardId });
+        if (!owned.ok) return res.status(403).json({ error: owned.error });
+        await pool.query(
+            `UPDATE forecasts SET date=$1, description=$2, value=$3, type=$4, category_id=$5, bank_id=$6, credit_card_id=$7 WHERE id=$8 AND user_id=$9`,
+            [date, description, value, type, categoryId || null, bankId || null, creditCardId || null, req.params.id, req.userId]);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('PUT /forecasts error:', err.message);
+        res.status(500).json({ error: err.message });
+    }
 });
 app.patch('/api/forecasts/:id/realize', authenticateToken, (req, res) => {
     db.run(`UPDATE forecasts SET realized = 1 WHERE id = ? AND user_id = ?`, [req.params.id, req.userId], (err) => res.json({success: !err}));
@@ -925,15 +1017,20 @@ app.delete('/api/ofx-imports/:id', authenticateToken, async (req, res) => {
 app.get('/api/keyword-rules', authenticateToken, (req, res) => {
     db.all(`SELECT * FROM keyword_rules WHERE user_id = ?`, [req.userId], (err, rows) => res.json((rows || []).map(r => ({...r, categoryId: r.category_id, bankId: r.bank_id}))));
 });
-app.post('/api/keyword-rules', authenticateToken, (req, res) => {
+app.post('/api/keyword-rules', authenticateToken, async (req, res) => {
     const { keyword, type, categoryId, bankId } = req.body;
-    db.run(`INSERT INTO keyword_rules (user_id, keyword, type, category_id, bank_id) VALUES (?, ?, ?, ?, ?)`, 
-        [req.userId, keyword, type, categoryId, bankId], 
-        function(err) { 
-            if(err) return res.status(500).json({error: err.message});
-            res.json({id: this.lastID}); 
-        }
-    );
+    try {
+        const owned = await assertUserOwns(req.userId, { bankId, categoryId });
+        if (!owned.ok) return res.status(403).json({ error: owned.error });
+        const ins = await pool.query(
+            `INSERT INTO keyword_rules (user_id, keyword, type, category_id, bank_id)
+             VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+            [req.userId, keyword, type, categoryId || null, bankId || null]);
+        res.json({ id: ins.rows[0].id });
+    } catch (err) {
+        console.error('POST /keyword-rules error:', err.message);
+        res.status(500).json({ error: err.message });
+    }
 });
 app.delete('/api/keyword-rules/:id', authenticateToken, (req, res) => {
     db.run(`DELETE FROM keyword_rules WHERE id = ? AND user_id = ?`, [req.params.id, req.userId], (err) => res.json({success: !err}));
@@ -1527,7 +1624,7 @@ app.get('/api/reports/analysis', authenticateToken, async (req, res) => {
         if (cur.lucroLiquido < 0 && cur.geracaoCaixa > 0) insights.push({ type: 'insight', message: 'Caixa positivo apesar do prejuízo contábil — provavelmente entrou aporte ou empréstimo. Cuidado ao confundir com lucro.' });
 
         // Resumo executivo
-        const fmt = v => `R$ ${v.toFixed(2)}`;
+        const fmt = v => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
         const resumo = [];
         if (cur.receitaBruta > 0) {
             resumo.push(`Receita líquida de ${fmt(cur.receitaLiquida)}${momReceita !== null ? ` (${p1(momReceita)} vs. período anterior)` : ''}.`);

@@ -23,27 +23,37 @@ Legenda: 🔴 crítico · 🟠 alto · 🟡 médio · ⚪ baixo / higiene
 | **Pluggy** — integração inteira | ✅ **removida** (server + widget + deps). Rotas `/api/pluggy/*` e `PluggyConnectWidget.tsx` deletadas. §1.1 IDOR ficou sem objeto |
 | Tema | ✅ **light default + toggle claro/escuro** (`next-themes`), tokens idênticos ao `cliente_final` (`index.css` `@theme` + `.dark`). ~19 componentes convertidos de classes `slate-*` fixas para tokens semânticos (`bg-ground/surface/sunken`, `text-ink/muted/faint`, `border-line`, `brand`, `ok/warn/danger/info`). Gráficos recharts agora usam `var(--color-*)` |
 | Logo | ✅ wordmark "Vírgula," (`components/Logo.tsx`, Fraunces) em Login + Layout; `ThemeToggle` no chrome; favicon = a vírgula |
+| §1.4 IDOR (posse de FK) | ✅ `assertUserOwns()` em `POST/PUT` de `transactions`, `forecasts`, `credit-cards`, `keyword-rules` |
+| §6 Host header injection | ✅ links de e-mail usam `APP_URL` (ou `CORS_ORIGINS[0]`), nunca `req.get('host')` |
+| §6 token de signup eterno | ✅ expira em 72 h (`validate-signup-token` + `complete-signup`) |
+| §6 reset token em texto plano | ✅ guarda só `sha256(token)`; senha mínima de 8 chars no reset e no signup |
+| §7 CSP desligada | ✅ CSP restrita em produção (`default-src 'self'`, script `'self'`, fontes Google); off em dev (Vite usa eval) |
+| §8 rate limiting genérico | ✅ limiter dedicado: 8/15 min em `/api/login` e nos fluxos de senha (conta só falhas), 15/h em signup |
+| DRE / plano de contas | ✅ reescrito conforme art. 187 (ver `docs/RELATORIOS.md`); grupos contábeis, análise vertical/horizontal, ponto de equilíbrio |
 
-**Verificação:** `npm run build` OK · boot dev + produção OK · fail-fast OK ·
-CORS nega origem estranha · Login + SignUp renderizam nos dois temas, toggle
-troca sem flash (screenshots). **Não** foi possível logar (sem Postgres neste
-ambiente) → as telas internas (Dashboard, Relatórios, Bancos…) estão
-tokenizadas mas não tiveram QA visual — rodar um smoke no dev.
+**Verificação (contra PGlite via `preview-boot.mjs` — dados simulados):**
+`npm run build` OK · boot produção OK · login OK · IDOR `POST /api/forecasts`
+com `bankId` alheio → **403** · 9 logins errados → **429** · header CSP presente
+em produção sem violações no SPA · DRE/Análise/Fluxo renderizam com dados reais.
 
 ### Pendente (não feito)
 
 - **`server.js` continua monolítico** (§9) — o split em `routes/`+`services/` é
   refatoração estrutural; recomendo branch própria.
-- §1.4 — mesma classe de IDOR (posse de FK) em `POST /api/forecasts`,
-  `/api/credit-cards`, `/api/keyword-rules`.
-- Resto do **Sprint 1** (host header injection no reset · rate limiter de auth ·
-  CSP) e **Sprint 2**.
-- QA visual das telas internas nos dois temas (podem sobrar ajustes finos de
-  contraste em badges/tabelas específicas).
-- Tabela órfã `pluggy_connections` no banco: `DROP TABLE IF EXISTS
-  pluggy_connections;` manual quando quiser (só metadados, sem dado financeiro).
-- `.env`: `ENCRYPTION_KEY` ainda não é hex de 32 bytes (deriva via sha256) e
-  `PASSWORD_ADMIN` está curto — trocar quando puder (ver §4 / §0).
+- **Modelo de sessão** (§2) — ainda é um único bearer de 24 h sem revogação nem
+  refresh rotativo. `blocked` já barra a API (cache 30 s), mas um token roubado
+  vale até expirar. Migrar para access curto + refresh (como o `cliente_final`).
+- **Auditoria** — `logAudit()` só em login/signup; ações de admin (delete/block
+  de usuário, bancos) não deixam rastro, e não há endpoint para ler `audit_logs`.
+- **Upload de logo do admin** (§7) — regex permite `/` no nome do arquivo e
+  aceita SVG (XSS armazenado, admin-only). Whitelist de extensão + magic bytes.
+- **`GET /api/integration/settings`** devolve a row crua (token NFe em texto
+  plano). DTO + cifrar o token.
+- Logs de erro do DB imprimem `params` (hash bcrypt, tokens, PII cifrada).
+- Tabela órfã `pluggy_connections`: `DROP TABLE IF EXISTS pluggy_connections;`
+  manual quando quiser.
+- `.env`: `ENCRYPTION_KEY` não é hex de 32 bytes (deriva via sha256) e
+  `PASSWORD_ADMIN` está curto. Definir também `APP_URL`.
 
 ---
 
