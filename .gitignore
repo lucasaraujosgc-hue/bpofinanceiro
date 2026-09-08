@@ -1,0 +1,21 @@
+# deps / build
+node_modules/
+dist/
+*.tsbuildinfo
+
+# env / secrets — NUNCA commitar
+.env
+.env.*
+!.env.example
+
+# runtime data
+backup/
+logo/
+*.log
+npm-debug.log*
+
+# editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -18,22 +18,19 @@
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.292.0",
+    "next-themes": "^0.4.6",
     "nodemailer": "^6.9.13",
     "pg": "^8.21.0",
-    "pluggy-sdk": "^0.90.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-pluggy-connect": "^2.12.0",
-    "recharts": "^2.9.0",
-    "sqlite3": "^5.1.7"
+    "recharts": "^2.9.0"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
     "@types/react": "^18.2.37",
     "@types/react-dom": "^18.2.15",
     "@vitejs/plugin-react": "^4.2.0",
-    "autoprefixer": "^10.4.16",
-    "postcss": "^8.4.31",
-    "tailwindcss": "^3.3.5",
+    "tailwindcss": "^4.3.3",
     "typescript": "^5.2.2",
     "vite": "^5.0.0"
   }

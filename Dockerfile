@@ -1,31 +1,27 @@
-# Use uma imagem leve do Node.js baseada em Alpine Linux
+# Imagem leve do Node.js (Alpine)
 FROM node:18-alpine
 
-# Instala ferramentas de compilação necessárias para o SQLite (python, make, g++)
-# Isso é necessário porque o sqlite3 é um módulo nativo
-RUN apk add --no-cache python3 make g++
-
-# Define o diretório de trabalho dentro do container
 WORKDIR /app
 
-# Copia os arquivos de definição de dependências primeiro (para aproveitar o cache do Docker)
+# Dependências primeiro (aproveita o cache de layer do Docker)
 COPY package*.json ./
 
-# Instala as dependências do projeto
-RUN npm install
+# npm ci = build reprodutível a partir do package-lock.json
+RUN npm ci
 
-# Copia o restante do código da aplicação
+# Restante do código
 COPY . .
 
-# Executa o build da aplicação React (gera a pasta estática 'dist')
+# Build do SPA (usa devDependencies) → gera dist/
 RUN npm run build
 
-# Cria o diretório onde o banco de dados será salvo
-# O volume será montado aqui pelo EasyPanel/Docker
-RUN mkdir -p /backup && chmod 777 /backup
+# A partir daqui o processo roda em modo produção: server.js serve dist/
+# estático em vez de subir o dev server do Vite. Precisa vir DEPOIS do build.
+ENV NODE_ENV=production
 
-# Informa ao Docker que o container escuta na porta 3000
+# Diretório do volume persistente (logos). Montado pelo EasyPanel/Docker.
+RUN mkdir -p /backup && chown -R node:node /backup /app
+
+USER node
 EXPOSE 3000
-
-# Comando para iniciar o servidor
 CMD ["npm", "start"]
