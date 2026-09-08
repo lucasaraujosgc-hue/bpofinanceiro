@@ -29,6 +29,12 @@ Legenda: 🔴 crítico · 🟠 alto · 🟡 médio · ⚪ baixo / higiene
 | §6 reset token em texto plano | ✅ guarda só `sha256(token)`; senha mínima de 8 chars no reset e no signup |
 | §7 CSP desligada | ✅ CSP restrita em produção (`default-src 'self'`, script `'self'`, fontes Google); off em dev (Vite usa eval) |
 | §8 rate limiting genérico | ✅ limiter dedicado: 8/15 min em `/api/login` e nos fluxos de senha (conta só falhas), 15/h em signup |
+| §7 upload de logo do admin | ✅ `saveBankLogo()`: só PNG/JPG/WebP, valida magic bytes, cap 512 KB, nome aleatório, SVG rejeitado |
+| §13 `GET /api/integration/settings` | ✅ DTO (sem `SELECT *`); token NFe cifrado em repouso (`encrypt`/`decrypt`) |
+| §13 logs de erro do DB | ✅ não imprimem mais `params` (hash, tokens, PII) — só `err.code` + 120 chars da query |
+| §7 auditoria | ✅ `logAudit()` em block/unblock/delete de usuário e CRUD de bancos globais; `GET /api/admin/audit` (só admin) + aba "Auditoria" no painel mostra a trilha |
+| tabela órfã `pluggy_connections` | ✅ `DROP TABLE IF EXISTS` no `db_init` |
+| favicon / título | ✅ favicon → `virgulacontabil.com.br/.../icon-192.png`; `<title>` = "Ferramenta Financeira \| Vírgula Contábil" |
 | DRE / plano de contas | ✅ reescrito conforme art. 187 (ver `docs/RELATORIOS.md`); grupos contábeis, análise vertical/horizontal, ponto de equilíbrio |
 
 **Verificação (contra PGlite via `preview-boot.mjs` — dados simulados):**
@@ -38,22 +44,18 @@ em produção sem violações no SPA · DRE/Análise/Fluxo renderizam com dados 
 
 ### Pendente (não feito)
 
-- **`server.js` continua monolítico** (§9) — o split em `routes/`+`services/` é
-  refatoração estrutural; recomendo branch própria.
+- **`server.js` continua monolítico** (§9) — o split em `routes/`+`services/`
+  (e matar o shim SQLite→PG) é refatoração estrutural, não correção de bug.
+  Recomendo branch própria; é a maior peça que sobra.
 - **Modelo de sessão** (§2) — ainda é um único bearer de 24 h sem revogação nem
-  refresh rotativo. `blocked` já barra a API (cache 30 s), mas um token roubado
-  vale até expirar. Migrar para access curto + refresh (como o `cliente_final`).
-- **Auditoria** — `logAudit()` só em login/signup; ações de admin (delete/block
-  de usuário, bancos) não deixam rastro, e não há endpoint para ler `audit_logs`.
-- **Upload de logo do admin** (§7) — regex permite `/` no nome do arquivo e
-  aceita SVG (XSS armazenado, admin-only). Whitelist de extensão + magic bytes.
-- **`GET /api/integration/settings`** devolve a row crua (token NFe em texto
-  plano). DTO + cifrar o token.
-- Logs de erro do DB imprimem `params` (hash bcrypt, tokens, PII cifrada).
-- Tabela órfã `pluggy_connections`: `DROP TABLE IF EXISTS pluggy_connections;`
-  manual quando quiser.
-- `.env`: `ENCRYPTION_KEY` não é hex de 32 bytes (deriva via sha256) e
-  `PASSWORD_ADMIN` está curto. Definir também `APP_URL`.
+  refresh rotativo. `blocked` já barra a API (cache 30 s) e o token roubado só
+  vale até expirar, mas o ideal é access curto + refresh rotativo com detecção
+  de reuso (como o `cliente_final`). Toca o `apiFetch` do frontend também.
+- **zod / validação de schema** (§5) — nenhum endpoint de escrita valida tipo,
+  faixa ou formato. Só coerção pontual (`Number(value)`, `|| null`).
+- QA visual das telas internas nos dois temas.
+- `.env`: `ENCRYPTION_KEY` não é hex de 32 bytes (deriva via sha256),
+  `PASSWORD_ADMIN` está curto, e falta `APP_URL`.
 
 ---
 

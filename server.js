@@ -184,6 +184,30 @@ app.use(['/api/request-signup', '/api/complete-signup', '/api/validate-signup-to
 const PERSISTENT_LOGO_DIR = fs.existsSync('/backup') ? '/backup/logos' : './backup/logos';
 if (!fs.existsSync(PERSISTENT_LOGO_DIR)) fs.mkdirSync(PERSISTENT_LOGO_DIR, { recursive: true });
 
+// Grava um logo enviado como data URI. Só bitmap (SVG seria XSS armazenado),
+// valida magic bytes, cap de 512 KB, nome 100% aleatório. Retorna /logo/<nome>
+// ou null se inválido.
+const LOGO_MAGIC = {
+    png: [0x89, 0x50, 0x4e, 0x47],
+    jpg: [0xff, 0xd8, 0xff],
+    webp: [0x52, 0x49, 0x46, 0x46], // "RIFF" (+ "WEBP" no offset 8)
+};
+function saveBankLogo(logoData) {
+    if (typeof logoData !== 'string') return null;
+    const m = logoData.match(/^data:image\/(png|jpe?g|webp);base64,([A-Za-z0-9+/=]+)$/);
+    if (!m) return null;
+    const ext = m[1] === 'jpeg' ? 'jpg' : m[1];
+    let buf;
+    try { buf = Buffer.from(m[2], 'base64'); } catch { return null; }
+    if (buf.length === 0 || buf.length > 512 * 1024) return null;
+    const magic = LOGO_MAGIC[ext];
+    if (!magic.every((b, i) => buf[i] === b)) return null;
+    if (ext === 'webp' && buf.toString('ascii', 8, 12) !== 'WEBP') return null;
+    const fileName = `bank_${crypto.randomBytes(12).toString('hex')}.${ext}`;
+    fs.writeFileSync(path.join(PERSISTENT_LOGO_DIR, fileName), buf);
+    return `/logo/${fileName}`;
+}
+
 const pool = new Pool({ 
     connectionString: process.env.DATABASE_URL,
     max: 20,
@@ -231,7 +255,7 @@ const db = {
          if (callback) callback.call(context, null);
       })
       .catch(err => {
-         console.error("DB Run Error:", err.message, "\nQuery:", pgSql, "\nParams:", params);
+         console.error("DB Run Error:", err.code || err.message, "|", pgSql.slice(0, 120));
          if (callback) callback(err);
       });
   },
@@ -243,7 +267,7 @@ const db = {
     pool.query(this._convertQuery(sql), params || [])
       .then(res => callback && callback(null, res.rows))
       .catch(err => {
-          console.error("DB All Error:", err.message, "\nQuery:", this._convertQuery(sql));
+          console.error("DB All Error:", err.code || err.message, "|", this._convertQuery(sql).slice(0, 120));
           if(callback) callback(err, null);
       });
   },
@@ -259,7 +283,7 @@ const db = {
          if (callback) callback(null, row);
       })
       .catch(err => {
-         console.error("DB Get Error:", err.message, "\nQuery:", this._convertQuery(sql));
+         console.error("DB Get Error:", err.code || err.message, "|", this._convertQuery(sql).slice(0, 120));
          if(callback) callback(err, null);
       });
   },
@@ -285,7 +309,7 @@ const db = {
             if (callback) callback.call(context, null);
          })
          .catch(err => {
-            console.error("DB Prepare Error:", err.message, "\nQuery:", pgSql);
+            console.error("DB Prepare Error:", err.code || err.message, "|", pgSql.slice(0, 120));
             if(callback) callback(err);
          });
       },
@@ -314,8 +338,10 @@ app.use('/logo', express.static(LOCAL_LOGO_DIR));
 // Logger
 function logAudit(userId, action, details, ip) {
     db.run(`INSERT INTO audit_logs (user_id, action, details, ip_address, created_at) VALUES (?, ?, ?, ?, ?)`,
-        [userId, action, details, ip, new Date().toISOString()]);
+        [String(userId), action, String(details || '').slice(0, 500), ip, new Date().toISOString()]);
 }
+// Identifica quem fez a ação (admin = id 0 + e-mail; usuário comum = id).
+const getAuditActor = (req) => (req.user?.role === 'admin' ? `admin:${req.user.email || 0}` : String(req.userId));
 
 // Middleware Auth
 // Cache curto do status de bloqueio para não bater no banco a cada request.
@@ -532,8 +558,9 @@ const db_init = async () => {
       await pool.query(`CREATE TABLE IF NOT EXISTS integration_settings (user_id INT PRIMARY KEY, token TEXT, start_date TEXT, target_type TEXT, category_in_id INT, category_out_id INT, total_imported INT DEFAULT 0, last_sync TEXT, FOREIGN KEY(user_id) REFERENCES users(id))`);
       await ensureColumn('integration_settings', 'bank_in_id', 'INT');
       await ensureColumn('integration_settings', 'bank_out_id', 'INT');
-      
 
+      // Integração Pluggy foi removida — limpa a tabela órfã se existir.
+      await pool.query(`DROP TABLE IF EXISTS pluggy_connections`);
 
       // Automate Indexes Creation
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_transactions_user_date ON transactions(user_id, date)`);
@@ -1039,9 +1066,13 @@ app.delete('/api/keyword-rules/:id', authenticateToken, (req, res) => {
 // Integration NFe
 app.get('/api/integration/settings', authenticateToken, async (req, res) => {
     try {
-        const { rows } = await pool.query('SELECT * FROM integration_settings WHERE user_id = $1', [req.userId]);
-        if (rows.length > 0) res.json(rows[0]);
-        else res.json({ target_type: 'transaction', total_imported: 0 });
+        const { rows } = await pool.query(
+            `SELECT token, start_date, target_type, category_in_id, category_out_id,
+                    bank_in_id, bank_out_id, total_imported, last_sync
+             FROM integration_settings WHERE user_id = $1`, [req.userId]);
+        if (rows.length === 0) return res.json({ target_type: 'transaction', total_imported: 0 });
+        const s = rows[0];
+        res.json({ ...s, token: decrypt(s.token) }); // token cifrado em repouso
     } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -1049,13 +1080,13 @@ app.put('/api/integration/settings', authenticateToken, async (req, res) => {
     const { token, start_date, target_type, category_in_id, category_out_id, bank_in_id, bank_out_id } = req.body;
     try {
         await pool.query(
-            `INSERT INTO integration_settings (user_id, token, start_date, target_type, category_in_id, category_out_id, bank_in_id, bank_out_id) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
-            ON CONFLICT (user_id) DO UPDATE SET 
-            token = EXCLUDED.token, start_date = EXCLUDED.start_date, target_type = EXCLUDED.target_type, 
+            `INSERT INTO integration_settings (user_id, token, start_date, target_type, category_in_id, category_out_id, bank_in_id, bank_out_id)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            ON CONFLICT (user_id) DO UPDATE SET
+            token = EXCLUDED.token, start_date = EXCLUDED.start_date, target_type = EXCLUDED.target_type,
             category_in_id = EXCLUDED.category_in_id, category_out_id = EXCLUDED.category_out_id,
             bank_in_id = EXCLUDED.bank_in_id, bank_out_id = EXCLUDED.bank_out_id`,
-            [req.userId, token, start_date, target_type, category_in_id, category_out_id, bank_in_id, bank_out_id]
+            [req.userId, encrypt(token), start_date, target_type, category_in_id, category_out_id, bank_in_id, bank_out_id]
         );
         res.json({ success: true });
     } catch(err) { res.status(500).json({ error: err.message }); }
@@ -1065,9 +1096,9 @@ app.post('/api/integration/sync', authenticateToken, async (req, res) => {
     try {
         const { rows } = await pool.query('SELECT * FROM integration_settings WHERE user_id = $1', [req.userId]);
         if (rows.length === 0 || !rows[0].token) return res.status(400).json({ error: 'Token não configurado.' });
-        
-        const settings = rows[0];
-        let url = `https://nfe.virgulacontabil.com.br/api/v1/export/notas/${settings.token}`;
+
+        const settings = { ...rows[0], token: decrypt(rows[0].token) };
+        let url = `https://nfe.virgulacontabil.com.br/api/v1/export/notas/${encodeURIComponent(settings.token)}`;
         if (settings.start_date) {
             url += `?data_inicio=${settings.start_date}`;
         }
@@ -1764,8 +1795,23 @@ app.put('/api/admin/users/:id/block', authenticateToken, checkAdmin, (req, res) 
     db.run("UPDATE users SET blocked = ? WHERE id = ?", [blocked ? 1 : 0, req.params.id], function(err) {
         if(err) return res.status(500).json({error: err.message});
         invalidateBlockedCache(req.params.id);
+        logAudit(getAuditActor(req), blocked ? 'ADMIN_USER_BLOCK' : 'ADMIN_USER_UNBLOCK', `user ${req.params.id}`, req.ip);
         res.json({success: true});
     });
+});
+// Trilha de auditoria (só admin). Ações sensíveis do contador + logins.
+app.get('/api/admin/audit', authenticateToken, checkAdmin, async (req, res) => {
+    const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+    const offset = parseInt(req.query.offset) || 0;
+    try {
+        const { rows } = await pool.query(
+            `SELECT id, user_id, action, details, ip_address, created_at FROM audit_logs ORDER BY id DESC LIMIT $1 OFFSET $2`,
+            [limit, offset]);
+        const total = await pool.query(`SELECT COUNT(*)::int AS n FROM audit_logs`);
+        res.json({ data: rows, total: total.rows[0].n });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
 });
 app.get('/api/admin/global-data', authenticateToken, checkAdmin, (req, res) => {
     db.get('SELECT COUNT(*) as count FROM users', (err, u) => {
@@ -1795,17 +1841,16 @@ app.post('/api/admin/banks', authenticateToken, checkAdmin, (req, res) => {
     const { name, logoData } = req.body;
     let logoPath = '/logo/caixaf.png';
     if (logoData && logoData.startsWith('data:image')) {
-        try {
-            const matches = logoData.match(/^data:image\/([A-Za-z-+\/]+);base64,(.+)$/);
-            if (matches && matches.length === 3) {
-                const buffer = Buffer.from(matches[2], 'base64');
-                const fileName = `bank_${Date.now()}.${matches[1].includes('+') ? matches[1].split('+')[0] : matches[1].replace('jpeg','jpg')}`;
-                fs.writeFileSync(path.join(PERSISTENT_LOGO_DIR, fileName), buffer);
-                logoPath = `/logo/${fileName}`;
-            }
-        } catch (e) {}
-    } else if (logoData && logoData.startsWith('/logo/')) logoPath = logoData;
-    db.run('INSERT INTO global_banks (name, logo) VALUES (?, ?)', [name, logoPath], function(err) { res.json({ id: this.lastID, name, logo: logoPath }); });
+        const saved = saveBankLogo(logoData);
+        if (!saved) return res.status(400).json({ error: 'Logo inválido (use PNG, JPG ou WebP até 512 KB).' });
+        logoPath = saved;
+    } else if (typeof logoData === 'string' && /^\/logo\/[\w.-]+$/.test(logoData)) {
+        logoPath = logoData;
+    }
+    db.run('INSERT INTO global_banks (name, logo) VALUES (?, ?)', [name, logoPath], function(err) {
+        logAudit(getAuditActor(req), 'ADMIN_BANK_CREATE', name, req.ip);
+        res.json({ id: this.lastID, name, logo: logoPath });
+    });
 });
 app.put('/api/admin/banks/:id', authenticateToken, checkAdmin, (req, res) => {
     const { name, logoData } = req.body;
@@ -1813,22 +1858,22 @@ app.put('/api/admin/banks/:id', authenticateToken, checkAdmin, (req, res) => {
         if(!row) return res.status(404).json({error: "Not found"});
         let logoPath = row.logo;
         if (logoData && logoData.startsWith('data:image')) {
-            try {
-                const matches = logoData.match(/^data:image\/([A-Za-z-+\/]+);base64,(.+)$/);
-                const buffer = Buffer.from(matches[2], 'base64');
-                const fileName = `bank_${Date.now()}.${matches[1].includes('+') ? matches[1].split('+')[0] : matches[1].replace('jpeg','jpg')}`;
-                fs.writeFileSync(path.join(PERSISTENT_LOGO_DIR, fileName), buffer);
-                logoPath = `/logo/${fileName}`;
-            } catch (e) {}
+            const saved = saveBankLogo(logoData);
+            if (!saved) return res.status(400).json({ error: 'Logo inválido (use PNG, JPG ou WebP até 512 KB).' });
+            logoPath = saved;
         }
         db.run('UPDATE global_banks SET name = ?, logo = ? WHERE id = ?', [name, logoPath, req.params.id], function(err) {
             db.run('UPDATE banks SET name = ?, logo = ? WHERE name = ?', [name, logoPath, row.name]);
+            logAudit(getAuditActor(req), 'ADMIN_BANK_UPDATE', `${req.params.id} ${name}`, req.ip);
             res.json({ success: true });
         });
     });
 });
 app.delete('/api/admin/banks/:id', authenticateToken, checkAdmin, (req, res) => {
-    db.run('DELETE FROM global_banks WHERE id = ?', [req.params.id], (err) => res.json({success: !err}));
+    db.run('DELETE FROM global_banks WHERE id = ?', [req.params.id], (err) => {
+        logAudit(getAuditActor(req), 'ADMIN_BANK_DELETE', String(req.params.id), req.ip);
+        res.json({ success: !err });
+    });
 });
 app.get('/api/admin/users/:id/full-data', authenticateToken, checkAdmin, (req, res) => {
     const userId = req.params.id;
@@ -1848,6 +1893,8 @@ app.delete('/api/admin/users/:id', authenticateToken, checkAdmin, async (req, re
         }
         await client.query("DELETE FROM users WHERE id = $1", [id]);
         await client.query('COMMIT');
+        invalidateBlockedCache(id);
+        logAudit(getAuditActor(req), 'ADMIN_USER_DELETE', `user ${id} + todos os dados`, req.ip);
         res.json({success: true});
     } catch (e) {
         await client.query('ROLLBACK');

@@ -13,6 +13,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ token, onLogout }) => {
   const [auditData, setAuditData] = useState<any[]>([]);
   const [auditPage, setAuditPage] = useState(0);
   const [auditTotal, setAuditTotal] = useState(0);
+  const [trailData, setTrailData] = useState<any[]>([]);
   const [adminBanks, setAdminBanks] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   
@@ -64,6 +65,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ token, onLogout }) => {
                   setAuditData(result.data || []);
                   setAuditTotal(result.total || 0);
               }
+              const trail = await fetch('/api/admin/audit?limit=100', { headers: getHeaders() });
+              if (trail.ok) setTrailData((await trail.json()).data || []);
           }
           else if (tab === 'banks') {
               const res = await fetch('/api/admin/banks', { headers: getHeaders() });
@@ -422,7 +425,34 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ token, onLogout }) => {
           )}
 
           {activeTab === 'audit' && (
-              <div className="bg-surface rounded-xl border border-line overflow-hidden shadow-lg">
+            <div className="space-y-6">
+              <div className="bg-surface rounded-xl border border-line overflow-hidden shadow-sm">
+                  <div className="p-4 border-b border-line">
+                      <h2 className="text-ink font-bold">Trilha de Auditoria</h2>
+                      <p className="text-faint text-xs">Logins e ações sensíveis do contador (últimos 100 eventos)</p>
+                  </div>
+                  <div className="max-h-[420px] overflow-y-auto custom-scroll">
+                    <table className="w-full text-sm text-left">
+                        <thead className="bg-sunken text-muted font-bold uppercase text-[11px] sticky top-0">
+                            <tr><th className="px-6 py-3">Quando</th><th className="px-6 py-3">Ação</th><th className="px-6 py-3">Detalhe</th><th className="px-6 py-3">Ator</th><th className="px-6 py-3">IP</th></tr>
+                        </thead>
+                        <tbody className="divide-y divide-line">
+                            {trailData.length === 0 && <tr><td colSpan={5} className="px-6 py-8 text-center text-faint">Sem registros ainda.</td></tr>}
+                            {trailData.map((r) => (
+                                <tr key={r.id} className="hover:bg-sunken/60">
+                                    <td className="px-6 py-2.5 text-muted font-mono text-xs whitespace-nowrap">{new Date(r.created_at).toLocaleString('pt-BR')}</td>
+                                    <td className="px-6 py-2.5"><span className={`text-xs font-bold px-2 py-0.5 rounded ${/DELETE|BLOCK/.test(r.action) ? 'bg-danger/10 text-danger' : /ADMIN/.test(r.action) ? 'bg-warn/10 text-warn' : 'bg-brand/10 text-brand-fg'}`}>{r.action}</span></td>
+                                    <td className="px-6 py-2.5 text-muted">{r.details || '—'}</td>
+                                    <td className="px-6 py-2.5 text-faint text-xs font-mono">{r.user_id}</td>
+                                    <td className="px-6 py-2.5 text-faint text-xs font-mono">{r.ip_address || '—'}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                  </div>
+              </div>
+
+              <div className="bg-surface rounded-xl border border-line overflow-hidden shadow-sm">
                   <div className="p-4 border-b border-line flex justify-between items-center">
                       <h2 className="text-ink font-bold">Registros de Cadastros</h2>
                       <span className="text-muted text-sm">Total: {auditTotal} empresas</span>
@@ -459,6 +489,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ token, onLogout }) => {
                       </button>
                   </div>
               </div>
+            </div>
           )}
       </main>
 
