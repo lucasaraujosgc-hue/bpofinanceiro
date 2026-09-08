@@ -1,13 +1,15 @@
-# Imagem leve do Node.js (Alpine)
-FROM node:18-alpine
+# Debian slim (glibc) — Node 20 LTS.
+# Alpine/musl + os binários nativos do Tailwind v4 (@tailwindcss/oxide) davam
+# "Cannot find native binding" no build. Debian/glibc resolve isso.
+FROM node:20-slim
 
 WORKDIR /app
 
-# Dependências primeiro (aproveita o cache de layer do Docker)
+# Dependências primeiro (cache de layer)
 COPY package*.json ./
 
-# npm ci = build reprodutível a partir do package-lock.json
-RUN npm ci
+# --include=optional garante os binários por-plataforma (oxide/rollup/esbuild).
+RUN npm ci --no-audit --include=optional
 
 # Restante do código
 COPY . .
