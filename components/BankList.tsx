@@ -86,7 +86,7 @@ const BankCard: React.FC<BankCardProps> = ({ bank, onEdit, onDelete }) => (
                     ? (bank.active ? 'text-ok' : 'text-ok/70') 
                     : (bank.active ? 'text-danger' : 'text-danger/70')
             }`}>
-                R$ {bank.balance.toFixed(2)}
+                {(bank.balance).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
             </span>
         </div>
     </div>
@@ -148,7 +148,7 @@ const CreditCardCard: React.FC<CreditCardCardProps> = ({ card, bank, invoiceAmou
         <div className="pt-4 border-t border-line flex justify-between items-center">
             <span className="text-xs text-faint font-semibold uppercase">Fatura Atual</span>
             <span className="font-bold text-lg text-danger">
-                R$ {invoiceAmount.toFixed(2)}
+                {(invoiceAmount).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
             </span>
         </div>
         {card.limitValue && (

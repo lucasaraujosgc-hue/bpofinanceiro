@@ -1,0 +1,230 @@
+/* DEV — sobe a app com dados simulados sobre PGlite (Postgres WASM), sem DB real.
+   Uso:  npm i -D @electric-sql/pglite   (uma vez)
+         node --import ./preview-boot.mjs
+   NÃO usar em produção. Troca node_modules/pg pelo shim PGlite (faz backup e
+   restaura com `npm ci`). */
+import 'dotenv/config';
+import fs from 'node:fs';
+import { createRequire } from 'node:module';
+
+// ---- aplica o shim de `pg` -> PGlite (idempotente) -----------------------
+const require = createRequire(import.meta.url);
+const PG_MAIN = require.resolve('pg');
+const SHIM_MARK = 'DEV SHIM — PGlite';
+if (!fs.readFileSync(PG_MAIN, 'utf8').includes(SHIM_MARK)) {
+  if (!fs.existsSync(PG_MAIN + '.real.bak')) fs.copyFileSync(PG_MAIN, PG_MAIN + '.real.bak');
+  fs.writeFileSync(PG_MAIN, `'use strict'
+/* ${SHIM_MARK} — restaure com: cp "${PG_MAIN}.real.bak" "${PG_MAIN}"  (ou npm ci) */
+const EventEmitter = require('events')
+const { PGlite } = require('@electric-sql/pglite')
+let _db = null
+const db = () => (_db ||= PGlite.create({
+  dataDir: process.env.PGLITE_DATA_DIR || undefined,
+  parsers: { 1700: v => v == null ? v : parseFloat(v), 20: v => v == null ? v : parseInt(v, 10) },
+}))
+const norm = r => ({ rows: r.rows || [], rowCount: r.affectedRows != null ? r.affectedRows : (r.rows ? r.rows.length : 0), fields: r.fields || [] })
+class Pool extends EventEmitter {
+  async query(text, params, cb) {
+    if (typeof params === 'function') { cb = params; params = undefined }
+    const sql = typeof text === 'string' ? text : text.text
+    const vals = params || (text && text.values) || []
+    try { const out = norm(await (await db()).query(sql, vals)); if (cb) { cb(null, out); return } return out }
+    catch (e) { if (cb) { cb(e); return } throw e }
+  }
+  async connect(cb) {
+    const self = this
+    const client = { query: (t, p, c) => self.query(t, p, c), release: () => {}, on: () => {} }
+    if (cb) { cb(null, client, () => {}); return }
+    return client
+  }
+  end() { return Promise.resolve() }
+}
+class Client extends Pool {}
+module.exports = { Pool, Client, types: { setTypeParser: () => {}, getTypeParser: () => v => v, builtins: {} }, defaults: {}, Connection: class {}, escapeLiteral: s => s, escapeIdentifier: s => s }
+`);
+  console.log('[preview] shim de `pg` -> PGlite aplicado (backup em pg/lib/index.js.real.bak)');
+}
+
+const pgpkg = require('pg');
+const bcrypt = require('bcryptjs');
+
+const pool = new pgpkg.Pool();
+const q = (sql, params) => pool.query(sql, params);
+
+// ---- schema (espelha db_init do server.js) --------------------------------
+const DDL = [
+  `CREATE TABLE IF NOT EXISTS global_banks (id SERIAL PRIMARY KEY, name TEXT, logo TEXT)`,
+  `CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, email TEXT UNIQUE, password TEXT, cnpj TEXT, razao_social TEXT, phone TEXT, reset_token TEXT, reset_token_expires BIGINT, role TEXT DEFAULT 'user', created_at TEXT, blocked INT DEFAULT 0, business_type TEXT DEFAULT 'servico')`,
+  `CREATE TABLE IF NOT EXISTS pending_signups (email TEXT PRIMARY KEY, token TEXT, cnpj TEXT, razao_social TEXT, phone TEXT, created_at BIGINT, business_type TEXT DEFAULT 'servico')`,
+  `CREATE TABLE IF NOT EXISTS banks (id SERIAL PRIMARY KEY, user_id INT, name TEXT, account_number TEXT, nickname TEXT, logo TEXT, active INT DEFAULT 1, balance NUMERIC(15,2) DEFAULT 0)`,
+  `CREATE TABLE IF NOT EXISTS credit_cards (id SERIAL PRIMARY KEY, user_id INT, bank_id INT, name TEXT, closing_day INT, due_day INT, limit_value NUMERIC(15,2))`,
+  `CREATE TABLE IF NOT EXISTS categories (id SERIAL PRIMARY KEY, user_id INT, name TEXT, type TEXT, group_type TEXT, main_group TEXT, sub_group TEXT, nature TEXT, affects_dre BOOLEAN DEFAULT true, affects_cashflow BOOLEAN DEFAULT true, affects_balance BOOLEAN DEFAULT false, cost_classification TEXT, behavior_type TEXT)`,
+  `CREATE TABLE IF NOT EXISTS ofx_imports (id SERIAL PRIMARY KEY, user_id INT, file_name TEXT, import_date TEXT, bank_id INT, transaction_count INT, content TEXT)`,
+  `CREATE TABLE IF NOT EXISTS transactions (id SERIAL PRIMARY KEY, user_id INT, date TEXT, description TEXT, value NUMERIC(15,2), type TEXT, category_id INT, bank_id INT, credit_card_id INT, reconciled INT, ofx_import_id INT)`,
+  `CREATE TABLE IF NOT EXISTS forecasts (id SERIAL PRIMARY KEY, user_id INT, date TEXT, description TEXT, value NUMERIC(15,2), type TEXT, category_id INT, bank_id INT, credit_card_id INT, realized INT, installment_current INT, installment_total INT, group_id TEXT)`,
+  `CREATE TABLE IF NOT EXISTS keyword_rules (id SERIAL PRIMARY KEY, user_id INT, keyword TEXT, type TEXT, category_id INT, bank_id INT)`,
+  `CREATE TABLE IF NOT EXISTS audit_logs (id SERIAL PRIMARY KEY, user_id TEXT, action TEXT, details TEXT, ip_address TEXT, created_at TEXT)`,
+  `CREATE TABLE IF NOT EXISTS integration_settings (user_id INT PRIMARY KEY, token TEXT, start_date TEXT, target_type TEXT, category_in_id INT, category_out_id INT, total_imported INT DEFAULT 0, last_sync TEXT, bank_in_id INT, bank_out_id INT)`,
+];
+for (const d of DDL) await q(d);
+
+const seeded = await q(`SELECT COUNT(*)::int AS n FROM users`);
+if (seeded.rows[0].n === 0) {
+  console.log('[preview] semeando dados simulados…');
+  const hash = bcrypt.hashSync('demo1234', 10);
+  const u = await q(
+    `INSERT INTO users (email, password, cnpj, razao_social, phone, role, created_at, blocked, business_type)
+     VALUES ($1,$2,$3,$4,$5,'user',$6,0,'comercio') RETURNING id`,
+    ['demo@virgula.com.br', hash, '11222333000181', 'Comércio Vale Verde Ltda', '11 98888-7777', new Date().toISOString()]
+  );
+  const uid = u.rows[0].id;
+
+  // ---- bancos ----
+  const svg = (t, c) => `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='9' fill='${encodeURIComponent(c)}'/%3E%3Ctext x='20' y='27' font-family='Arial,sans-serif' font-size='19' font-weight='700' fill='white' text-anchor='middle'%3E${t}%3C/text%3E%3C/svg%3E`;
+  const banks = [
+    ['Itaú', 'Conta Movimento', svg('I', '#EC7000'), 1],
+    ['Banco Inter', 'Reserva de Emergência', svg('i', '#FF7A00'), 1],
+    ['Caixa Econômica', 'Conta antiga', svg('C', '#0064A2'), 0],
+  ];
+  const bankIds = {};
+  for (const [name, nick, logo, active] of banks) {
+    const r = await q(`INSERT INTO banks (user_id,name,account_number,nickname,logo,active,balance) VALUES ($1,$2,$3,$4,$5,$6,0) RETURNING id`,
+      [uid, name, `00${1 + Math.floor(Math.random() * 8)} / ${10000 + Math.floor(Math.random() * 89999)}-${Math.floor(Math.random() * 9)}`, nick, logo, active]);
+    bankIds[name] = r.rows[0].id;
+  }
+
+  // ---- categorias (plano de contas) ----
+  const cats = [
+    ['Vendas de Mercadorias', 'receita', 'receita_bruta', 'variavel'],
+    ['Prestação de Serviços', 'receita', 'receita_bruta', 'variavel'],
+    ['Receita de Aluguel', 'receita', 'outras_receitas', 'fixa'],
+    ['Rendimentos de Aplicação', 'receita', 'receita_financeira', 'variavel'],
+    ['Venda de Equipamento Usado', 'receita', 'receita_nao_operacional', 'variavel'],
+    ['Aporte de Sócio', 'receita', 'nao_operacional', 'variavel'],
+    ['Empréstimo Bancário (entrada)', 'receita', 'nao_operacional', 'variavel'],
+    ['Transferência entre Contas (Entrada)', 'receita', 'nao_operacional', 'variavel'],
+    ['Compra de Mercadorias', 'despesa', 'custo_operacional', 'variavel'],
+    ['Frete sobre Compras', 'despesa', 'custo_operacional', 'variavel'],
+    ['Comissões sobre Vendas', 'despesa', 'despesa_com_vendas', 'variavel'],
+    ['Marketing e Publicidade', 'despesa', 'despesa_com_vendas', 'variavel'],
+    ['Salários e Ordenados', 'despesa', 'despesa_pessoal', 'fixa'],
+    ['Pró-Labore', 'despesa', 'despesa_pessoal', 'fixa'],
+    ['Encargos (FGTS, INSS)', 'despesa', 'despesa_pessoal', 'fixa'],
+    ['Aluguel e Condomínio', 'despesa', 'despesa_administrativa', 'fixa'],
+    ['Energia, Água e Internet', 'despesa', 'despesa_administrativa', 'fixa'],
+    ['Sistemas e Softwares', 'despesa', 'despesa_administrativa', 'fixa'],
+    ['Contabilidade', 'despesa', 'despesa_administrativa', 'fixa'],
+    ['Combustível e Deslocamento', 'despesa', 'despesa_operacional', 'variavel'],
+    ['Manutenção e Reparos', 'despesa', 'despesa_operacional', 'variavel'],
+    ['Impostos sobre Vendas (DAS)', 'despesa', 'impostos', 'variavel'],
+    ['Tarifas Bancárias', 'despesa', 'despesa_financeira', 'fixa'],
+    ['Juros e Multas Pagos', 'despesa', 'despesa_financeira', 'variavel'],
+    ['Distribuição de Lucros', 'despesa', 'nao_operacional', 'variavel'],
+    ['Compra de Equipamento', 'despesa', 'nao_operacional', 'variavel'],
+    ['Transferência entre Contas (Saída)', 'despesa', 'nao_operacional', 'variavel'],
+  ];
+  const catId = {};
+  for (const [name, type, group, beh] of cats) {
+    const r = await q(`INSERT INTO categories (user_id,name,type,group_type,behavior_type,affects_dre,affects_cashflow) VALUES ($1,$2,$3,$4,$5,true,true) RETURNING id`,
+      [uid, name, type, group, beh]);
+    catId[name] = r.rows[0].id;
+  }
+
+  // ---- transações: jun, jul, ago, set/2026 ----
+  const tx = [];
+  const push = (date, desc, value, type, cat, bank, reconciled = 1) =>
+    tx.push([uid, date, desc, value, type, catId[cat], bankIds[bank], reconciled]);
+  const rnd = (base, spread) => Math.round((base + (Math.random() - 0.5) * spread) * 100) / 100;
+
+  const OP = 'Itaú';           // conta operacional principal
+  const RES = 'Banco Inter';   // reserva
+  const TODAY = 22;             // "hoje" = 08/09/2026 — não gera lançamento futuro no mês corrente
+  // capital de constituição (histórico — não aparece nos relatórios do período)
+  push('2026-01-08', 'Integralização de capital dos sócios', 34200, 'credito', 'Aporte de Sócio', OP);
+  push('2026-01-08', 'Integralização de capital dos sócios', 11500, 'credito', 'Aporte de Sócio', RES);
+  const months = [
+    { y: 2026, m: 6, growth: 0.90 },
+    { y: 2026, m: 7, growth: 1.00 },
+    { y: 2026, m: 8, growth: 1.12 },
+    { y: 2026, m: 9, growth: 0.9 }, // mês corrente parcial
+  ];
+  for (const { y, m, growth } of months) {
+    const M = String(m).padStart(2, '0');
+    const partial = m === 9;
+    const d = (day) => `${y}-${M}-${String(day).padStart(2, '0')}`;
+    const push2 = (day, ...rest) => { if (!(partial && day > TODAY)) push(d(day), ...rest); };
+    // receitas
+    for (let i = 0; i < 7; i++) push2(3 + i * 3, `Venda no PDV — lote #${m}${1000 + i}`, rnd(7300 * growth, 1400), 'credito', 'Vendas de Mercadorias', OP);
+    push2(10, 'NF-e serviço — contrato mensal', rnd(10200 * growth, 900), 'credito', 'Prestação de Serviços', OP);
+    push2(21, 'NF-e serviço — projeto pontual', rnd(4600 * growth, 700), 'credito', 'Prestação de Serviços', OP);
+    push2(5, 'Aluguel da sala 2 (recebido)', 1200, 'credito', 'Receita de Aluguel', OP);
+    push2(28, 'Rendimento do CDB', rnd(300 * growth, 60), 'credito', 'Rendimentos de Aplicação', RES);
+    // custos
+    push2(6, 'Fornecedor Atacado — reposição de estoque', rnd(13200 * growth, 1600), 'debito', 'Compra de Mercadorias', OP);
+    push2(17, 'Distribuidora — pedido complementar', rnd(6400 * growth, 1000), 'debito', 'Compra de Mercadorias', OP);
+    push2(6, 'Transportadora — frete sobre compras', rnd(600, 120), 'debito', 'Frete sobre Compras', OP);
+    // despesas com vendas
+    push2(30, 'Comissão dos vendedores', rnd(1850 * growth, 300), 'debito', 'Comissões sobre Vendas', OP);
+    push2(12, 'Tráfego pago + criação de anúncios', rnd(1300, 250), 'debito', 'Marketing e Publicidade', OP);
+    // pessoal
+    push2(5, 'Folha de pagamento', 9200, 'debito', 'Salários e Ordenados', OP);
+    push2(5, 'Pró-labore dos sócios', 5000, 'debito', 'Pró-Labore', OP);
+    push2(7, 'FGTS + INSS', 2650, 'debito', 'Encargos (FGTS, INSS)', OP);
+    // administrativas
+    push2(10, 'Aluguel da loja + condomínio', 3500, 'debito', 'Aluguel e Condomínio', OP);
+    push2(15, 'Energia + internet + água', rnd(910, 160), 'debito', 'Energia, Água e Internet', OP);
+    push2(2, 'Assinaturas (ERP, e-mail, nuvem)', 430, 'debito', 'Sistemas e Softwares', OP);
+    push2(10, 'Honorários contábeis', 690, 'debito', 'Contabilidade', OP);
+    // gerais
+    push2(18, 'Combustível + deslocamentos', rnd(540, 180), 'debito', 'Combustível e Deslocamento', OP);
+    if (m % 2 === 0) push2(23, 'Manutenção do ar-condicionado', rnd(460, 180), 'debito', 'Manutenção e Reparos', OP);
+    // impostos
+    push2(20, 'DAS — Simples Nacional', rnd(4550 * growth, 400), 'debito', 'Impostos sobre Vendas (DAS)', OP);
+    // financeiras
+    push2(1, 'Tarifas de conta + taxa da maquininha', rnd(370, 80), 'debito', 'Tarifas Bancárias', OP);
+    if (m === 7) push2(14, 'Juros do cheque especial', 210, 'debito', 'Juros e Multas Pagos', OP);
+  }
+  // não operacionais / patrimoniais
+  push('2026-06-12', 'Aporte de capital — sócio', 15000, 'credito', 'Aporte de Sócio', RES);
+  push('2026-08-25', 'Distribuição de lucros aos sócios', 9000, 'debito', 'Distribuição de Lucros', OP);
+  push('2026-07-04', 'Compra de balcão refrigerado', 5400, 'debito', 'Compra de Equipamento', RES);
+  push('2026-07-04', 'Venda do balcão antigo (usado)', 1500, 'credito', 'Venda de Equipamento Usado', OP);
+  push('2026-08-14', 'Transferência para a reserva', 5000, 'debito', 'Transferência entre Contas (Saída)', OP);
+  push('2026-08-14', 'Transferência recebida da conta movimento', 5000, 'credito', 'Transferência entre Contas (Entrada)', RES);
+
+  for (const row of tx) {
+    await q(`INSERT INTO transactions (user_id,date,description,value,type,category_id,bank_id,reconciled) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`, row);
+  }
+  // ajusta saldos dos bancos a partir das transações
+  await q(`UPDATE banks b SET balance = COALESCE((SELECT SUM(CASE WHEN t.type='credito' THEN t.value ELSE -t.value END) FROM transactions t WHERE t.bank_id=b.id),0) WHERE b.user_id=$1`, [uid]);
+
+  // ---- previsões (mês corrente) ----
+  const fc = [
+    ['2026-09-05', 'Folha de pagamento', 9200, 'debito', 'Salários e Ordenados', 1],
+    ['2026-09-10', 'Aluguel da loja + condomínio', 3500, 'debito', 'Aluguel e Condomínio', 0],
+    ['2026-09-11', 'Vendas da semana (previsão)', 14500, 'credito', 'Vendas de Mercadorias', 0],
+    ['2026-09-12', 'NF-e serviço — contrato mensal', 8800, 'credito', 'Prestação de Serviços', 0],
+    ['2026-09-15', 'Fornecedor — reposição de estoque', 12000, 'debito', 'Compra de Mercadorias', 0],
+    ['2026-09-18', 'Vendas da semana (previsão)', 13800, 'credito', 'Vendas de Mercadorias', 0],
+    ['2026-09-20', 'DAS — Simples Nacional', 4400, 'debito', 'Impostos sobre Vendas (DAS)', 0],
+    ['2026-09-25', 'Comissão dos vendedores', 2200, 'debito', 'Comissões sobre Vendas', 0],
+    ['2026-09-26', 'Vendas da semana (previsão)', 12600, 'credito', 'Vendas de Mercadorias', 0],
+    ['2026-09-28', 'Rendimento do CDB', 340, 'credito', 'Rendimentos de Aplicação', 0],
+  ];
+  for (const [date, desc, value, type, cat, realized] of fc) {
+    await q(`INSERT INTO forecasts (user_id,date,description,value,type,category_id,bank_id,realized) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [uid, date, desc, value, type, catId[cat], bankIds['Itaú'], realized]);
+  }
+
+  // ---- ofx imports (só metadados p/ a tela) ----
+  await q(`INSERT INTO ofx_imports (user_id,file_name,import_date,bank_id,transaction_count,content) VALUES ($1,$2,$3,$4,$5,'')`,
+    [uid, 'extrato_itau_ago2026.ofx', '2026-09-01T10:12:00Z', bankIds['Itaú'], 34]);
+  await q(`INSERT INTO ofx_imports (user_id,file_name,import_date,bank_id,transaction_count,content) VALUES ($1,$2,$3,$4,$5,'')`,
+    [uid, 'extrato_inter_ago2026.ofx', '2026-09-01T10:14:00Z', bankIds['Banco Inter'], 12]);
+
+  const n = await q(`SELECT COUNT(*)::int AS n FROM transactions`);
+  console.log(`[preview] pronto — ${n.rows[0].n} lançamentos. Login: demo@virgula.com.br / demo1234`);
+}
+
+// sobe a app
+await import('./server.js');

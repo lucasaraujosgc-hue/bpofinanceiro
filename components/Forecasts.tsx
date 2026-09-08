@@ -394,16 +394,16 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
                <div className="flex-1 grid grid-cols-3 divide-x divide-line">
                     <div className="p-4 text-center">
                         <div className="text-xs text-faint uppercase font-semibold mb-1">Receitas Previstas</div>
-                        <div className="text-xl font-bold text-ok">R$ {totalIncome.toFixed(2)}</div>
+                        <div className="text-xl font-bold text-ok">{(totalIncome).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
                     </div>
                     <div className="p-4 text-center">
                         <div className="text-xs text-faint uppercase font-semibold mb-1">Despesas Previstas</div>
-                        <div className="text-xl font-bold text-danger">R$ {totalExpense.toFixed(2)}</div>
+                        <div className="text-xl font-bold text-danger">{(totalExpense).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
                     </div>
                     <div className="p-4 text-center bg-surface/50">
                         <div className="text-xs text-faint uppercase font-semibold mb-1">Saldo Projetado</div>
                         <div className={`text-xl font-bold ${projectedBalance >= 0 ? 'text-ok' : 'text-danger'}`}>
-                            R$ {projectedBalance.toFixed(2)}
+                            {(projectedBalance).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
                         </div>
                     </div>
                </div>
@@ -459,7 +459,7 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
                                    </td>
                                    <td className="px-6 py-3 font-medium text-ink">{f.description}</td>
                                    <td className={`px-6 py-3 text-right font-bold ${f.type === TransactionType.DEBIT ? 'text-danger' : 'text-ok'}`}>
-                                       {f.value.toFixed(2)}
+                                       {(f.value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                    </td>
                                    <td className="px-6 py-3 text-center">
                                        {isFixed ? (

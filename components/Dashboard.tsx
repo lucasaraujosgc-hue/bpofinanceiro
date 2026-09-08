@@ -444,7 +444,7 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
                       <div key={idx}>
                           <div className="flex justify-between items-center text-xs mb-1">
                               <span className="text-muted font-medium truncate max-w-[70%]">{cat.name}</span>
-                              <span className="text-ok font-bold">R$ {cat.value.toFixed(2)}</span>
+                              <span className="text-ok font-bold">{(cat.value).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</span>
                           </div>
                           <div className="w-full bg-sunken rounded-full h-1.5">
                               <div className="bg-brand h-1.5 rounded-full" style={{ width: `${cat.percent}%` }}></div>
@@ -462,7 +462,7 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
                       <div key={idx}>
                           <div className="flex justify-between items-center text-xs mb-1">
                               <span className="text-muted font-medium truncate max-w-[70%]">{cat.name}</span>
-                              <span className="text-danger font-bold">R$ {cat.value.toFixed(2)}</span>
+                              <span className="text-danger font-bold">{(cat.value).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</span>
                           </div>
                           <div className="w-full bg-sunken rounded-full h-1.5">
                               <div className="bg-danger h-1.5 rounded-full" style={{ width: `${cat.percent}%` }}></div>
@@ -512,7 +512,7 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
                                           {bank?.name || 'Desconhecido'}
                                       </td>
                                       <td className={`px-4 py-2 text-right font-bold ${t.type === TransactionType.CREDIT ? 'text-ok' : 'text-danger'}`}>
-                                          {t.type === TransactionType.CREDIT ? '+' : '-'} R$ {t.value.toFixed(2)}
+                                          {t.type === TransactionType.CREDIT ? '+' : '-'} {(t.value).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
                                       </td>
                                       <td className="px-4 py-2">
                                           {t.reconciled ? (
@@ -577,7 +577,7 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
                                         ) : null}
                                     </td>
                                     <td className={`py-3 text-right font-bold ${f.type === TransactionType.DEBIT ? 'text-danger' : 'text-ok'}`}>
-                                        R$ {f.value.toFixed(2)}
+                                        {(f.value).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
                                     </td>
                                     <td className="py-3 flex justify-center gap-2">
                                         <button 

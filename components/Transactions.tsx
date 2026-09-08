@@ -284,16 +284,16 @@ const Transactions: React.FC<TransactionsProps> = ({
                 <div className="flex-1 grid grid-cols-3 divide-x divide-line">
                         <div className="p-4 text-center">
                             <div className="text-xs text-faint uppercase font-semibold mb-1">Receitas</div>
-                            <div className="text-xl font-bold text-ok">R$ {totalIncome.toFixed(2)}</div>
+                            <div className="text-xl font-bold text-ok">{(totalIncome).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
                         </div>
                         <div className="p-4 text-center">
                             <div className="text-xs text-faint uppercase font-semibold mb-1">Despesas</div>
-                            <div className="text-xl font-bold text-danger">R$ {totalExpense.toFixed(2)}</div>
+                            <div className="text-xl font-bold text-danger">{(totalExpense).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
                         </div>
                         <div className="p-4 text-center bg-surface/50">
                             <div className="text-xs text-faint uppercase font-semibold mb-1">Saldo do Mês</div>
                             <div className={`text-xl font-bold ${periodBalance >= 0 ? 'text-ok' : 'text-danger'}`}>
-                                R$ {periodBalance.toFixed(2)}
+                                {(periodBalance).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
                             </div>
                         </div>
                 </div>
@@ -437,7 +437,7 @@ const Transactions: React.FC<TransactionsProps> = ({
                         </td>
                         <td className={`px-6 py-4 text-right font-medium ${t.type === TransactionType.CREDIT ? 'text-ok' : 'text-danger'}`}>
                           {t.type === TransactionType.DEBIT ? '- ' : '+ '}
-                          R$ {t.value.toFixed(2)}
+                          {(t.value).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
                         </td>
                         <td className="px-6 py-4 text-center">
                           {t.reconciled ? (

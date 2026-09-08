@@ -430,7 +430,7 @@ const OFXImports: React.FC<OFXImportsProps> = ({ token, userId, banks, keywordRu
                                       <td className="py-3 pr-4 opacity-70">
                                           <div className="font-mono text-xs text-muted">{new Date(c.oldTx.date).toLocaleDateString()}</div>
                                           <div className="font-medium text-muted">{c.oldTx.description}</div>
-                                          <div className={c.oldTx.type === 'debito' ? 'text-danger' : 'text-ok'}>R$ {c.oldTx.value.toFixed(2)}</div>
+                                          <div className={c.oldTx.type === 'debito' ? 'text-danger' : 'text-ok'}>{(c.oldTx.value).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
                                       </td>
                                       <td className="py-3 px-2">
                                           <div className="flex flex-col gap-2 items-center">
@@ -451,7 +451,7 @@ const OFXImports: React.FC<OFXImportsProps> = ({ token, userId, banks, keywordRu
                                       <td className="py-3 pl-4">
                                           <div className="font-mono text-xs text-brand">{new Date(c.newTx.date).toLocaleDateString()}</div>
                                           <div className="font-medium text-ink">{c.newTx.description}</div>
-                                          <div className={c.newTx.type === 'debito' ? 'text-danger' : 'text-ok'}>R$ {c.newTx.value.toFixed(2)}</div>
+                                          <div className={c.newTx.type === 'debito' ? 'text-danger' : 'text-ok'}>{(c.newTx.value).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
                                       </td>
                                   </tr>
                               ))}
