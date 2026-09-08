@@ -1,3 +1,4 @@
+import './lib/http'; // instala o patch de fetch (auth + refresh) antes de tudo
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { ThemeProvider } from 'next-themes';

@@ -3,6 +3,7 @@ import { authenticateToken, checkAdmin, invalidateBlockedCache } from '../middle
 import { decrypt } from '../config.js';
 import { logAudit, getAuditActor } from '../services/audit.js';
 import { saveBankLogo } from '../services/logo.js';
+import { revokeAllSessionsForUser } from '../services/session.js';
 
 export default function register(app) {
 app.get('/api/admin/users', authenticateToken, checkAdmin, (req, res) => {
@@ -40,6 +41,7 @@ app.put('/api/admin/users/:id/block', authenticateToken, checkAdmin, (req, res) 
     db.run("UPDATE users SET blocked = ? WHERE id = ?", [blocked ? 1 : 0, req.params.id], function(err) {
         if(err) return res.status(500).json({error: err.message});
         invalidateBlockedCache(req.params.id);
+        if (blocked) revokeAllSessionsForUser(req.params.id).catch(e => console.error('revoke on block:', e.message));
         logAudit(getAuditActor(req), blocked ? 'ADMIN_USER_BLOCK' : 'ADMIN_USER_UNBLOCK', `user ${req.params.id}`, req.ip);
         res.json({success: true});
     });
@@ -136,6 +138,7 @@ app.delete('/api/admin/users/:id', authenticateToken, checkAdmin, async (req, re
         for (const t of tables) {
             await client.query(`DELETE FROM ${t} WHERE user_id = $1`, [id]);
         }
+        await client.query("DELETE FROM auth_sessions WHERE user_id = $1", [String(id)]);
         await client.query("DELETE FROM users WHERE id = $1", [id]);
         await client.query('COMMIT');
         invalidateBlockedCache(id);

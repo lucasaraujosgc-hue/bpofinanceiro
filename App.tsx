@@ -18,6 +18,7 @@ import AdminPanel from './components/AdminPanel';
 import IntegrationConfig from './components/IntegrationConfig';
 import { Transaction, Bank, Category, Forecast, KeywordRule, CreditCard } from './types';
 import { AlertTriangle, RefreshCcw, Lock, LogOut } from 'lucide-react';
+import { saveSession, clearSession, realFetch } from './lib/http';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -68,6 +69,29 @@ function App() {
         fetchInitialData();
     }
   }, [isAuthenticated, token, user]);
+
+  // O patch de fetch (lib/http) dispara este evento quando o refresh token
+  // também falha — encerra a sessão localmente, sem nova chamada de rede.
+  useEffect(() => {
+    const onForcedLogout = () => {
+        clearSession();
+        setIsAuthenticated(false);
+        setIsAppError(false);
+        setUser(null);
+        setToken(null);
+        setAuthView('login');
+    };
+    const onRefreshed = (e: Event) => {
+        const next = (e as CustomEvent)?.detail?.token;
+        if (next) setToken(next);
+    };
+    window.addEventListener('auth:logout', onForcedLogout);
+    window.addEventListener('auth:refreshed', onRefreshed);
+    return () => {
+        window.removeEventListener('auth:logout', onForcedLogout);
+        window.removeEventListener('auth:refreshed', onRefreshed);
+    };
+  }, []);
 
   // CÁLCULO DE SALDO (Conciliado + Pendente conforme solicitado)
   const banksWithBalance = useMemo(() => {
@@ -208,17 +232,24 @@ function App() {
   };
 
   const handleLogout = () => {
+      // Revoga a sessão no servidor (best-effort — não bloqueia a UI).
+      const rt = localStorage.getItem('finance_app_refresh') || sessionStorage.getItem('finance_app_refresh');
+      if (rt) {
+          realFetch('/api/auth/logout', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ refreshToken: rt }),
+          }).catch(() => {});
+      }
+
       setIsAuthenticated(false);
       setIsAppError(false);
       setUser(null);
       setToken(null);
-      
-      // Limpa ambos os storages para garantir logout completo
-      localStorage.removeItem('finance_app_token');
-      localStorage.removeItem('finance_app_user');
-      sessionStorage.removeItem('finance_app_token');
-      sessionStorage.removeItem('finance_app_user');
-      
+
+      // Limpa token + refresh + user de ambos os storages.
+      clearSession();
+
       setAuthView('login');
   };
 
@@ -231,15 +262,11 @@ function App() {
             setUser(responseData.user);
             setToken(responseData.token);
             setIsAuthenticated(true);
-            
-            // Lógica Correta de Storage
-            if (rememberMe) {
-                localStorage.setItem('finance_app_token', responseData.token);
-                localStorage.setItem('finance_app_user', JSON.stringify(responseData.user));
-            } else {
-                sessionStorage.setItem('finance_app_token', responseData.token);
-                sessionStorage.setItem('finance_app_user', JSON.stringify(responseData.user));
-            }
+
+            // access + refresh token no store certo (localStorage = "lembrar de mim").
+            saveSession(responseData, rememberMe);
+            const store = rememberMe ? localStorage : sessionStorage;
+            store.setItem('finance_app_user', JSON.stringify(responseData.user));
         } else {
             const err = await res.json();
             alert(err.error || "Erro no login");

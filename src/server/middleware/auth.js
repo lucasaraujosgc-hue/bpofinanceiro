@@ -27,7 +27,8 @@ export const authenticateToken = (req, res, next) => {
     if (!token) return res.status(401).json({ error: "Token não fornecido." });
 
     jwt.verify(token, JWT_SECRET, async (err, decoded) => {
-        if (err) return res.status(403).json({ error: "Sessão expirada." });
+        // 401 (não 403) para o cliente saber que deve renovar via /api/auth/refresh.
+        if (err) return res.status(401).json({ error: "Sessão expirada.", code: "token_expired" });
         req.user = decoded;
         req.userId = decoded.id;
 

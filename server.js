@@ -8,7 +8,8 @@ import helmet from 'helmet';
 import { IS_PROD, PORT, ADMIN_EMAIL, corsOrigins } from './src/server/config.js';
 import { initSchema } from './src/server/schema.js';
 import { mountLogos } from './src/server/services/logo.js';
-import { apiLimiter, loginLimiter, flowLimiter } from './src/server/middleware/rateLimit.js';
+import { purgeExpiredSessions } from './src/server/services/session.js';
+import { apiLimiter, loginLimiter, flowLimiter, refreshLimiter } from './src/server/middleware/rateLimit.js';
 
 import registerAuthRoutes from './src/server/routes/auth.routes.js';
 import registerBankRoutes from './src/server/routes/banks.routes.js';
@@ -58,12 +59,13 @@ app.use(express.json({ limit: '10mb' }));
 
 app.use('/api/', apiLimiter);
 app.use('/api/login', loginLimiter);
+app.use('/api/auth/refresh', refreshLimiter);
 app.use(['/api/recover-password', '/api/reset-password-confirm'], loginLimiter);
 app.use(['/api/request-signup', '/api/complete-signup', '/api/validate-signup-token'], flowLimiter);
 
 mountLogos(app);
 
-initSchema();
+initSchema().then(purgeExpiredSessions).catch(() => {});
 
 // --- ROTAS ---
 registerAuthRoutes(app);

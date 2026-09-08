@@ -18,3 +18,11 @@ export const flowLimiter = rateLimit({
     standardHeaders: true, legacyHeaders: false,
     message: { error: "Muitas solicitações. Tente novamente mais tarde." },
 });
+
+// Rotação de sessão: legítimo é ~1 a cada 15 min por aba. Folga para várias
+// abas, apertado o bastante contra quem martela refresh tokens roubados.
+export const refreshLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, limit: 40,
+    standardHeaders: true, legacyHeaders: false,
+    message: { error: "Muitas renovações de sessão. Aguarde alguns minutos." },
+});

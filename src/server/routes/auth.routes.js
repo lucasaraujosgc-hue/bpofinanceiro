@@ -1,11 +1,19 @@
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { db } from '../db.js';
-import { JWT_SECRET, ADMIN_EMAIL, ADMIN_PASSWORD, encrypt, decrypt, sha256, appBaseUrl } from '../config.js';
+import { ADMIN_EMAIL, ADMIN_PASSWORD, encrypt, decrypt, sha256, appBaseUrl } from '../config.js';
 import { logAudit } from '../services/audit.js';
 import { sendEmail } from '../services/mailer.js';
 import { INITIAL_CATEGORIES_SEED } from '../schema.js';
+import {
+    createSession,
+    rotateSession,
+    revokeSessionByRefreshToken,
+    revokeAllSessionsForUser,
+    RefreshError,
+} from '../services/session.js';
+
+const uaOf = (req) => String(req.headers['user-agent'] || '').slice(0, 400);
 
 export default function register(app) {
 app.post('/api/login', (req, res) => {
@@ -14,32 +22,68 @@ app.post('/api/login', (req, res) => {
     const inputPass = (password || '').trim();
 
     if (ADMIN_EMAIL && ADMIN_PASSWORD && inputEmail === ADMIN_EMAIL && inputPass === ADMIN_PASSWORD) {
-        const token = jwt.sign({ id: 0, email: inputEmail, role: 'admin' }, JWT_SECRET, { expiresIn: '12h' });
         logAudit('0', 'LOGIN_ADMIN', 'Acesso Admin', req.ip);
-        return res.json({ 
-            token, 
-            user: { id: 0, email: inputEmail, razaoSocial: 'Administrador', role: 'admin' } 
-        });
+        return createSession({ id: 0, email: inputEmail, role: 'admin' }, { userAgent: uaOf(req), ip: req.ip })
+            .then(({ token, refreshToken, expiresIn }) => res.json({
+                token, refreshToken, expiresIn,
+                user: { id: 0, email: inputEmail, razaoSocial: 'Administrador', role: 'admin' },
+            }))
+            .catch((e) => { console.error('login admin session error:', e.message); res.status(500).json({ error: 'Erro ao iniciar sessão.' }); });
     }
 
-    db.get('SELECT * FROM users WHERE email = ?', [inputEmail], (err, user) => {
+    db.get('SELECT * FROM users WHERE email = ?', [inputEmail], async (err, user) => {
         if (err || !user) return res.status(401).json({ error: "Credenciais inválidas" });
         if (!bcrypt.compareSync(inputPass, user.password)) return res.status(401).json({ error: "Credenciais inválidas" });
 
-        const token = jwt.sign({ id: user.id, email: user.email, role: user.role || 'user' }, JWT_SECRET, { expiresIn: '24h' });
-        logAudit(user.id, 'LOGIN', 'Sucesso', req.ip);
-        res.json({ 
-            token, 
-            user: { 
-                id: user.id, 
-                email: user.email, 
-                razaoSocial: decrypt(user.razao_social), 
-                cnpj: decrypt(user.cnpj), 
-                role: user.role,
-                blocked: user.blocked
-            } 
-        });
+        try {
+            const { token, refreshToken, expiresIn } = await createSession(
+                { id: user.id, email: user.email, role: user.role || 'user' },
+                { userAgent: uaOf(req), ip: req.ip },
+            );
+            logAudit(user.id, 'LOGIN', 'Sucesso', req.ip);
+            res.json({
+                token, refreshToken, expiresIn,
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    razaoSocial: decrypt(user.razao_social),
+                    cnpj: decrypt(user.cnpj),
+                    role: user.role,
+                    blocked: user.blocked,
+                },
+            });
+        } catch (e) {
+            console.error('login session error:', e.message);
+            res.status(500).json({ error: 'Erro ao iniciar sessão.' });
+        }
     });
+});
+
+// Renova o par access/refresh. Rotaciona o refresh e detecta reuso.
+// Um único 401 genérico para toda falha (desconhecido / revogado / expirado / reuso).
+app.post('/api/auth/refresh', async (req, res) => {
+    const refreshToken = String(req.body?.refreshToken || '');
+    if (!refreshToken) return res.status(401).json({ error: 'Sessão inválida. Faça login novamente.', code: 'refresh_invalid' });
+    try {
+        const tokens = await rotateSession(refreshToken, { userAgent: uaOf(req), ip: req.ip });
+        res.json(tokens);
+    } catch (err) {
+        if (err instanceof RefreshError) {
+            return res.status(401).json({ error: 'Sessão inválida. Faça login novamente.', code: 'refresh_invalid' });
+        }
+        console.error('refresh error:', err.message);
+        res.status(500).json({ error: 'Erro ao renovar sessão.' });
+    }
+});
+
+// Logout — revoga a sessão do refresh apresentado. Idempotente.
+app.post('/api/auth/logout', async (req, res) => {
+    const refreshToken = String(req.body?.refreshToken || '');
+    if (refreshToken) {
+        try { await revokeSessionByRefreshToken(refreshToken); }
+        catch (err) { console.warn('logout: revoke falhou:', err.message); }
+    }
+    res.json({ success: true });
 });
 
 app.post('/api/request-signup', (req, res) => {
@@ -147,7 +191,11 @@ app.post('/api/reset-password-confirm', (req, res) => {
         [sha256(token), Date.now()], (err, user) => {
         if(!user) return res.status(400).json({ error: "Link inválido ou expirado." });
         db.run("UPDATE users SET password = ?, reset_token = NULL, reset_token_expires = NULL WHERE id = ?",
-            [bcrypt.hashSync(newPassword, 10), user.id], () => res.json({ success: true }));
+            [bcrypt.hashSync(newPassword, 10), user.id], () => {
+                // Senha trocada: derruba todas as sessões existentes desse usuário.
+                revokeAllSessionsForUser(user.id).catch(e => console.error('revoke on reset:', e.message));
+                res.json({ success: true });
+            });
     });
 });
 }

@@ -112,6 +112,25 @@ export const initSchema = async () => {
 
       await pool.query(`CREATE TABLE IF NOT EXISTS keyword_rules (id SERIAL PRIMARY KEY, user_id INT, keyword TEXT, type TEXT, category_id INT, bank_id INT, FOREIGN KEY(user_id) REFERENCES users(id))`);
       await pool.query(`CREATE TABLE IF NOT EXISTS audit_logs (id SERIAL PRIMARY KEY, user_id TEXT, action TEXT, details TEXT, ip_address TEXT, created_at TEXT)`);
+
+      // Sessões: access token curto + refresh rotativo com detecção de reuso.
+      await pool.query(`CREATE TABLE IF NOT EXISTS auth_sessions (
+          id SERIAL PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          role TEXT NOT NULL DEFAULT 'user',
+          email TEXT,
+          refresh_hash TEXT NOT NULL UNIQUE,
+          previous_refresh_hash TEXT,
+          user_agent TEXT,
+          ip_address TEXT,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+          last_used_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+          expires_at TIMESTAMPTZ NOT NULL,
+          revoked_at TIMESTAMPTZ
+      )`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_auth_sessions_prev ON auth_sessions(previous_refresh_hash)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(user_id)`);
+
       await pool.query(`CREATE TABLE IF NOT EXISTS integration_settings (user_id INT PRIMARY KEY, token TEXT, start_date TEXT, target_type TEXT, category_in_id INT, category_out_id INT, total_imported INT DEFAULT 0, last_sync TEXT, FOREIGN KEY(user_id) REFERENCES users(id))`);
       await ensureColumn('integration_settings', 'bank_in_id', 'INT');
       await ensureColumn('integration_settings', 'bank_out_id', 'INT');
