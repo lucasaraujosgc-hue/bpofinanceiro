@@ -60,7 +60,7 @@ export interface OFXImport {
 
 export interface Transaction {
   id: number;
-  date: string; // ISO Date YYYY-MM-DD
+  date: string; // ISO Date YYYY-MM-DD — data de caixa (movimento financeiro)
   description: string;
   summary?: string;
   type: TransactionType;

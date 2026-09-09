@@ -35,6 +35,12 @@ const isoDate = z.string()
 
 const txType = z.enum(['credito', 'debito']);
 
+// Data opcional. '' / null → null.
+const optionalIsoDate = z.preprocess(
+    (v) => (v === '' || v === null || v === undefined ? null : v),
+    isoDate.nullable(),
+);
+
 // FK opcional: aceita número, string numérica, 0, '', null, undefined →
 // normaliza para inteiro positivo ou null (o handler faz `id || null`).
 const idRef = z.preprocess(
@@ -145,7 +151,7 @@ export const categoryUpdateSchema = z.object(categoryShape).loose();
 
 // --- transações ------------------------------------------------------
 
-export const transactionCreateSchema = z.object({
+const transactionShape = {
     date: isoDate,
     description,
     value: requiredMoney,
@@ -154,22 +160,34 @@ export const transactionCreateSchema = z.object({
     bankId: idRef,
     creditCardId: idRef,
     reconciled: boolish,
+};
+
+export const transactionCreateSchema = z.object({
+    ...transactionShape,
     ofxImportId: idRef,
 }).loose();
 
-export const transactionUpdateSchema = z.object({
-    date: isoDate,
-    description,
-    value: requiredMoney,
-    type: txType,
-    categoryId: idRef,
-    bankId: idRef,
-    creditCardId: idRef,
-    reconciled: boolish,
+export const transactionUpdateSchema = z.object(transactionShape).loose();
+
+// Criação em lote (importação de extrato / recorrência). Uma requisição só —
+// o servidor insere tudo numa transação e ajusta os saldos uma vez.
+export const transactionBulkSchema = z.object({
+    ofxImport: z.object({
+        fileName: z.string().trim().max(255).nullish(),
+        importDate: z.string().max(40).nullish(),
+        bankId: idRef,
+        content: z.string().max(5_000_000).nullish(),
+    }).loose().nullish(),
+    transactions: z.array(z.object(transactionShape).loose()).min(1).max(5000),
 }).loose();
 
 export const transactionReconcileSchema = z.object({
     reconciled: boolish,
+}).loose();
+
+// Realização de previsão → cria a transação no mesmo passo (atômico no backend).
+export const forecastRealizeSchema = z.object({
+    realizedDate: optionalIsoDate,
 }).loose();
 
 export const transactionBatchUpdateSchema = z.object({
@@ -179,7 +197,7 @@ export const transactionBatchUpdateSchema = z.object({
 
 // --- previsões -------------------------------------------------------
 
-export const forecastCreateSchema = z.object({
+const forecastShape = {
     date: isoDate,
     description,
     value: requiredMoney,
@@ -191,7 +209,9 @@ export const forecastCreateSchema = z.object({
     installmentCurrent: z.coerce.number().int().min(0).max(1200).nullish(),
     installmentTotal: z.coerce.number().int().min(0).max(1200).nullish(),
     groupId: z.string().max(60).nullish(),
-}).loose();
+};
+
+export const forecastCreateSchema = z.object(forecastShape).loose();
 
 export const forecastUpdateSchema = z.object({
     date: isoDate,
@@ -201,6 +221,12 @@ export const forecastUpdateSchema = z.object({
     categoryId: idRef,
     bankId: idRef,
     creditCardId: idRef,
+}).loose();
+
+// Criação em lote de previsões (recorrência: mensal, semanal, anual…). Uma
+// requisição só, insere tudo numa transação.
+export const forecastBulkSchema = z.object({
+    forecasts: z.array(z.object(forecastShape).loose()).min(1).max(1200),
 }).loose();
 
 // --- OFX -------------------------------------------------------------
@@ -248,4 +274,111 @@ export const adminBankCreateSchema = z.object({
 export const adminBankUpdateSchema = z.object({
     name: shortText.min(1, 'nome obrigatório'),
     logoData: z.string().max(1_000_000).nullish(),
+}).loose();
+
+// --- planejamento: orçamento --------------------------------------
+
+const budgetYear = z.coerce.number().int().min(2000).max(2100);
+const pctChange = z.coerce.number().min(-100).max(1000).default(0); // % de crescimento/redução
+
+export const budgetCreateSchema = z.object({
+    year: budgetYear,
+    name: z.string().trim().max(120).nullish(),
+}).loose();
+
+export const budgetItemsSchema = z.object({
+    items: z.array(z.object({
+        month: z.coerce.number().int().min(1).max(12),
+        categoryId: idRef,
+        groupType: z.string().trim().max(60).nullish(),
+        kind: z.enum(['receita', 'despesa']),
+        amount: money,
+        quantity: z.coerce.number().finite().nonnegative().max(1e9).nullish(),
+    })).max(2000),
+}).loose();
+
+export const budgetClearLineSchema = z.object({
+    categoryId: idRef,
+    groupType: z.string().trim().max(60).nullish(),
+}).loose();
+
+export const budgetGenerateSchema = z.object({
+    method: z.enum(['history_avg', 'prev_year', 'copy']),
+    months: z.coerce.number().int().min(1).max(36).default(12),
+    growthPct: pctChange,
+    fromYear: budgetYear.nullish(),
+    scope: z.enum(['all', 'receitas', 'despesas']).default('all'),
+}).loose();
+
+// --- planejamento: cenários -------------------------------------
+
+const scenarioHorizon = z.coerce.number().int().refine(
+    (n) => [3, 6, 12, 18, 24, 36].includes(n), 'horizonte deve ser 3, 6, 12, 18, 24 ou 36 meses',
+).default(12);
+
+// % de variação: aceita '' / null → default. Faixa ampla mas finita.
+const deltaPct = z.preprocess(
+    (v) => (v === '' || v === null || v === undefined ? 0 : v),
+    z.coerce.number().finite().min(-100).max(1000),
+).default(0);
+// % 0–100 (inadimplência, distribuição, juros)
+const ratePct = z.preprocess(
+    (v) => (v === '' || v === null || v === undefined ? 0 : v),
+    z.coerce.number().finite().min(0).max(100),
+).default(0);
+// dias de prazo: opcional (null = não informado)
+const prazoDias = z.preprocess(
+    (v) => (v === '' || v === null || v === undefined ? null : v),
+    z.coerce.number().int().min(0).max(3650).nullable(),
+);
+const nnMoney = z.preprocess(
+    (v) => (v === '' || v === null || v === undefined ? 0 : v),
+    z.coerce.number().finite().min(0).max(1e12),
+).default(0);
+
+export const assumptionsSchema = z.object({
+    receita_crescimento_pct: deltaPct,
+    custos_variaveis_delta_pct: deltaPct,
+    custos_fixos_delta_pct: deltaPct,
+    margem_bruta_alvo_pct: z.preprocess(
+        (v) => (v === '' || v === null || v === undefined ? null : v),
+        z.coerce.number().finite().min(-100).max(99).nullable(),
+    ),
+    inadimplencia_pct: ratePct,
+    pmr_dias: prazoDias,
+    pmp_dias: prazoDias,
+    investimentos_mensais: nnMoney,
+    aportes_mensais: nnMoney,
+    emprestimo_valor: nnMoney,
+    emprestimo_juros_mes_pct: ratePct,
+    emprestimo_amortizacao_meses: z.preprocess(
+        (v) => (v === '' || v === null || v === undefined ? 0 : v),
+        z.coerce.number().int().min(0).max(600),
+    ).default(0),
+    distribuicao_lucros_pct: ratePct,
+}).loose().partial();
+
+export const scenarioCreateSchema = z.object({
+    name: shortText.min(1, 'nome obrigatório').max(120),
+    kind: z.enum(['base', 'otimista', 'pessimista', 'custom']).default('custom'),
+    baseYear: budgetYear,
+    horizonMonths: scenarioHorizon,
+    description: z.string().trim().max(1000).nullish(),
+    assumptions: assumptionsSchema.optional(),
+}).loose();
+
+export const scenarioUpdateSchema = z.object({
+    name: shortText.min(1, 'nome obrigatório').max(120).optional(),
+    kind: z.enum(['base', 'otimista', 'pessimista', 'custom']).optional(),
+    baseYear: budgetYear.optional(),
+    horizonMonths: scenarioHorizon.optional(),
+    description: z.string().trim().max(1000).nullish(),
+    assumptions: assumptionsSchema.optional(),
+}).loose();
+
+// Simulador (efêmero, não persiste): compara uma base × premissas simuladas.
+export const simulateSchema = z.object({
+    baseAssumptions: assumptionsSchema.optional(),
+    assumptions: assumptionsSchema.optional(),
+    horizonMonths: scenarioHorizon.optional(),
 }).loose();

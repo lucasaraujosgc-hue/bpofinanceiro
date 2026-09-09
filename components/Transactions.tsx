@@ -46,7 +46,7 @@ const Transactions: React.FC<TransactionsProps> = ({
     type: TransactionType.DEBIT,
     bankId: activeBanks[0]?.id || 0,
     creditCardId: null as number | null,
-    categoryId: 0, 
+    categoryId: 0,
   });
 
   useEffect(() => {
@@ -58,7 +58,7 @@ const Transactions: React.FC<TransactionsProps> = ({
         type: TransactionType.DEBIT,
         bankId: activeBanks[0]?.id || 0,
         creditCardId: null,
-        categoryId: 0, 
+        categoryId: 0,
        });
     }
   }, [isModalOpen, editingId, banks]);
@@ -130,12 +130,12 @@ const Transactions: React.FC<TransactionsProps> = ({
     const payload = {
       date: formData.date,
       description: formData.description,
-      value: Math.abs(Number(formData.value)), 
+      value: Math.abs(Number(formData.value)),
       type: formData.type,
       bankId: formData.bankId ? Number(formData.bankId) : null,
       creditCardId: formData.creditCardId,
       categoryId: Number(formData.categoryId),
-      reconciled: editingId ? true : false 
+      reconciled: editingId ? true : false
     };
 
     if (editingId) {
@@ -506,8 +506,8 @@ const Transactions: React.FC<TransactionsProps> = ({
                 </div>
                 <div className="space-y-1.5">
                     <label className="text-sm font-medium text-muted">Data</label>
-                    <input 
-                        type="date" 
+                    <input
+                        type="date"
                         required
                         className="w-full px-3 py-2 bg-surface border border-line rounded-lg focus:ring-2 focus:ring-brand/50 focus:border-brand outline-none transition-all text-ink"
                         value={formData.date}

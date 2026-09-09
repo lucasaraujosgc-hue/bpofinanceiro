@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Transaction, TransactionType, Bank, Forecast, Category, CategoryType } from '../types';
-import { Wallet, CheckCircle2, TrendingUp, TrendingDown, Plus, Minus, X, ThumbsUp, ThumbsDown, Repeat, CalendarDays, AlertTriangle, CalendarClock, Check, Trash2, ChevronLeft, ChevronRight, Calculator, Calendar, ShieldCheck } from 'lucide-react';
+import { Wallet, CheckCircle2, TrendingUp, TrendingDown, Plus, Minus, X, ThumbsUp, ThumbsDown, Repeat, AlertTriangle, CalendarClock, Check, Trash2, ChevronLeft, ChevronRight, Calculator, Calendar, ShieldCheck } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { Frequency, FREQUENCY_OPTIONS, recurrenceDates, installmentTotalFor } from '../lib/recurrence';
 
 interface DashboardProps {
   token: string;
@@ -46,8 +47,8 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
       date: new Date().toISOString().split('T')[0],
       categoryId: 0,
       bankId: activeBanks[0]?.id || 0,
-      installments: 1,
-      isFixed: false
+      frequency: 'unica' as Frequency,
+      occurrences: 12,
   });
 
   const startOfSelectedMonth = new Date(currentYear, currentMonth, 1);
@@ -148,8 +149,8 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
           date: new Date().toISOString().split('T')[0],
           categoryId: 0,
           bankId: activeBanks[0]?.id || 0,
-          installments: 1,
-          isFixed: false
+          frequency: 'unica',
+          occurrences: 12,
       });
       setIsModalOpen(true);
   };
@@ -168,21 +169,14 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
       const finalDate = realizeModal.date;
 
       try {
-        await fetch(`/api/forecasts/${forecast.id}/realize`, { method: 'PATCH', headers: getHeaders() });
-        const descSuffix = forecast.installmentTotal ? ` (${forecast.installmentCurrent}/${forecast.installmentTotal})` : (forecast.groupId ? ' (Recorrente)' : '');
-        await fetch('/api/transactions', {
-            method: 'POST',
+        // Um passo só: o backend marca a previsão como realizada E cria o
+        // lançamento na mesma transação (sem risco de dupla contagem).
+        const res = await fetch(`/api/forecasts/${forecast.id}/realize`, {
+            method: 'PATCH',
             headers: getHeaders(),
-            body: JSON.stringify({
-                date: finalDate,
-                description: forecast.description + descSuffix,
-                value: forecast.value,
-                type: forecast.type,
-                categoryId: forecast.categoryId,
-                bankId: forecast.bankId,
-                reconciled: false
-            })
+            body: JSON.stringify({ realizedDate: finalDate }),
         });
+        if (!res.ok) throw new Error('realize falhou');
         await onRefresh();
         setRealizeModal({ isOpen: false, forecast: null, date: '' });
         if (overdueForecasts.length <= 1) setIsOverdueModalOpen(false);
@@ -210,58 +204,49 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
       if (!formData.description || !formData.value || !formData.bankId) return alert("Preencha todos os campos obrigatórios");
       const value = Math.abs(Number(formData.value));
       const groupId = Date.now().toString();
-      const baseDate = new Date(formData.date);
-      const installments = formData.isFixed ? 60 : Math.max(1, Math.floor(Number(formData.installments)));
+      const dates = recurrenceDates(formData.date, formData.frequency, formData.occurrences);
+      const installmentTotal = installmentTotalFor(formData.frequency, dates.length);
+      const isRecurrent = dates.length > 1;
+      const base = {
+          description: formData.description, value, type: formData.type,
+          categoryId: Number(formData.categoryId), bankId: Number(formData.bankId),
+      };
 
       try {
           if (target === 'forecast') {
-              for (let i = 0; i < installments; i++) {
-                  const currentDate = new Date(baseDate);
-                  currentDate.setMonth(baseDate.getMonth() + i);
-                  const dateStr = currentDate.toISOString().split('T')[0];
-                  const isRecurrent = installments > 1 || formData.isFixed;
-                  
-                  await fetch('/api/forecasts', {
+              const forecasts = dates.map((date, i) => ({
+                  ...base, date, realized: false,
+                  installmentCurrent: isRecurrent ? i + 1 : null,
+                  installmentTotal,
+                  groupId: isRecurrent ? groupId : null,
+              }));
+              await fetch('/api/forecasts/bulk', {
+                  method: 'POST', headers: getHeaders(),
+                  body: JSON.stringify({ forecasts }),
+              });
+          } else {
+              // 1ª data vira lançamento; as demais viram previsões
+              const descSuffix = isRecurrent
+                  ? (formData.frequency === 'fixo' ? ' (Fixo)' : ` (1/${dates.length})`)
+                  : '';
+              await fetch('/api/transactions', {
+                  method: 'POST', headers: getHeaders(),
+                  body: JSON.stringify({ ...base, date: dates[0], description: formData.description + descSuffix, reconciled: false }),
+              });
+              if (dates.length > 1) {
+                  const forecasts = dates.slice(1).map((date, i) => ({
+                      ...base, date, realized: false,
+                      installmentCurrent: i + 2,
+                      installmentTotal,
+                      groupId,
+                  }));
+                  await fetch('/api/forecasts/bulk', {
                       method: 'POST', headers: getHeaders(),
-                      body: JSON.stringify({
-                          date: dateStr, description: formData.description, value: value, type: formData.type,
-                          categoryId: Number(formData.categoryId), bankId: Number(formData.bankId),
-                          installmentCurrent: i + 1, installmentTotal: formData.isFixed ? 0 : installments,
-                          groupId: isRecurrent ? groupId : null, realized: false
-                      })
+                      body: JSON.stringify({ forecasts }),
                   });
               }
-          } else {
-              for (let i = 0; i < installments; i++) {
-                  const currentDate = new Date(baseDate);
-                  currentDate.setMonth(baseDate.getMonth() + i);
-                  const dateStr = currentDate.toISOString().split('T')[0];
-                  const isRecurrent = installments > 1 || formData.isFixed;
-                  const currentInstallment = i + 1;
-                  
-                  if (i === 0) {
-                      const descSuffix = isRecurrent ? (formData.isFixed ? ' (Fixo)' : ` (${currentInstallment}/${installments})`) : '';
-                      await fetch('/api/transactions', {
-                           method: 'POST', headers: getHeaders(),
-                           body: JSON.stringify({
-                               date: dateStr, description: formData.description + descSuffix, value: value, type: formData.type,
-                               categoryId: Number(formData.categoryId), bankId: Number(formData.bankId), reconciled: false
-                           })
-                       });
-                  } else {
-                      await fetch('/api/forecasts', {
-                          method: 'POST', headers: getHeaders(),
-                          body: JSON.stringify({
-                              date: dateStr, description: formData.description, value: value, type: formData.type,
-                              categoryId: Number(formData.categoryId), bankId: Number(formData.bankId),
-                              installmentCurrent: currentInstallment, installmentTotal: formData.isFixed ? 0 : installments,
-                              groupId: isRecurrent ? groupId : null, realized: false
-                          })
-                      });
-                  }
-              }
           }
-          
+
           setIsModalOpen(false);
           await onRefresh();
       } catch (error) { alert("Erro ao salvar"); }
@@ -672,32 +657,29 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
                 </div>
 
                 <div className="bg-surface p-3 rounded-lg border border-line">
-                    <label className="text-xs font-semibold text-faint mb-2 block flex items-center gap-2">
+                    <label className="text-xs font-semibold text-faint mb-2 flex items-center gap-2">
                         <Repeat size={12}/> RECORRÊNCIA (OPCIONAL)
                     </label>
-                    <div className="flex items-center gap-4 mb-2">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                            <input 
-                                type="checkbox"
-                                checked={formData.isFixed}
-                                onChange={e => setFormData({...formData, isFixed: e.target.checked})}
-                                className="w-4 h-4 text-brand rounded border-line bg-sunken"
-                            />
-                            <span className="text-sm text-muted">Fixo Mensal</span>
-                        </label>
+                    <div className="flex items-center gap-2">
+                        <select
+                            className="flex-1 bg-ground border border-line rounded p-1.5 text-sm text-ink outline-none focus:border-brand"
+                            value={formData.frequency}
+                            onChange={e => setFormData({...formData, frequency: e.target.value as Frequency})}
+                        >
+                            {FREQUENCY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </select>
+                        {formData.frequency !== 'unica' && formData.frequency !== 'fixo' && (
+                            <>
+                                <input
+                                    type="number" min="1" max="600"
+                                    className="w-14 bg-ground border border-line rounded p-1.5 text-center text-sm text-ink"
+                                    value={formData.occurrences}
+                                    onChange={e => setFormData({...formData, occurrences: Number(e.target.value)})}
+                                />
+                                <span className="text-xs text-muted whitespace-nowrap"> vezes</span>
+                            </>
+                        )}
                     </div>
-                    {!formData.isFixed && (
-                            <div className="flex items-center gap-2">
-                            <CalendarDays className="text-faint" size={16}/>
-                            <input 
-                                type="number" min="1" max="360"
-                                className="w-16 bg-ground border border-line rounded p-1 text-center text-sm text-ink"
-                                value={formData.installments}
-                                onChange={e => setFormData({...formData, installments: Number(e.target.value)})}
-                            />
-                            <span className="text-sm text-muted">parcelas</span>
-                        </div>
-                    )}
                 </div>
 
                 <div className="pt-2 flex gap-3">
@@ -707,7 +689,7 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
                     </button>
                     <button type="button" onClick={() => handleQuickSave('transaction')} className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 text-white rounded-lg shadow-sm transition-colors ${formData.type === TransactionType.CREDIT ? 'bg-brand hover:bg-brand-strong' : 'bg-danger hover:bg-danger/90'}`}>
                         <ThumbsUp size={20} />
-                        <span className="text-xs font-semibold">{formData.installments > 1 || formData.isFixed ? 'Lançar 1ª + Previsões' : 'Lançamento (Hoje)'}</span>
+                        <span className="text-xs font-semibold">{formData.frequency !== 'unica' ? 'Lançar 1ª + Previsões' : 'Lançamento (Hoje)'}</span>
                     </button>
                 </div>
             </div>

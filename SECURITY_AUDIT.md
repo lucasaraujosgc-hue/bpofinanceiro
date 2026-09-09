@@ -59,9 +59,141 @@ recálculo de saldo, 5 relatórios) + migrations testadas em banco vazio E
   `PASSWORD_ADMIN` forte (o usuário disse já ter ajustado).
 - Disparar o deploy no EasyPanel (fora do repo).
 
+---
+
+## Feature — área Planejamento (branch `feature/planejamento`)
+
+Fora do escopo da auditoria, mas seguindo o mesmo padrão de segurança. **Fase 1:**
+aba "Ciclo Financeiro" em Relatórios (PMR/PMP/PME/CCC/NCG/Capital de Giro/Saldo
+em Tesouraria) + nova área "Planejamento" (independente) com Dashboard executivo
+funcional e as outras 6 sub-abas em esqueleto "Em breve".
+
+- ~~Migration `0002_accrual_date.sql` (data de competência)~~ — **revertida na
+  `0005_drop_accrual_date`** (ver "Correções pré-Fase 6" abaixo). O Ciclo
+  Financeiro passou a estimar PMR/PMP/NCG só pela carteira de previsões em
+  aberto (`src/server/lib/financialCycle.js`).
+- Rotas novas: `GET /api/reports/financial-cycle`, `GET /api/planning/overview`.
+  **Auditoria multi-tenant:** toda query filtra `WHERE user_id = $1`; único input
+  do frontend é `year`/`month`/`months` (validados). Sem ID vindo do cliente.
+- `PATCH /api/forecasts/:id/realize` virou **atômico** (BEGIN/COMMIT: marca
+  `realized=1` + cria o lançamento numa transação só). Elimina a janela de
+  falha parcial e a dupla contagem do fluxo antigo (2 chamadas do frontend).
+- `computeDre` extraído para `src/server/lib/dre.js` (fonte única, cálculo
+  inalterado; PE/MC conferidos).
+
+**Fase 2 — Orçamento:** migration `0003_planning_budgets.sql` (`budgets`,
+`budget_items`). Rotas `/api/planning/budgets/*` (CRUD, upsert em lote,
+geradores: ano anterior / média N meses / cópia, com ajuste % e escopo).
+`components/PlanningBudget.tsx` (grade categoria×12 meses). Overview já traz
+`orcada`/`orcado` + `hasBudget`.
+
+**Fase 3 — Orçado × Realizado:** `GET /api/planning/budget-vs-actual`
+(`src/server/lib/budgetVsActual.js`) — comparação por categoria e grupo do DRE
+num período (mês / acumulado / ano): orçado, realizado, Δ R$/%, status;
+indicadores (atingimento de receita, controle de despesa, resultado/margem
+orçado × realizado); análise automática das maiores variações (só data-driven).
+`components/PlanningBudgetVsActual.tsx`.
+
+**Fase 4 — Forecast:** `GET /api/planning/forecast` (`src/server/lib/forecast.js`)
+— projeção Realizado + Forecast (3/6/12/24/36 meses) por média histórica / média
+móvel / crescimento histórico / orçamento / sazonalidade, + crescimento %
+informado combinável. Aproveita a tabela `forecasts` existente: onde há previsão
+cadastrada para o mês, usa `max(previsão, projeção estatística)`. Categorias
+patrimoniais (`dre: null`) não se projetam estatisticamente. Método usado sempre
+visível na tela. `components/PlanningForecast.tsx`. Bug latente corrigido de
+brinde: grupos do DRE agora chaveados por `(grupo, tipo)` — `nao_operacional`
+(type 'ambos') misturava entradas e saídas num só subtotal (afetava Fase 3 e 4).
+
+**Fase 5 — Cenários:** migration `0004_planning_scenarios.sql`
+(`planning_scenarios` + `planning_assumptions` 1:1). Um cenário = 13 premissas
+(crescimento de receita, Δ custos variáveis/fixos, margem bruta alvo,
+inadimplência, PMR, PMP, investimentos, aportes, empréstimo + juros +
+amortização, distribuição de lucros) aplicadas sobre a média histórica por
+categoria. Gera **DRE projetada** (estrutura `ACCOUNTING_GROUPS` + `computeDre`,
+sem classificação paralela), **fluxo de caixa projetado** (resultado + itens
+patrimoniais − variação da NCG), ponto de equilíbrio, caixa final e NCG
+(`src/server/lib/scenario.js`). Rotas `/api/planning/scenarios/*` — CRUD,
+`/defaults` (cria Base/Otimista/Pessimista), `/:id/projection`, `/compare`
+(lado a lado), `/preview` (projeção ad-hoc sem salvar — base do futuro
+Simulador). Cenário Base (premissas em zero) ≈ Forecast por média histórica.
+Regime de caixa mantido explícito na UI. `components/PlanningScenarios.tsx`.
+
+**Fase 6 — Simulador:** `POST /api/planning/scenarios/simulate` — roda
+`computeScenario` **duas vezes** (base × premissas simuladas) e devolve
+`{ base, simulado }` numa chamada. **Efêmero: não escreve nada** (nem
+`planning_scenarios`, nem transações/previsões). O usuário pode "Salvar como
+cenário" (a única escrita, explícita). `components/PlanningSimulator.tsx`:
+sliders + inputs ao vivo (debounce 280 ms), tabela Base × Simulado × Δ (receita,
+custos, EBITDA, lucro, margem, PE, caixa final, menor caixa, capital de giro,
+NCG), gráfico base × simulado, atalhos ("Receita +20%", "Custos −10%"…),
+"Partir de" um cenário salvo. Metadados de premissa extraídos para
+`components/assumptions.ts` (compartilhado com Cenários).
+
+**Fase 7 — Modelagem Financeira:** tela integradora — nenhum motor novo, nenhuma
+tabela nova. `computeScenario` ganhou `serieMensal[].dre` (DRE gerencial
+completa por mês), `capitalGiroSerie` (Caixa · NCG · CGL) e indicadores extras
+(`grauAlavancagem`, `margemContribuicao`, `cglFinal`, `necessidadeMaximaCaixa`,
+`mesMenorCaixa`). `components/PlanningModel.tsx` consome `/preview` + `/compare`:
+resumo executivo, **DRE projetada** e **fluxo de caixa projetado** (método
+direto) em colunas mensais (≤12 m) ou anuais (>12 m), quadro de capital de giro
++ alerta de necessidade máxima de caixa (destaque quando o caixa fura o zero),
+indicadores (PE período/mês, MC, GAO…), comparação com os cenários salvos, e
+**export CSV** (`lib/csv.ts`, separador `;` + decimal `,` + BOM — abre no Excel
+pt-BR). Fórmula do ponto de equilíbrio reusada de `computeDre` (revisada na
+Fase 1), não duplicada.
+
+Toda rota nova: autentica, confere `*.user_id = req.userId` (ID do frontend
+nunca confiado — `loadScenario`/`ownedBudget`), zod (`assumptionsSchema` /
+`simulateSchema` com clamps), queries `$n`.
+
+- **Testes:** 21 ciclo + 17 planejamento + 21 orçamento + 20 orçado×realizado
+  + 28 forecast + 44 cenários + 16 simulador + 20 modelagem (inclui: realizar
+  previsão → previsto cai o valor exato, realizado sobe o mesmo, líquido
+  inalterado; 1 transação criada, não 2; realize repetido → 409; upsert de
+  orçamento sem duplicar; identidade subtotal-de-grupo = Σ categorias; cenário
+  sem PMR/PMP → NCG indisponível; otimista > base > pessimista em receita/lucro;
+  margem bruta alvo reflete na DRE; IDOR em `/:id/projection` → 404; simulador é
+  efêmero: nº de cenários inalterado após simular; base == simulado com
+  premissas iguais; **Σ DRE mensal = DRE do horizonte; CGL = caixa + NCG por
+  mês; necessidadeMaximaCaixa = −menorCaixa; consumidores antigos não
+  quebraram**).
+
 Correções de brinde nesta rodada: `?year=abc` / `?month=13` nos relatórios →
 **400** (era 500 no `::date`); `month=0` (janeiro) nos relatórios cash-flow /
 DRE / previsões era tratado como "ano todo" — agora mostra janeiro.
+
+### Correções pré-Fase 6 (branch `feature/planejamento`)
+
+1. **Rate-limit derrubava todo mundo do mesmo IP.** `apiLimiter` era por IP
+   (500/15 min). A importação de extrato fazia **1 POST `/api/transactions` por
+   lançamento** — um extrato de 300 linhas estourava a cota e passava a devolver
+   429 (inclusive no `/api/login`) para qualquer usuário atrás do mesmo NAT /
+   CGNAT. Corrigido em duas frentes:
+   - `apiLimiter` agora tem `keyGenerator` **por usuário** (lê o `id` do JWT;
+     sem token válido cai no IP) e limite folgado (1200/15 min).
+   - **Endpoints em lote:** `POST /api/transactions/bulk` (importação de extrato:
+     cria o `ofx_import` + insere todos os lançamentos via `json_to_recordset`
+     + ajusta o saldo de cada banco **uma vez**, tudo numa transação) e
+     `POST /api/forecasts/bulk` (recorrência). Ownership do conjunto distinto de
+     bancos/categorias/cartões conferido antes (anti-IDOR); `max(5000)` /
+     `max(1200)` no zod. Frontend (`OFXImports.tsx`, `Forecasts.tsx`,
+     `Dashboard.tsx`) passou a usar os endpoints `/bulk` — 1 requisição no lugar
+     de N.
+2. **Data de competência removida** (`0005_drop_accrual_date.sql` dropa as
+   colunas). Campo saiu dos modais de lançamento e previsão, dos schemas, das
+   rotas, do `types.ts` e do seed. Ciclo Financeiro reescrito para estimar
+   PMR/PMP/NCG **só pela carteira de previsões em aberto** (retrato do momento,
+   não série histórica); os gráficos da aba viraram "evolução do caixa" e
+   "previsões em aberto por mês".
+3. **Bug de recorrência.** `new Date('YYYY-MM-DD')` (UTC) + `setMonth` (local)
+   derrapava de fuso e transbordava: uma recorrência "dia 1" mensal chegava a
+   aparecer 2× no mesmo mês (dia 1 e dia 31) e 31/01 + 1 mês virava 03/03. Nova
+   `lib/recurrence.ts` com aritmética de calendário pura, que **clampa** o dia
+   no último dia do mês (31 em fev → 28/29) e nunca duplica. Além de mensal,
+   agora oferece **semanal, quinzenal, bimestral, trimestral, semestral, anual**
+   e "fixo (mensal contínuo)". A UI de recorrência ficou **menor** (um `select`
+   + campo de ocorrências, no lugar do checkbox "fixo" + input "parcelas").
+   Testes: 15 checagens de `recurrenceDates` + 14 dos endpoints `/bulk`.
 
 ---
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Bank, Category, Forecast, TransactionType, CategoryType, CreditCard, Transaction } from '../types';
-import { ChevronLeft, ChevronRight, Plus, Check, Trash2, CalendarDays, Edit2, Repeat, Infinity, X, CreditCard as CreditCardIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Check, Trash2, Edit2, Repeat, Infinity, X, CreditCard as CreditCardIcon } from 'lucide-react';
+import { Frequency, FREQUENCY_OPTIONS, recurrenceDates, installmentTotalFor } from '../lib/recurrence';
 
 interface ForecastsProps {
   token: string;
@@ -32,8 +33,8 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
       categoryId: 0,
       bankId: banks[0]?.id || 0,
       creditCardId: null as number | null,
-      installments: 1,
-      isFixed: false
+      frequency: 'unica' as Frequency,
+      occurrences: 12,
   });
 
   const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
@@ -72,8 +73,8 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
           categoryId: f.categoryId,
           bankId: f.bankId,
           creditCardId: f.creditCardId || null,
-          installments: 1,
-          isFixed: false
+          frequency: 'unica',
+          occurrences: 12,
       });
       setIsModalOpen(true);
   };
@@ -116,39 +117,36 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
                 })
             });
         } else {
-            const groupId = Date.now().toString(); 
-            const baseDate = new Date(formData.date);
-            
-            const installments = formData.isFixed ? 60 : Math.max(1, Math.floor(Number(formData.installments)));
-
-            for (let i = 0; i < installments; i++) {
-                const currentDate = new Date(baseDate);
-                currentDate.setMonth(baseDate.getMonth() + i);
-                
-                const payload = {
-                    date: currentDate.toISOString().split('T')[0],
-                    description: formData.description,
-                    value: value,
-                    type: formData.type,
-                    categoryId: Number(formData.categoryId),
-                    bankId: formData.bankId ? Number(formData.bankId) : null,
-                    creditCardId: formData.creditCardId,
-                    installmentCurrent: formData.isFixed ? i + 1 : i + 1,
-                    installmentTotal: formData.isFixed ? 0 : installments, 
-                    groupId: (installments > 1 || formData.isFixed) ? groupId : null
-                };
-
-                await fetch('/api/forecasts', {
-                    method: 'POST',
-                    headers: getHeaders(),
-                    body: JSON.stringify(payload)
-                });
-            }
+            const dates = recurrenceDates(formData.date, formData.frequency, formData.occurrences);
+            const groupId = Date.now().toString();
+            const installmentTotal = installmentTotalFor(formData.frequency, dates.length);
+            const isRecurrent = dates.length > 1;
+            const common = {
+                description: formData.description,
+                value,
+                type: formData.type,
+                categoryId: Number(formData.categoryId),
+                bankId: formData.bankId ? Number(formData.bankId) : null,
+                creditCardId: formData.creditCardId,
+                realized: false,
+            };
+            const forecasts = dates.map((date, i) => ({
+                ...common,
+                date,
+                installmentCurrent: isRecurrent ? i + 1 : null,
+                installmentTotal,
+                groupId: isRecurrent ? groupId : null,
+            }));
+            await fetch('/api/forecasts/bulk', {
+                method: 'POST',
+                headers: getHeaders(),
+                body: JSON.stringify({ forecasts }),
+            });
         }
 
         setIsModalOpen(false);
         setEditingId(null);
-        setFormData({ ...formData, description: '', value: '', installments: 1, isFixed: false, creditCardId: null });
+        setFormData({ ...formData, description: '', value: '', frequency: 'unica', occurrences: 12, creditCardId: null });
         await fetchForecasts();
         onUpdate(); // Trigger global update
     } catch (e) {
@@ -210,28 +208,14 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
 
       if(confirm('Confirmar realização desta previsão? Ela será movida para Lançamentos.')) {
            try {
-               await fetch(`/api/forecasts/${forecast.id}/realize`, { 
+               // Um passo só: o backend marca realized=1 E cria o lançamento na
+               // mesma transação (atômico, sem duplicar valor).
+               const res = await fetch(`/api/forecasts/${forecast.id}/realize`, {
                    method: 'PATCH',
-                   headers: getHeaders()
-                });
-               
-               const descSuffix = forecast.installmentTotal ? ` (${forecast.installmentCurrent}/${forecast.installmentTotal})` : (forecast.groupId ? ' (Recorrente)' : '');
-               
-               // Manual Creation of Transaction from Frontend
-               await fetch('/api/transactions', {
-                   method: 'POST',
                    headers: getHeaders(),
-                   body: JSON.stringify({
-                       date: forecast.date,
-                       description: forecast.description + descSuffix,
-                       value: forecast.value,
-                       type: forecast.type,
-                       categoryId: forecast.categoryId,
-                       bankId: forecast.bankId,
-                       creditCardId: forecast.creditCardId,
-                       reconciled: false
-                   })
+                   body: JSON.stringify({ realizedDate: forecast.date }),
                });
+               if (!res.ok) throw new Error('realize falhou');
 
                await fetchForecasts();
                await onUpdate(); // Wait for global update to complete
@@ -529,8 +513,8 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
                          </select>
                      </div>
                      <div>
-                         <label className="text-sm text-muted font-medium">Data Início</label>
-                         <input 
+                         <label className="text-sm text-muted font-medium">{editingId ? 'Data' : 'Data de início'}</label>
+                         <input
                             type="date"
                             className="w-full mt-1 bg-surface border border-line rounded-lg p-2 text-ink outline-none focus:border-brand"
                             value={formData.date}
@@ -604,37 +588,32 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
                      </div>
                 </div>
                 
-                {/* Recurrence Section - Only show on Create */}
+                {/* Recorrência — só na criação */}
                 {!editingId && (
                     <div className="bg-info/10 p-3 rounded-lg border border-info/30">
-                        <label className="text-sm font-semibold text-info mb-2 block flex items-center gap-2">
+                        <label className="text-sm font-semibold text-info mb-2 flex items-center gap-2">
                             <Repeat size={14}/> Recorrência
                         </label>
-                        
-                        <div className="flex items-center gap-4 mb-2">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input 
-                                    type="checkbox"
-                                    checked={formData.isFixed}
-                                    onChange={e => setFormData({...formData, isFixed: e.target.checked})}
-                                    className="w-4 h-4 text-info rounded bg-sunken border-line"
-                                />
-                                <span className="text-sm text-muted">Lançamento Fixo Mensal</span>
-                            </label>
+                        <div className="flex items-center gap-2">
+                            <select
+                                className="flex-1 bg-surface border border-line rounded-lg p-2 text-ink text-sm outline-none focus:border-brand"
+                                value={formData.frequency}
+                                onChange={e => setFormData({...formData, frequency: e.target.value as Frequency})}
+                            >
+                                {FREQUENCY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                            </select>
+                            {formData.frequency !== 'unica' && formData.frequency !== 'fixo' && (
+                                <>
+                                    <input
+                                        type="number" min="1" max="600"
+                                        className="w-16 bg-surface border border-line rounded-lg p-2 text-center text-ink text-sm"
+                                        value={formData.occurrences}
+                                        onChange={e => setFormData({...formData, occurrences: Number(e.target.value)})}
+                                    />
+                                    <span className="text-xs text-muted whitespace-nowrap">ocorrências</span>
+                                </>
+                            )}
                         </div>
-
-                        {!formData.isFixed && (
-                             <div className="flex items-center gap-2">
-                                <CalendarDays className="text-muted" size={20}/>
-                                <input 
-                                    type="number" min="1" max="360"
-                                    className="w-20 bg-surface border border-line rounded-lg p-1.5 text-center text-ink"
-                                    value={formData.installments}
-                                    onChange={e => setFormData({...formData, installments: Number(e.target.value)})}
-                                />
-                                <span className="text-sm text-muted">parcelas</span>
-                            </div>
-                        )}
                     </div>
                 )}
 

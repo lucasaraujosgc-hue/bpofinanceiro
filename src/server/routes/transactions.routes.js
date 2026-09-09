@@ -3,7 +3,7 @@ import { authenticateToken } from '../middleware/auth.js';
 import { assertUserOwns } from '../lib/ownership.js';
 import { recalculateBankBalance } from '../lib/banks.js';
 import { validateBody } from '../middleware/validate.js';
-import { transactionCreateSchema, transactionUpdateSchema, transactionReconcileSchema, transactionBatchUpdateSchema } from '../schemas.js';
+import { transactionCreateSchema, transactionUpdateSchema, transactionReconcileSchema, transactionBatchUpdateSchema, transactionBulkSchema } from '../schemas.js';
 
 export default function register(app) {
 app.get('/api/transactions', authenticateToken, async (req, res) => {
@@ -40,6 +40,83 @@ app.post('/api/transactions', authenticateToken, validateBody(transactionCreateS
         res.status(500).json({ error: err.message });
     }
 });
+
+// Criação em lote — 1 requisição, 1 transação de banco. Usado pela importação
+// de extrato (que antes fazia 1 POST por lançamento e estourava o rate-limit) e
+// pela recorrência de lançamentos. Opcionalmente registra o ofx_import junto.
+app.post('/api/transactions/bulk', authenticateToken, validateBody(transactionBulkSchema), async (req, res) => {
+    const { ofxImport, transactions } = req.body;
+
+    // valida ownership do conjunto distinto de bancos/categorias/cartões (anti-IDOR)
+    const bankIds = new Set(transactions.map(t => t.bankId).filter(Boolean));
+    if (ofxImport?.bankId) bankIds.add(ofxImport.bankId);
+    const catIds = new Set(transactions.map(t => t.categoryId).filter(Boolean));
+    const cardIds = new Set(transactions.map(t => t.creditCardId).filter(Boolean));
+    for (const bankId of bankIds) {
+        const owned = await assertUserOwns(req.userId, { bankId });
+        if (!owned.ok) return res.status(400).json({ error: owned.error });
+    }
+    for (const categoryId of catIds) {
+        const owned = await assertUserOwns(req.userId, { categoryId });
+        if (!owned.ok) return res.status(400).json({ error: owned.error });
+    }
+    for (const creditCardId of cardIds) {
+        const owned = await assertUserOwns(req.userId, { creditCardId });
+        if (!owned.ok) return res.status(400).json({ error: owned.error });
+    }
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        let importId = null;
+        if (ofxImport) {
+            const imp = await client.query(
+                `INSERT INTO ofx_imports (user_id, file_name, import_date, bank_id, transaction_count, content)
+                 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+                [req.userId, ofxImport.fileName || null, ofxImport.importDate || new Date().toISOString(),
+                 ofxImport.bankId || null, transactions.length, ofxImport.content || '']);
+            importId = imp.rows[0].id;
+        }
+
+        // uma linha por lançamento via json_to_recordset (sem estourar o limite de parâmetros)
+        const payload = JSON.stringify(transactions.map(t => ({
+            date: t.date, description: t.description || '', value: Number(t.value) || 0, type: t.type,
+            category_id: t.categoryId || null, bank_id: t.bankId || null,
+            credit_card_id: t.creditCardId || null, reconciled: t.reconciled ? 1 : 0,
+        })));
+        const ins = await client.query(
+            `INSERT INTO transactions (user_id, date, description, value, type, category_id, bank_id, credit_card_id, reconciled, ofx_import_id)
+             SELECT $1, x.date, x.description, x.value, x.type, x.category_id, x.bank_id, x.credit_card_id, x.reconciled, $2
+             FROM json_to_recordset($3::json) AS x(
+                 date text, description text, value numeric, type text,
+                 category_id int, bank_id int, credit_card_id int, reconciled int
+             )
+             RETURNING id`,
+            [req.userId, importId, payload]);
+
+        // ajusta o saldo de cada banco afetado (só lançamentos sem cartão)
+        const affectedBanks = [...bankIds];
+        for (const bankId of affectedBanks) {
+            await client.query(
+                `UPDATE banks SET balance = COALESCE((
+                     SELECT SUM(CASE WHEN type = 'credito' THEN value ELSE -value END)
+                     FROM transactions WHERE bank_id = $1 AND credit_card_id IS NULL
+                 ), 0) WHERE id = $1 AND user_id = $2`,
+                [bankId, req.userId]);
+        }
+
+        await client.query('COMMIT');
+        res.json({ inserted: ins.rows.length, ids: ins.rows.map(r => r.id), importId });
+    } catch (err) {
+        await client.query('ROLLBACK').catch(() => {});
+        console.error('POST /transactions/bulk error:', err.message);
+        res.status(500).json({ error: err.message });
+    } finally {
+        client.release();
+    }
+});
+
 app.put('/api/transactions/:id', authenticateToken, validateBody(transactionUpdateSchema), async (req, res) => {
     const { date, description, value, type, categoryId, bankId, creditCardId, reconciled } = req.body;
     try {

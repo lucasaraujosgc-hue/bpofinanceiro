@@ -125,30 +125,37 @@ if (seeded.rows[0].n === 0) {
 
   const OP = 'Itaú';           // conta operacional principal
   const RES = 'Banco Inter';   // reserva
-  const TODAY = 22;             // "hoje" = 08/09/2026 — não gera lançamento futuro no mês corrente
-  // capital de constituição (histórico — não aparece nos relatórios do período)
-  push('2026-01-08', 'Integralização de capital dos sócios', 34200, 'credito', 'Aporte de Sócio', OP);
-  push('2026-01-08', 'Integralização de capital dos sócios', 11500, 'credito', 'Aporte de Sócio', RES);
-  const months = [
-    { y: 2026, m: 6, growth: 0.90 },
-    { y: 2026, m: 7, growth: 1.00 },
-    { y: 2026, m: 8, growth: 1.12 },
-    { y: 2026, m: 9, growth: 0.9 }, // mês corrente parcial
-  ];
+  const TODAY = 22;             // "hoje" ~ meados de set/2026 — não gera lançamento futuro no mês corrente
+  // capital de constituição
+  push('2024-10-05', 'Integralização de capital dos sócios', 34200, 'credito', 'Aporte de Sócio', OP);
+  push('2024-10-05', 'Integralização de capital dos sócios', 11500, 'credito', 'Aporte de Sócio', RES);
+  // 24 meses de histórico: out/2024 → set/2026 (mês corrente parcial), com
+  // tendência de alta + sazonalidade (dez forte, jan/fev fracos).
+  const SEAS = [0.86, 0.80, 1.02, 0.98, 1.06, 1.12, 0.90, 0.84, 1.08, 1.16, 1.14, 1.34];
+  const months = [];
+  for (let ym = 2024 * 12 + 9; ym <= 2026 * 12 + 8; ym++) {
+    const y = Math.floor(ym / 12), m = (ym % 12) + 1;
+    const t = ym - (2024 * 12 + 9); // 0..23
+    const growth = Math.round((0.62 + t * 0.021 + (Math.random() - 0.5) * 0.07) * SEAS[m - 1] * 1000) / 1000;
+    months.push({ y, m, growth });
+  }
   for (const { y, m, growth } of months) {
     const M = String(m).padStart(2, '0');
-    const partial = m === 9;
-    const d = (day) => `${y}-${M}-${String(day).padStart(2, '0')}`;
-    const push2 = (day, ...rest) => { if (!(partial && day > TODAY)) push(d(day), ...rest); };
+    const partial = (y === 2026 && m === 9);
+    const dim = new Date(y, m, 0).getDate();                 // dias no mês (clampa 30/31 em fev)
+    const d = (day) => `${y}-${M}-${String(Math.min(day, dim)).padStart(2, '0')}`;
+    const push2 = (day, ...rest) => { if (!(partial && Math.min(day, dim) > TODAY)) push(d(day), ...rest); };
+    const pushRecebe = (day, desc, val, cat) => { if (!(partial && Math.min(day, dim) > TODAY)) push(d(day), desc, val, 'credito', cat, OP, 1); };
+    const pushPaga = (day, desc, val, cat) => { if (!(partial && Math.min(day, dim) > TODAY)) push(d(day), desc, val, 'debito', cat, OP, 1); };
     // receitas
-    for (let i = 0; i < 7; i++) push2(3 + i * 3, `Venda no PDV — lote #${m}${1000 + i}`, rnd(7300 * growth, 1400), 'credito', 'Vendas de Mercadorias', OP);
-    push2(10, 'NF-e serviço — contrato mensal', rnd(10200 * growth, 900), 'credito', 'Prestação de Serviços', OP);
-    push2(21, 'NF-e serviço — projeto pontual', rnd(4600 * growth, 700), 'credito', 'Prestação de Serviços', OP);
+    for (let i = 0; i < 7; i++) pushRecebe(3 + i * 3, `Venda no PDV — lote #${m}${1000 + i}`, rnd(7300 * growth, 1400), 'Vendas de Mercadorias');
+    pushRecebe(10, 'NF-e serviço — contrato mensal', rnd(10200 * growth, 900), 'Prestação de Serviços');
+    pushRecebe(21, 'NF-e serviço — projeto pontual', rnd(4600 * growth, 700), 'Prestação de Serviços');
     push2(5, 'Aluguel da sala 2 (recebido)', 1200, 'credito', 'Receita de Aluguel', OP);
     push2(28, 'Rendimento do CDB', rnd(300 * growth, 60), 'credito', 'Rendimentos de Aplicação', RES);
     // custos
-    push2(6, 'Fornecedor Atacado — reposição de estoque', rnd(13200 * growth, 1600), 'debito', 'Compra de Mercadorias', OP);
-    push2(17, 'Distribuidora — pedido complementar', rnd(6400 * growth, 1000), 'debito', 'Compra de Mercadorias', OP);
+    pushPaga(6, 'Fornecedor Atacado — reposição de estoque', rnd(13200 * growth, 1600), 'Compra de Mercadorias');
+    pushPaga(17, 'Distribuidora — pedido complementar', rnd(6400 * growth, 1000), 'Compra de Mercadorias');
     push2(6, 'Transportadora — frete sobre compras', rnd(600, 120), 'debito', 'Frete sobre Compras', OP);
     // despesas com vendas
     push2(30, 'Comissão dos vendedores', rnd(1850 * growth, 300), 'debito', 'Comissões sobre Vendas', OP);
@@ -197,6 +204,12 @@ if (seeded.rows[0].n === 0) {
     ['2026-09-25', 'Comissão dos vendedores', 2200, 'debito', 'Comissões sobre Vendas', 0],
     ['2026-09-26', 'Vendas da semana (previsão)', 12600, 'credito', 'Vendas de Mercadorias', 0],
     ['2026-09-28', 'Rendimento do CDB', 340, 'credito', 'Rendimentos de Aplicação', 0],
+    // meses futuros — alimentam o Forecast (previsão > projeção estatística)
+    ['2026-10-10', 'NF-e serviço — contrato anual fechado', 12000, 'credito', 'Prestação de Serviços', 0],
+    ['2026-10-15', 'Fornecedor — pedido grande de fim de ano', 22000, 'debito', 'Compra de Mercadorias', 0],
+    ['2026-11-20', 'Compra de equipamento (planejada)', 9000, 'debito', 'Compra de Equipamento', 0],
+    ['2026-12-18', '13º salário', 9200, 'debito', 'Salários e Ordenados', 0],
+    ['2026-12-20', 'Distribuição de lucros (planejada)', 12000, 'debito', 'Distribuição de Lucros', 0],
   ];
   for (const [date, desc, value, type, cat, realized] of fc) {
     await q(`INSERT INTO forecasts (user_id,date,description,value,type,category_id,bank_id,realized) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
@@ -208,6 +221,52 @@ if (seeded.rows[0].n === 0) {
     [uid, 'extrato_itau_ago2026.ofx', '2026-09-01T10:12:00Z', bankIds['Itaú'], 34]);
   await q(`INSERT INTO ofx_imports (user_id,file_name,import_date,bank_id,transaction_count,content) VALUES ($1,$2,$3,$4,$5,'')`,
     [uid, 'extrato_inter_ago2026.ofx', '2026-09-01T10:14:00Z', bankIds['Banco Inter'], 12]);
+
+  // ---- orçamento 2026 (área Planejamento / Orçado × Realizado) ----
+  const bud = await q(`INSERT INTO budgets (user_id, year, name) VALUES ($1, 2026, 'Orçamento 2026') RETURNING id`, [uid]);
+  const budId = bud.rows[0].id;
+  const budLines = [
+    ['Vendas de Mercadorias', 'receita', 'receita_bruta', 51000],
+    ['Prestação de Serviços', 'receita', 'receita_bruta', 14500],
+    ['Compra de Mercadorias', 'despesa', 'custo_operacional', 18500],
+    ['Salários e Ordenados', 'despesa', 'despesa_pessoal', 9200],
+    ['Pró-Labore', 'despesa', 'despesa_pessoal', 5000],
+    ['Aluguel e Condomínio', 'despesa', 'despesa_administrativa', 3500],
+    ['Impostos sobre Vendas (DAS)', 'despesa', 'impostos', 4200],
+    ['Marketing e Publicidade', 'despesa', 'despesa_com_vendas', 1300],
+    ['Comissões sobre Vendas', 'despesa', 'despesa_com_vendas', 1900],
+    ['Encargos (FGTS, INSS)', 'despesa', 'despesa_pessoal', 2650],
+    ['Energia, Água e Internet', 'despesa', 'despesa_administrativa', 900],
+  ];
+  for (const [name, kind, grp, base] of budLines) {
+    for (let mo = 1; mo <= 12; mo++) {
+      const seas = kind === 'receita' ? SEAS[mo - 1] : (0.97 + mo * 0.005);
+      const v = Math.round(base * seas * 100) / 100;
+      await q(`INSERT INTO budget_items (budget_id, user_id, month, category_id, group_type, kind, amount) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [budId, uid, mo, catId[name], grp, kind, v]);
+    }
+  }
+
+  // ---- cenários (área Planejamento / Cenários, Fase 5) ----
+  const ASSUM_COLS = ['receita_crescimento_pct', 'custos_variaveis_delta_pct', 'custos_fixos_delta_pct',
+    'margem_bruta_alvo_pct', 'inadimplencia_pct', 'pmr_dias', 'pmp_dias', 'investimentos_mensais',
+    'aportes_mensais', 'emprestimo_valor', 'emprestimo_juros_mes_pct', 'emprestimo_amortizacao_meses',
+    'distribuicao_lucros_pct'];
+  const scenarios = [
+    ['Cenário Base', 'base', 'Projeção pela média histórica, sem ajustes.',
+      { pmr_dias: 28, pmp_dias: 32 }],
+    ['Cenário Otimista', 'otimista', 'Aceleração de vendas com custos sob controle.',
+      { receita_crescimento_pct: 15, custos_variaveis_delta_pct: 8, custos_fixos_delta_pct: 3, inadimplencia_pct: 1, pmr_dias: 22, pmp_dias: 35 }],
+    ['Cenário Pessimista', 'pessimista', 'Queda de receita, inadimplência maior e prazos piores.',
+      { receita_crescimento_pct: -12, custos_variaveis_delta_pct: -5, custos_fixos_delta_pct: 4, inadimplencia_pct: 6, pmr_dias: 45, pmp_dias: 25, emprestimo_valor: 40000, emprestimo_juros_mes_pct: 2.1, emprestimo_amortizacao_meses: 18 }],
+  ];
+  for (const [name, kind, desc, prem] of scenarios) {
+    const s = await q(`INSERT INTO planning_scenarios (user_id, name, kind, base_year, horizon_months, description) VALUES ($1,$2,$3,2026,12,$4) RETURNING id`,
+      [uid, name, kind, desc]);
+    const vals = ASSUM_COLS.map(c => (prem[c] !== undefined ? prem[c] : (c === 'margem_bruta_alvo_pct' || c === 'pmr_dias' || c === 'pmp_dias' ? null : 0)));
+    const place = ASSUM_COLS.map((_, i) => `$${i + 3}`).join(',');
+    await q(`INSERT INTO planning_assumptions (scenario_id, user_id, ${ASSUM_COLS.join(',')}) VALUES ($1,$2,${place})`, [s.rows[0].id, uid, ...vals]);
+  }
 
   const n = await q(`SELECT COUNT(*)::int AS n FROM transactions`);
   console.log(`[preview] pronto — ${n.rows[0].n} lançamentos. Login: demo@virgula.com.br / demo1234`);

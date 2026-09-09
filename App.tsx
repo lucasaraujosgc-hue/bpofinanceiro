@@ -14,8 +14,9 @@ import OFXImports from './components/OFXImports';
 import Categories from './components/Categories';
 import KeywordRules from './components/KeywordRules';
 import Tutorial from './components/Tutorial';
-import AdminPanel from './components/AdminPanel'; 
+import AdminPanel from './components/AdminPanel';
 import IntegrationConfig from './components/IntegrationConfig';
+import Planning from './components/Planning';
 import { Transaction, Bank, Category, Forecast, KeywordRule, CreditCard } from './types';
 import { AlertTriangle, RefreshCcw, Lock, LogOut } from 'lucide-react';
 import { saveSession, clearSession, realFetch } from './lib/http';
@@ -348,6 +349,7 @@ function App() {
       case 'categories': return <Categories categories={categories} onAddCategory={handleAddCategory} onDeleteCategory={handleDeleteCategory} onUpdateCategory={handleUpdateCategory} />;
       case 'integration': return <IntegrationConfig categories={categories} banks={activeBanks} />;
       case 'reports': return <Reports token={currentToken} transactions={transactions} categories={categories} />;
+      case 'planning': return <Planning token={currentToken} categories={categories} />;
       case 'forecasts': return <Forecasts token={currentToken} userId={user.id} banks={activeBanks} creditCards={creditCards} transactions={transactions} categories={categories} onUpdate={fetchInitialData} onNavigate={setActiveTab} />;
       case 'tutorial': return <Tutorial />;
       default: return <Dashboard token={currentToken} userId={user.id} transactions={transactions} banks={activeBanks} forecasts={forecasts} categories={categories} onRefresh={fetchInitialData} />;
