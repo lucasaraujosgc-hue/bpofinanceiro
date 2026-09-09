@@ -35,7 +35,7 @@ const isoDate = z.string()
 
 const txType = z.enum(['credito', 'debito']);
 
-// Data de competência (emissão) — opcional. '' / null → null (à vista).
+// Data opcional. '' / null → null.
 const optionalIsoDate = z.preprocess(
     (v) => (v === '' || v === null || v === undefined ? null : v),
     isoDate.nullable(),
@@ -151,7 +151,7 @@ export const categoryUpdateSchema = z.object(categoryShape).loose();
 
 // --- transações ------------------------------------------------------
 
-export const transactionCreateSchema = z.object({
+const transactionShape = {
     date: isoDate,
     description,
     value: requiredMoney,
@@ -160,20 +160,25 @@ export const transactionCreateSchema = z.object({
     bankId: idRef,
     creditCardId: idRef,
     reconciled: boolish,
+};
+
+export const transactionCreateSchema = z.object({
+    ...transactionShape,
     ofxImportId: idRef,
-    accrualDate: optionalIsoDate,
 }).loose();
 
-export const transactionUpdateSchema = z.object({
-    date: isoDate,
-    description,
-    value: requiredMoney,
-    type: txType,
-    categoryId: idRef,
-    bankId: idRef,
-    creditCardId: idRef,
-    reconciled: boolish,
-    accrualDate: optionalIsoDate,
+export const transactionUpdateSchema = z.object(transactionShape).loose();
+
+// Criação em lote (importação de extrato / recorrência). Uma requisição só —
+// o servidor insere tudo numa transação e ajusta os saldos uma vez.
+export const transactionBulkSchema = z.object({
+    ofxImport: z.object({
+        fileName: z.string().trim().max(255).nullish(),
+        importDate: z.string().max(40).nullish(),
+        bankId: idRef,
+        content: z.string().max(5_000_000).nullish(),
+    }).loose().nullish(),
+    transactions: z.array(z.object(transactionShape).loose()).min(1).max(5000),
 }).loose();
 
 export const transactionReconcileSchema = z.object({
@@ -192,7 +197,7 @@ export const transactionBatchUpdateSchema = z.object({
 
 // --- previsões -------------------------------------------------------
 
-export const forecastCreateSchema = z.object({
+const forecastShape = {
     date: isoDate,
     description,
     value: requiredMoney,
@@ -204,8 +209,9 @@ export const forecastCreateSchema = z.object({
     installmentCurrent: z.coerce.number().int().min(0).max(1200).nullish(),
     installmentTotal: z.coerce.number().int().min(0).max(1200).nullish(),
     groupId: z.string().max(60).nullish(),
-    accrualDate: optionalIsoDate,
-}).loose();
+};
+
+export const forecastCreateSchema = z.object(forecastShape).loose();
 
 export const forecastUpdateSchema = z.object({
     date: isoDate,
@@ -215,7 +221,12 @@ export const forecastUpdateSchema = z.object({
     categoryId: idRef,
     bankId: idRef,
     creditCardId: idRef,
-    accrualDate: optionalIsoDate,
+}).loose();
+
+// Criação em lote de previsões (recorrência: mensal, semanal, anual…). Uma
+// requisição só, insere tudo numa transação.
+export const forecastBulkSchema = z.object({
+    forecasts: z.array(z.object(forecastShape).loose()).min(1).max(1200),
 }).loose();
 
 // --- OFX -------------------------------------------------------------

@@ -68,8 +68,10 @@ aba "Ciclo Financeiro" em Relatórios (PMR/PMP/PME/CCC/NCG/Capital de Giro/Saldo
 em Tesouraria) + nova área "Planejamento" (independente) com Dashboard executivo
 funcional e as outras 6 sub-abas em esqueleto "Em breve".
 
-- Migration `0002_accrual_date.sql`: `transactions.accrual_date` +
-  `forecasts.accrual_date` (data de competência, opcional). Base do PMR/PMP.
+- ~~Migration `0002_accrual_date.sql` (data de competência)~~ — **revertida na
+  `0005_drop_accrual_date`** (ver "Correções pré-Fase 6" abaixo). O Ciclo
+  Financeiro passou a estimar PMR/PMP/NCG só pela carteira de previsões em
+  aberto (`src/server/lib/financialCycle.js`).
 - Rotas novas: `GET /api/reports/financial-cycle`, `GET /api/planning/overview`.
   **Auditoria multi-tenant:** toda query filtra `WHERE user_id = $1`; único input
   do frontend é `year`/`month`/`months` (validados). Sem ID vindo do cliente.
@@ -131,6 +133,39 @@ clamps), queries `$n`.
 Correções de brinde nesta rodada: `?year=abc` / `?month=13` nos relatórios →
 **400** (era 500 no `::date`); `month=0` (janeiro) nos relatórios cash-flow /
 DRE / previsões era tratado como "ano todo" — agora mostra janeiro.
+
+### Correções pré-Fase 6 (branch `feature/planejamento`)
+
+1. **Rate-limit derrubava todo mundo do mesmo IP.** `apiLimiter` era por IP
+   (500/15 min). A importação de extrato fazia **1 POST `/api/transactions` por
+   lançamento** — um extrato de 300 linhas estourava a cota e passava a devolver
+   429 (inclusive no `/api/login`) para qualquer usuário atrás do mesmo NAT /
+   CGNAT. Corrigido em duas frentes:
+   - `apiLimiter` agora tem `keyGenerator` **por usuário** (lê o `id` do JWT;
+     sem token válido cai no IP) e limite folgado (1200/15 min).
+   - **Endpoints em lote:** `POST /api/transactions/bulk` (importação de extrato:
+     cria o `ofx_import` + insere todos os lançamentos via `json_to_recordset`
+     + ajusta o saldo de cada banco **uma vez**, tudo numa transação) e
+     `POST /api/forecasts/bulk` (recorrência). Ownership do conjunto distinto de
+     bancos/categorias/cartões conferido antes (anti-IDOR); `max(5000)` /
+     `max(1200)` no zod. Frontend (`OFXImports.tsx`, `Forecasts.tsx`,
+     `Dashboard.tsx`) passou a usar os endpoints `/bulk` — 1 requisição no lugar
+     de N.
+2. **Data de competência removida** (`0005_drop_accrual_date.sql` dropa as
+   colunas). Campo saiu dos modais de lançamento e previsão, dos schemas, das
+   rotas, do `types.ts` e do seed. Ciclo Financeiro reescrito para estimar
+   PMR/PMP/NCG **só pela carteira de previsões em aberto** (retrato do momento,
+   não série histórica); os gráficos da aba viraram "evolução do caixa" e
+   "previsões em aberto por mês".
+3. **Bug de recorrência.** `new Date('YYYY-MM-DD')` (UTC) + `setMonth` (local)
+   derrapava de fuso e transbordava: uma recorrência "dia 1" mensal chegava a
+   aparecer 2× no mesmo mês (dia 1 e dia 31) e 31/01 + 1 mês virava 03/03. Nova
+   `lib/recurrence.ts` com aritmética de calendário pura, que **clampa** o dia
+   no último dia do mês (31 em fev → 28/29) e nunca duplica. Além de mensal,
+   agora oferece **semanal, quinzenal, bimestral, trimestral, semestral, anual**
+   e "fixo (mensal contínuo)". A UI de recorrência ficou **menor** (um `select`
+   + campo de ocorrências, no lugar do checkbox "fixo" + input "parcelas").
+   Testes: 15 checagens de `recurrenceDates` + 14 dos endpoints `/bulk`.
 
 ---
 

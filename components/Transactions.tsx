@@ -41,7 +41,6 @@ const Transactions: React.FC<TransactionsProps> = ({
 
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
-    accrualDate: '',
     description: '',
     value: '',
     type: TransactionType.DEBIT,
@@ -54,7 +53,6 @@ const Transactions: React.FC<TransactionsProps> = ({
     if (isModalOpen && !editingId) {
        setFormData({
         date: new Date().toISOString().split('T')[0],
-        accrualDate: '',
         description: '',
         value: '',
         type: TransactionType.DEBIT,
@@ -69,7 +67,6 @@ const Transactions: React.FC<TransactionsProps> = ({
       setEditingId(t.id);
       setFormData({
           date: t.date,
-          accrualDate: t.accrualDate || '',
           description: t.description,
           value: String(t.value),
           type: t.type,
@@ -132,7 +129,6 @@ const Transactions: React.FC<TransactionsProps> = ({
     
     const payload = {
       date: formData.date,
-      accrualDate: formData.accrualDate || null,
       description: formData.description,
       value: Math.abs(Number(formData.value)),
       type: formData.type,
@@ -509,7 +505,7 @@ const Transactions: React.FC<TransactionsProps> = ({
                     </select>
                 </div>
                 <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-muted">Data (caixa)</label>
+                    <label className="text-sm font-medium text-muted">Data</label>
                     <input
                         type="date"
                         required
@@ -518,17 +514,6 @@ const Transactions: React.FC<TransactionsProps> = ({
                         onChange={e => setFormData({...formData, date: e.target.value})}
                     />
                 </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium text-muted">Data de competência <span className="text-faint font-normal">(emissão da nota — opcional)</span></label>
-                <input
-                    type="date"
-                    className="w-full px-3 py-2 bg-surface border border-line rounded-lg focus:ring-2 focus:ring-brand/50 focus:border-brand outline-none transition-all text-ink"
-                    value={formData.accrualDate}
-                    onChange={e => setFormData({...formData, accrualDate: e.target.value})}
-                />
-                <p className="text-[11px] text-faint">Deixe vazio se foi à vista. Usada no cálculo de PMR/PMP (aba Ciclo Financeiro).</p>
               </div>
 
               <div className="space-y-1.5">

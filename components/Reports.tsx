@@ -481,27 +481,13 @@ const Reports: React.FC<ReportsProps> = ({ token }) => {
     if (!data || !data.atual) return null;
     const a = data.atual;
     const sm = data.serieMensal || [];
-    const cmp = data.comparacao || {};
+    const carteira = data.carteiraFutura || [];
 
     const dtxt = (v: number | null) => (v === null || v === undefined ? '—' : daysTxt(v));
-    const deltaHint = (d: number | null | undefined, unit: 'dias' | 'R$') => {
-      if (d === null || d === undefined) return undefined;
-      const s = d > 0 ? '+' : '';
-      return `${s}${unit === 'dias' ? Math.round(d) + 'd' : brl(d)} vs. mês anterior`;
-    };
-    const chartRows = sm.map((s: any) => ({
-      mes: fmtMonthKey(s.mes),
-      PMR: s.pmr, PMP: s.pmp, CCC: s.ccc, NCG: s.ncg,
-      'NCG/Receita %': s.ncgSobreReceita,
-      Receita: s.receitaLiquida,
+    const caixaRows = sm.map((s: any) => ({ mes: fmtMonthKey(s.mes), Caixa: s.caixa }));
+    const carteiraRows = carteira.map((c: any) => ({
+      mes: fmtMonthKey(c.mes), 'A receber': c.aReceber, 'A pagar': c.aPagar, Saldo: c.aReceber - c.aPagar,
     }));
-
-    const methods: Record<string, string> = {
-      competencia: 'da data de competência dos lançamentos',
-      carteira: 'estimado pela carteira de previsões em aberto',
-      ciclo: 'derivado de PMR e PMP',
-      indisponivel: 'indisponível',
-    };
 
     return (
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -515,12 +501,17 @@ const Reports: React.FC<ReportsProps> = ({ token }) => {
           ))}
         </div>
 
+        <div className="rounded-xl border border-info/30 bg-info/10 px-4 py-2.5 text-xs text-muted flex items-start gap-2">
+          <Info size={14} className="text-info shrink-0 mt-0.5" />
+          <span>O sistema é regime de caixa (sem contas a receber/pagar). PMR, PMP, CCC e a NCG são estimados pela <strong>carteira de previsões em aberto</strong> — um retrato do momento, não uma série histórica. Cadastre previsões de recebimento e de pagamento na aba Previsões para alimentá-los.</span>
+        </div>
+
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <Stat label="PMR — prazo de recebimento" value={dtxt(a.pmr)}
-            hint={a.pmrMetodo === 'indisponivel' ? 'informe a competência nas receitas' : `${methods[a.pmrMetodo]}${cmp.vsMesAnterior?.pmr != null ? ` · ${deltaHint(cmp.vsMesAnterior.pmr, 'dias')}` : ''}`}
+            hint={a.pmrMetodo === 'indisponivel' ? 'cadastre previsões de recebimento' : 'média da carteira em aberto'}
             tone={a.pmr === null ? 'muted' : 'ink'} />
           <Stat label="PMP — prazo de pagamento" value={dtxt(a.pmp)}
-            hint={a.pmpMetodo === 'indisponivel' ? 'informe a competência nas despesas' : methods[a.pmpMetodo]}
+            hint={a.pmpMetodo === 'indisponivel' ? 'cadastre previsões de pagamento' : 'média da carteira em aberto'}
             tone={a.pmp === null ? 'muted' : 'ink'} />
           <Stat label="PME — prazo de estoque" value="indisponível" tone="muted"
             hint="depende de controle de estoque" />
@@ -531,27 +522,30 @@ const Reports: React.FC<ReportsProps> = ({ token }) => {
           <Stat label="Capital de giro líquido" value={a.cgl != null ? brl(a.cgl) : '—'} tone={a.cgl == null ? 'muted' : (a.cgl >= 0 ? 'ok' : 'danger')}
             hint="Caixa + NCG" />
           <Stat label="NCG" value={a.ncg != null ? brl(a.ncg) : '—'} tone={a.ncg == null ? 'muted' : 'ink'}
-            hint={a.ncgSobreReceita != null ? `${a.ncgSobreReceita.toFixed(1)}% da receita líquida` : methods[a.ncgMetodo]} />
+            hint={a.ncgSobreReceita != null ? `${a.ncgSobreReceita.toFixed(1)}% da receita líquida` : 'a receber − a pagar (carteira)'} />
           <Stat label="Saldo em tesouraria" value={a.tesouraria != null ? brl(a.tesouraria) : '—'} tone={a.tesouraria == null ? 'muted' : (a.tesouraria >= 0 ? 'ok' : 'danger')}
             hint="disponível líquido (= caixa)" />
         </div>
 
         <div className="grid lg:grid-cols-2 gap-5">
           <Card>
-            <h3 className="text-ink font-bold mb-1">Evolução — PMR, PMP e CCC</h3>
-            <p className="text-muted text-xs mb-4">Meses sem data de competência ficam em branco.</p>
+            <h3 className="text-ink font-bold mb-1">Evolução do caixa</h3>
+            <p className="text-muted text-xs mb-4">Saldo ao fim de cada mês (reconstruído do histórico de lançamentos).</p>
             <div className="h-64 w-full overflow-x-auto">
               <div className="min-w-[520px] h-full">
                 <ResponsiveContainer>
-                  <ComposedChart data={chartRows} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
+                  <ComposedChart data={caixaRows} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="cy-caixa" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="var(--color-brand)" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="var(--color-brand)" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" vertical={false} />
                     <XAxis dataKey="mes" tick={CHART_AXIS} axisLine={false} tickLine={false} />
-                    <YAxis tick={CHART_AXIS} axisLine={false} tickLine={false} tickFormatter={(v) => `${Math.round(v)}d`} width={44} />
-                    <Tooltip {...CHART_TOOLTIP} formatter={(v: any) => (v == null ? '—' : `${Math.round(v)} dias`)} />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Line type="monotone" dataKey="PMR" stroke="var(--color-ok)" strokeWidth={2} dot={false} connectNulls />
-                    <Line type="monotone" dataKey="PMP" stroke="var(--color-danger)" strokeWidth={2} dot={false} connectNulls />
-                    <Line type="monotone" dataKey="CCC" stroke="var(--color-brand)" strokeWidth={2} dot={false} connectNulls />
+                    <YAxis tick={CHART_AXIS} axisLine={false} tickLine={false} tickFormatter={brlShort} width={64} />
+                    <Tooltip {...CHART_TOOLTIP} formatter={(v: any) => brl(v)} />
+                    <Area type="monotone" dataKey="Caixa" stroke="var(--color-brand)" fill="url(#cy-caixa)" strokeWidth={2} />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
@@ -559,22 +553,26 @@ const Reports: React.FC<ReportsProps> = ({ token }) => {
           </Card>
 
           <Card>
-            <h3 className="text-ink font-bold mb-1">NCG e NCG / Receita</h3>
-            <p className="text-muted text-xs mb-4">Necessidade de capital de giro pelo ciclo (PMR × receita diária − PMP × despesa diária).</p>
+            <h3 className="text-ink font-bold mb-1">Previsões em aberto por mês</h3>
+            <p className="text-muted text-xs mb-4">A receber × a pagar da carteira de previsões ainda não realizadas.</p>
             <div className="h-64 w-full overflow-x-auto">
               <div className="min-w-[520px] h-full">
-                <ResponsiveContainer>
-                  <ComposedChart data={chartRows} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" vertical={false} />
-                    <XAxis dataKey="mes" tick={CHART_AXIS} axisLine={false} tickLine={false} />
-                    <YAxis yAxisId="l" tick={CHART_AXIS} axisLine={false} tickLine={false} tickFormatter={brlShort} width={64} />
-                    <YAxis yAxisId="r" orientation="right" tick={CHART_AXIS} axisLine={false} tickLine={false} tickFormatter={(v) => `${v.toFixed(0)}%`} width={44} />
-                    <Tooltip {...CHART_TOOLTIP} formatter={(v: any, n: any) => (n === 'NCG/Receita %' ? pctTxt(v) : brl(v))} />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Bar yAxisId="l" dataKey="NCG" fill="var(--color-info)" fillOpacity={0.6} radius={[3, 3, 0, 0]} maxBarSize={28} connectNulls />
-                    <Line yAxisId="r" type="monotone" dataKey="NCG/Receita %" stroke="var(--color-warn)" strokeWidth={2} dot={false} connectNulls />
-                  </ComposedChart>
-                </ResponsiveContainer>
+                {carteiraRows.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-faint text-sm">Sem previsões em aberto.</div>
+                ) : (
+                  <ResponsiveContainer>
+                    <ComposedChart data={carteiraRows} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" vertical={false} />
+                      <XAxis dataKey="mes" tick={CHART_AXIS} axisLine={false} tickLine={false} />
+                      <YAxis tick={CHART_AXIS} axisLine={false} tickLine={false} tickFormatter={brlShort} width={64} />
+                      <Tooltip {...CHART_TOOLTIP} formatter={(v: any) => brl(v)} />
+                      <Legend wrapperStyle={{ fontSize: 12 }} />
+                      <Bar dataKey="A receber" fill="var(--color-ok)" radius={[3, 3, 0, 0]} maxBarSize={22} />
+                      <Bar dataKey="A pagar" fill="var(--color-danger)" radius={[3, 3, 0, 0]} maxBarSize={22} />
+                      <Line type="monotone" dataKey="Saldo" stroke="var(--color-brand)" strokeWidth={2} dot={false} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </div>
           </Card>

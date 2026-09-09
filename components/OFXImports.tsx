@@ -199,7 +199,7 @@ const OFXImports: React.FC<OFXImportsProps> = ({ token, userId, banks, keywordRu
   const saveImport = async (cleanTxs: any[], resolvedConflicts: ConflictingTransaction[], originalContent: string) => {
       setIsProcessing(true);
       setProcessingStatus('Salvando lançamentos...');
-      setProgress(0);
+      setProgress(10);
 
       const finalTransactionsToAdd = [...cleanTxs];
       const transactionsToDeleteIds: number[] = [];
@@ -219,64 +219,53 @@ const OFXImports: React.FC<OFXImportsProps> = ({ token, userId, banks, keywordRu
       }
 
       try {
-          let importId: number | null = null;
-          
-          if (finalTransactionsToAdd.length > 0) {
-              const resImport = await fetch('/api/ofx-imports', {
-                  method: 'POST',
-                  headers: getHeaders(),
-                  body: JSON.stringify({
-                      fileName: currentFileName,
-                      importDate: new Date().toISOString(),
-                      bankId: Number(importConfig.bankId),
-                      transactionCount: finalTransactionsToAdd.length,
-                      content: originalContent || fileContent
-                  })
-              });
-              const importData = await resImport.json();
-              importId = importData.id;
-          }
-
-          // Delete Replaced Transactions
+          // Remove os antigos que serão substituídos (poucos, em geral nenhum)
           if (transactionsToDeleteIds.length > 0) {
               setProcessingStatus('Removendo antigos...');
               for (const id of transactionsToDeleteIds) {
-                  await fetch(`/api/transactions/${id}`, {
-                      method: 'DELETE',
-                      headers: getHeaders()
-                  });
+                  await fetch(`/api/transactions/${id}`, { method: 'DELETE', headers: getHeaders() });
               }
           }
 
-          // Insert New Transactions with Progress Bar
-          const total = finalTransactionsToAdd.length;
-          setProcessingStatus(`Importando ${total} lançamentos...`);
-          
-          // Enviar em lotes para performance melhor, ou um loop com progresso visual
-          for (let i = 0; i < total; i++) {
-                await fetch('/api/transactions', {
-                    method: 'POST',
-                    headers: getHeaders(),
-                    body: JSON.stringify({ ...finalTransactionsToAdd[i], ofxImportId: importId })
-                });
-                // Update Progress
-                const pct = Math.round(((i + 1) / total) * 100);
-                setProgress(pct);
+          // UMA requisição: cria o registro do OFX + insere todos os lançamentos
+          // + ajusta o saldo, tudo numa transação de banco. (Antes era 1 request
+          // por lançamento — estourava o rate-limit em extratos grandes.)
+          if (finalTransactionsToAdd.length > 0) {
+              setProcessingStatus(`Importando ${finalTransactionsToAdd.length} lançamentos...`);
+              setProgress(45);
+              const res = await fetch('/api/transactions/bulk', {
+                  method: 'POST',
+                  headers: getHeaders(),
+                  body: JSON.stringify({
+                      ofxImport: {
+                          fileName: currentFileName,
+                          importDate: new Date().toISOString(),
+                          bankId: Number(importConfig.bankId),
+                          content: originalContent || fileContent,
+                      },
+                      transactions: finalTransactionsToAdd,
+                  }),
+              });
+              if (!res.ok) {
+                  const e = await res.json().catch(() => ({}));
+                  throw new Error(e.error || `HTTP ${res.status}`);
+              }
+              setProgress(90);
           }
 
           await fetchImports();
           onTransactionsImported(); // Critical: Refresh Parent State
-          
+
           alert("Importação concluída com sucesso! Verifique se a data dos lançamentos corresponde ao filtro de data da tela de Lançamentos.");
-          
+
           setShowConflictModal(false);
           if (fileInputRef.current) fileInputRef.current.value = '';
           setConflicts([]);
           setCleanTransactions([]);
           setFileContent('');
 
-      } catch (err) {
-          alert("Erro ao salvar dados.");
+      } catch (err: any) {
+          alert("Erro ao salvar dados: " + (err?.message || 'desconhecido'));
           console.error(err);
       } finally {
           setIsProcessing(false);

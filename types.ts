@@ -61,7 +61,6 @@ export interface OFXImport {
 export interface Transaction {
   id: number;
   date: string; // ISO Date YYYY-MM-DD — data de caixa (movimento financeiro)
-  accrualDate?: string | null; // data de competência/emissão (opcional); null = à vista
   description: string;
   summary?: string;
   type: TransactionType;
@@ -76,7 +75,6 @@ export interface Transaction {
 export interface Forecast {
   id: number | string;
   date: string;
-  accrualDate?: string | null; // data de competência/emissão (opcional)
   description: string;
   value: number;
   type: TransactionType;

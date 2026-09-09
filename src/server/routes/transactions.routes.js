@@ -3,20 +3,20 @@ import { authenticateToken } from '../middleware/auth.js';
 import { assertUserOwns } from '../lib/ownership.js';
 import { recalculateBankBalance } from '../lib/banks.js';
 import { validateBody } from '../middleware/validate.js';
-import { transactionCreateSchema, transactionUpdateSchema, transactionReconcileSchema, transactionBatchUpdateSchema } from '../schemas.js';
+import { transactionCreateSchema, transactionUpdateSchema, transactionReconcileSchema, transactionBatchUpdateSchema, transactionBulkSchema } from '../schemas.js';
 
 export default function register(app) {
 app.get('/api/transactions', authenticateToken, async (req, res) => {
     try {
         const { rows } = await pool.query(`SELECT * FROM transactions WHERE user_id = $1 ORDER BY date DESC, id DESC LIMIT 5000`, [req.userId]);
-        res.json(rows.map(r => ({...r, reconciled: !!r.reconciled, categoryId: r.category_id, bankId: r.bank_id, creditCardId: r.credit_card_id, accrualDate: r.accrual_date})));
+        res.json(rows.map(r => ({...r, reconciled: !!r.reconciled, categoryId: r.category_id, bankId: r.bank_id, creditCardId: r.credit_card_id})));
     } catch(err) {
         console.error("GET /transactions error:", err.message);
         res.status(500).json({error: "Server Error"});
     }
 });
 app.post('/api/transactions', authenticateToken, validateBody(transactionCreateSchema), async (req, res) => {
-    const { date, description, value, type, categoryId, bankId, creditCardId, reconciled, ofxImportId, accrualDate } = req.body;
+    const { date, description, value, type, categoryId, bankId, creditCardId, reconciled, ofxImportId } = req.body;
     try {
         // 400 (não 403): é validação de payload. O apiFetch do frontend desloga
         // em 401/403, e um id de categoria/banco obsoleto não deve derrubar a sessão.
@@ -24,9 +24,9 @@ app.post('/api/transactions', authenticateToken, validateBody(transactionCreateS
         if (!owned.ok) return res.status(400).json({ error: owned.error });
 
         const ins = await pool.query(
-            `INSERT INTO transactions (user_id, date, description, value, type, category_id, bank_id, credit_card_id, reconciled, ofx_import_id, accrual_date)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
-            [req.userId, date, description, value, type, categoryId || null, bankId || null, creditCardId || null, reconciled ? 1 : 0, ofxImportId || null, accrualDate || null]
+            `INSERT INTO transactions (user_id, date, description, value, type, category_id, bank_id, credit_card_id, reconciled, ofx_import_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+            [req.userId, date, description, value, type, categoryId || null, bankId || null, creditCardId || null, reconciled ? 1 : 0, ofxImportId || null]
         );
 
         if (!creditCardId && bankId) {
@@ -40,8 +40,85 @@ app.post('/api/transactions', authenticateToken, validateBody(transactionCreateS
         res.status(500).json({ error: err.message });
     }
 });
+
+// Criação em lote — 1 requisição, 1 transação de banco. Usado pela importação
+// de extrato (que antes fazia 1 POST por lançamento e estourava o rate-limit) e
+// pela recorrência de lançamentos. Opcionalmente registra o ofx_import junto.
+app.post('/api/transactions/bulk', authenticateToken, validateBody(transactionBulkSchema), async (req, res) => {
+    const { ofxImport, transactions } = req.body;
+
+    // valida ownership do conjunto distinto de bancos/categorias/cartões (anti-IDOR)
+    const bankIds = new Set(transactions.map(t => t.bankId).filter(Boolean));
+    if (ofxImport?.bankId) bankIds.add(ofxImport.bankId);
+    const catIds = new Set(transactions.map(t => t.categoryId).filter(Boolean));
+    const cardIds = new Set(transactions.map(t => t.creditCardId).filter(Boolean));
+    for (const bankId of bankIds) {
+        const owned = await assertUserOwns(req.userId, { bankId });
+        if (!owned.ok) return res.status(400).json({ error: owned.error });
+    }
+    for (const categoryId of catIds) {
+        const owned = await assertUserOwns(req.userId, { categoryId });
+        if (!owned.ok) return res.status(400).json({ error: owned.error });
+    }
+    for (const creditCardId of cardIds) {
+        const owned = await assertUserOwns(req.userId, { creditCardId });
+        if (!owned.ok) return res.status(400).json({ error: owned.error });
+    }
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        let importId = null;
+        if (ofxImport) {
+            const imp = await client.query(
+                `INSERT INTO ofx_imports (user_id, file_name, import_date, bank_id, transaction_count, content)
+                 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+                [req.userId, ofxImport.fileName || null, ofxImport.importDate || new Date().toISOString(),
+                 ofxImport.bankId || null, transactions.length, ofxImport.content || '']);
+            importId = imp.rows[0].id;
+        }
+
+        // uma linha por lançamento via json_to_recordset (sem estourar o limite de parâmetros)
+        const payload = JSON.stringify(transactions.map(t => ({
+            date: t.date, description: t.description || '', value: Number(t.value) || 0, type: t.type,
+            category_id: t.categoryId || null, bank_id: t.bankId || null,
+            credit_card_id: t.creditCardId || null, reconciled: t.reconciled ? 1 : 0,
+        })));
+        const ins = await client.query(
+            `INSERT INTO transactions (user_id, date, description, value, type, category_id, bank_id, credit_card_id, reconciled, ofx_import_id)
+             SELECT $1, x.date, x.description, x.value, x.type, x.category_id, x.bank_id, x.credit_card_id, x.reconciled, $2
+             FROM json_to_recordset($3::json) AS x(
+                 date text, description text, value numeric, type text,
+                 category_id int, bank_id int, credit_card_id int, reconciled int
+             )
+             RETURNING id`,
+            [req.userId, importId, payload]);
+
+        // ajusta o saldo de cada banco afetado (só lançamentos sem cartão)
+        const affectedBanks = [...bankIds];
+        for (const bankId of affectedBanks) {
+            await client.query(
+                `UPDATE banks SET balance = COALESCE((
+                     SELECT SUM(CASE WHEN type = 'credito' THEN value ELSE -value END)
+                     FROM transactions WHERE bank_id = $1 AND credit_card_id IS NULL
+                 ), 0) WHERE id = $1 AND user_id = $2`,
+                [bankId, req.userId]);
+        }
+
+        await client.query('COMMIT');
+        res.json({ inserted: ins.rows.length, ids: ins.rows.map(r => r.id), importId });
+    } catch (err) {
+        await client.query('ROLLBACK').catch(() => {});
+        console.error('POST /transactions/bulk error:', err.message);
+        res.status(500).json({ error: err.message });
+    } finally {
+        client.release();
+    }
+});
+
 app.put('/api/transactions/:id', authenticateToken, validateBody(transactionUpdateSchema), async (req, res) => {
-    const { date, description, value, type, categoryId, bankId, creditCardId, reconciled, accrualDate } = req.body;
+    const { date, description, value, type, categoryId, bankId, creditCardId, reconciled } = req.body;
     try {
         const owned = await assertUserOwns(req.userId, { bankId, categoryId, creditCardId });
         if (!owned.ok) return res.status(403).json({ error: owned.error });
@@ -49,8 +126,8 @@ app.put('/api/transactions/:id', authenticateToken, validateBody(transactionUpda
             `SELECT * FROM transactions WHERE id = $1 AND user_id = $2`, [req.params.id, req.userId]);
         if (!oldTx) return res.status(404).json({ error: "Não encontrado" });
         await pool.query(
-            `UPDATE transactions SET date=$1, description=$2, value=$3, type=$4, category_id=$5, bank_id=$6, credit_card_id=$7, reconciled=$8, accrual_date=$9 WHERE id=$10 AND user_id=$11`,
-            [date, description, value, type, categoryId || null, bankId || null, creditCardId || null, reconciled ? 1 : 0, accrualDate || null, req.params.id, req.userId]);
+            `UPDATE transactions SET date=$1, description=$2, value=$3, type=$4, category_id=$5, bank_id=$6, credit_card_id=$7, reconciled=$8 WHERE id=$9 AND user_id=$10`,
+            [date, description, value, type, categoryId || null, bankId || null, creditCardId || null, reconciled ? 1 : 0, req.params.id, req.userId]);
         if (!oldTx.credit_card_id) recalculateBankBalance(oldTx.bank_id);
         if (!creditCardId && bankId) recalculateBankBalance(bankId);
         res.json({ success: true });
