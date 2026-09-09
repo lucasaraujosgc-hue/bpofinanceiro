@@ -29,6 +29,7 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
       value: '',
       type: TransactionType.DEBIT,
       date: new Date().toISOString().split('T')[0],
+      accrualDate: '',
       categoryId: 0,
       bankId: banks[0]?.id || 0,
       creditCardId: null as number | null,
@@ -69,6 +70,7 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
           value: String(f.value),
           type: f.type,
           date: f.date,
+          accrualDate: f.accrualDate || '',
           categoryId: f.categoryId,
           bankId: f.bankId,
           creditCardId: f.creditCardId || null,
@@ -107,6 +109,7 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
                 headers: getHeaders(),
                 body: JSON.stringify({
                     date: formData.date,
+                    accrualDate: formData.accrualDate || null,
                     description: formData.description,
                     value: value,
                     type: formData.type,
@@ -127,6 +130,7 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
                 
                 const payload = {
                     date: currentDate.toISOString().split('T')[0],
+                    accrualDate: i === 0 ? (formData.accrualDate || null) : null,
                     description: formData.description,
                     value: value,
                     type: formData.type,
@@ -134,7 +138,7 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
                     bankId: formData.bankId ? Number(formData.bankId) : null,
                     creditCardId: formData.creditCardId,
                     installmentCurrent: formData.isFixed ? i + 1 : i + 1,
-                    installmentTotal: formData.isFixed ? 0 : installments, 
+                    installmentTotal: formData.isFixed ? 0 : installments,
                     groupId: (installments > 1 || formData.isFixed) ? groupId : null
                 };
 
@@ -148,7 +152,7 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
 
         setIsModalOpen(false);
         setEditingId(null);
-        setFormData({ ...formData, description: '', value: '', installments: 1, isFixed: false, creditCardId: null });
+        setFormData({ ...formData, description: '', value: '', accrualDate: '', installments: 1, isFixed: false, creditCardId: null });
         await fetchForecasts();
         onUpdate(); // Trigger global update
     } catch (e) {
@@ -210,28 +214,14 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
 
       if(confirm('Confirmar realização desta previsão? Ela será movida para Lançamentos.')) {
            try {
-               await fetch(`/api/forecasts/${forecast.id}/realize`, { 
+               // Um passo só: o backend marca realized=1 E cria o lançamento na
+               // mesma transação (atômico, sem duplicar valor).
+               const res = await fetch(`/api/forecasts/${forecast.id}/realize`, {
                    method: 'PATCH',
-                   headers: getHeaders()
-                });
-               
-               const descSuffix = forecast.installmentTotal ? ` (${forecast.installmentCurrent}/${forecast.installmentTotal})` : (forecast.groupId ? ' (Recorrente)' : '');
-               
-               // Manual Creation of Transaction from Frontend
-               await fetch('/api/transactions', {
-                   method: 'POST',
                    headers: getHeaders(),
-                   body: JSON.stringify({
-                       date: forecast.date,
-                       description: forecast.description + descSuffix,
-                       value: forecast.value,
-                       type: forecast.type,
-                       categoryId: forecast.categoryId,
-                       bankId: forecast.bankId,
-                       creditCardId: forecast.creditCardId,
-                       reconciled: false
-                   })
+                   body: JSON.stringify({ realizedDate: forecast.date }),
                });
+               if (!res.ok) throw new Error('realize falhou');
 
                await fetchForecasts();
                await onUpdate(); // Wait for global update to complete
@@ -529,14 +519,24 @@ const Forecasts: React.FC<ForecastsProps> = ({ token, userId, banks, creditCards
                          </select>
                      </div>
                      <div>
-                         <label className="text-sm text-muted font-medium">Data Início</label>
-                         <input 
+                         <label className="text-sm text-muted font-medium">Data Início (caixa)</label>
+                         <input
                             type="date"
                             className="w-full mt-1 bg-surface border border-line rounded-lg p-2 text-ink outline-none focus:border-brand"
                             value={formData.date}
                             onChange={e => setFormData({...formData, date: e.target.value})}
                          />
                      </div>
+                </div>
+                <div>
+                     <label className="text-sm text-muted font-medium">Data de competência <span className="text-faint font-normal">(emissão — opcional)</span></label>
+                     <input
+                        type="date"
+                        className="w-full mt-1 bg-surface border border-line rounded-lg p-2 text-ink outline-none focus:border-brand"
+                        value={formData.accrualDate}
+                        onChange={e => setFormData({...formData, accrualDate: e.target.value})}
+                     />
+                     <p className="text-[11px] text-faint mt-1">Vazio = à vista. Usada no PMR/PMP (Ciclo Financeiro).</p>
                 </div>
                 <div>
                      <label className="text-sm text-muted font-medium">Descrição</label>

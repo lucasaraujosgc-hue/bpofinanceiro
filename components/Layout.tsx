@@ -1,5 +1,5 @@
 import React, { ReactNode } from 'react';
-import { LayoutDashboard, Receipt, PieChart, Landmark, LogOut, Menu, ArrowUpRight, FileSpreadsheet, Tags, User, ChevronDown, FileCog, BookOpen } from 'lucide-react';
+import { LayoutDashboard, Receipt, PieChart, Landmark, LogOut, Menu, ArrowUpRight, FileSpreadsheet, Tags, User, ChevronDown, FileCog, BookOpen, Target } from 'lucide-react';
 import Logo from './Logo';
 import { ThemeToggle } from './ThemeToggle';
 
@@ -143,7 +143,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
                 </div>
             </div>
 
-            {/* Relatórios */}
+            {/* Análises */}
             <div>
                 <div className="text-[10px] font-semibold text-faint uppercase tracking-wider mb-1 px-2">Análises</div>
                 <div className="space-y-0.5">
@@ -155,6 +155,22 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange, onLog
                     >
                         <PieChart size={16} />
                         Relatórios Financeiros
+                    </button>
+                </div>
+            </div>
+
+            {/* Planejamento */}
+            <div>
+                <div className="text-[10px] font-semibold text-faint uppercase tracking-wider mb-1 px-2">Planejamento</div>
+                <div className="space-y-0.5">
+                    <button
+                        onClick={() => { onTabChange('planning'); setIsMobileMenuOpen(false); }}
+                        className={`w-full flex items-center gap-3 px-3 py-1.5 rounded-md text-sm font-medium transition-colors
+                            ${activeTab === 'planning' ? 'bg-brand/10 text-brand border border-brand/20' : 'text-muted hover:text-ink hover:bg-sunken'}
+                        `}
+                    >
+                        <Target size={16} />
+                        Planejamento
                     </button>
                 </div>
             </div>

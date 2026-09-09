@@ -9,14 +9,14 @@ export default function register(app) {
 app.get('/api/transactions', authenticateToken, async (req, res) => {
     try {
         const { rows } = await pool.query(`SELECT * FROM transactions WHERE user_id = $1 ORDER BY date DESC, id DESC LIMIT 5000`, [req.userId]);
-        res.json(rows.map(r => ({...r, reconciled: !!r.reconciled, categoryId: r.category_id, bankId: r.bank_id, creditCardId: r.credit_card_id})));
+        res.json(rows.map(r => ({...r, reconciled: !!r.reconciled, categoryId: r.category_id, bankId: r.bank_id, creditCardId: r.credit_card_id, accrualDate: r.accrual_date})));
     } catch(err) {
         console.error("GET /transactions error:", err.message);
         res.status(500).json({error: "Server Error"});
     }
 });
 app.post('/api/transactions', authenticateToken, validateBody(transactionCreateSchema), async (req, res) => {
-    const { date, description, value, type, categoryId, bankId, creditCardId, reconciled, ofxImportId } = req.body;
+    const { date, description, value, type, categoryId, bankId, creditCardId, reconciled, ofxImportId, accrualDate } = req.body;
     try {
         // 400 (não 403): é validação de payload. O apiFetch do frontend desloga
         // em 401/403, e um id de categoria/banco obsoleto não deve derrubar a sessão.
@@ -24,9 +24,9 @@ app.post('/api/transactions', authenticateToken, validateBody(transactionCreateS
         if (!owned.ok) return res.status(400).json({ error: owned.error });
 
         const ins = await pool.query(
-            `INSERT INTO transactions (user_id, date, description, value, type, category_id, bank_id, credit_card_id, reconciled, ofx_import_id)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
-            [req.userId, date, description, value, type, categoryId || null, bankId || null, creditCardId || null, reconciled ? 1 : 0, ofxImportId || null]
+            `INSERT INTO transactions (user_id, date, description, value, type, category_id, bank_id, credit_card_id, reconciled, ofx_import_id, accrual_date)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
+            [req.userId, date, description, value, type, categoryId || null, bankId || null, creditCardId || null, reconciled ? 1 : 0, ofxImportId || null, accrualDate || null]
         );
 
         if (!creditCardId && bankId) {
@@ -41,7 +41,7 @@ app.post('/api/transactions', authenticateToken, validateBody(transactionCreateS
     }
 });
 app.put('/api/transactions/:id', authenticateToken, validateBody(transactionUpdateSchema), async (req, res) => {
-    const { date, description, value, type, categoryId, bankId, creditCardId, reconciled } = req.body;
+    const { date, description, value, type, categoryId, bankId, creditCardId, reconciled, accrualDate } = req.body;
     try {
         const owned = await assertUserOwns(req.userId, { bankId, categoryId, creditCardId });
         if (!owned.ok) return res.status(403).json({ error: owned.error });
@@ -49,8 +49,8 @@ app.put('/api/transactions/:id', authenticateToken, validateBody(transactionUpda
             `SELECT * FROM transactions WHERE id = $1 AND user_id = $2`, [req.params.id, req.userId]);
         if (!oldTx) return res.status(404).json({ error: "Não encontrado" });
         await pool.query(
-            `UPDATE transactions SET date=$1, description=$2, value=$3, type=$4, category_id=$5, bank_id=$6, credit_card_id=$7, reconciled=$8 WHERE id=$9 AND user_id=$10`,
-            [date, description, value, type, categoryId || null, bankId || null, creditCardId || null, reconciled ? 1 : 0, req.params.id, req.userId]);
+            `UPDATE transactions SET date=$1, description=$2, value=$3, type=$4, category_id=$5, bank_id=$6, credit_card_id=$7, reconciled=$8, accrual_date=$9 WHERE id=$10 AND user_id=$11`,
+            [date, description, value, type, categoryId || null, bankId || null, creditCardId || null, reconciled ? 1 : 0, accrualDate || null, req.params.id, req.userId]);
         if (!oldTx.credit_card_id) recalculateBankBalance(oldTx.bank_id);
         if (!creditCardId && bankId) recalculateBankBalance(bankId);
         res.json({ success: true });

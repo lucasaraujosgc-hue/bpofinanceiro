@@ -35,6 +35,12 @@ const isoDate = z.string()
 
 const txType = z.enum(['credito', 'debito']);
 
+// Data de competência (emissão) — opcional. '' / null → null (à vista).
+const optionalIsoDate = z.preprocess(
+    (v) => (v === '' || v === null || v === undefined ? null : v),
+    isoDate.nullable(),
+);
+
 // FK opcional: aceita número, string numérica, 0, '', null, undefined →
 // normaliza para inteiro positivo ou null (o handler faz `id || null`).
 const idRef = z.preprocess(
@@ -155,6 +161,7 @@ export const transactionCreateSchema = z.object({
     creditCardId: idRef,
     reconciled: boolish,
     ofxImportId: idRef,
+    accrualDate: optionalIsoDate,
 }).loose();
 
 export const transactionUpdateSchema = z.object({
@@ -166,10 +173,16 @@ export const transactionUpdateSchema = z.object({
     bankId: idRef,
     creditCardId: idRef,
     reconciled: boolish,
+    accrualDate: optionalIsoDate,
 }).loose();
 
 export const transactionReconcileSchema = z.object({
     reconciled: boolish,
+}).loose();
+
+// Realização de previsão → cria a transação no mesmo passo (atômico no backend).
+export const forecastRealizeSchema = z.object({
+    realizedDate: optionalIsoDate,
 }).loose();
 
 export const transactionBatchUpdateSchema = z.object({
@@ -191,6 +204,7 @@ export const forecastCreateSchema = z.object({
     installmentCurrent: z.coerce.number().int().min(0).max(1200).nullish(),
     installmentTotal: z.coerce.number().int().min(0).max(1200).nullish(),
     groupId: z.string().max(60).nullish(),
+    accrualDate: optionalIsoDate,
 }).loose();
 
 export const forecastUpdateSchema = z.object({
@@ -201,6 +215,7 @@ export const forecastUpdateSchema = z.object({
     categoryId: idRef,
     bankId: idRef,
     creditCardId: idRef,
+    accrualDate: optionalIsoDate,
 }).loose();
 
 // --- OFX -------------------------------------------------------------

@@ -119,9 +119,10 @@ if (seeded.rows[0].n === 0) {
 
   // ---- transações: jun, jul, ago, set/2026 ----
   const tx = [];
-  const push = (date, desc, value, type, cat, bank, reconciled = 1) =>
-    tx.push([uid, date, desc, value, type, catId[cat], bankIds[bank], reconciled]);
+  const push = (date, desc, value, type, cat, bank, reconciled = 1, accrual = null) =>
+    tx.push([uid, date, desc, value, type, catId[cat], bankIds[bank], reconciled, accrual]);
   const rnd = (base, spread) => Math.round((base + (Math.random() - 0.5) * spread) * 100) / 100;
+  const minusDays = (dateStr, n) => new Date(Date.parse(dateStr) - n * 86400000).toISOString().slice(0, 10);
 
   const OP = 'Itaú';           // conta operacional principal
   const RES = 'Banco Inter';   // reserva
@@ -140,15 +141,19 @@ if (seeded.rows[0].n === 0) {
     const partial = m === 9;
     const d = (day) => `${y}-${M}-${String(day).padStart(2, '0')}`;
     const push2 = (day, ...rest) => { if (!(partial && day > TODAY)) push(d(day), ...rest); };
+    // recebe com competência = venda alguns dias antes (gera PMR ~22-30 dias)
+    const pushRecebe = (day, desc, val, cat, prazo) => { if (!(partial && day > TODAY)) push(d(day), desc, val, 'credito', cat, OP, 1, minusDays(d(day), prazo)); };
+    // paga com competência = compra alguns dias antes (gera PMP ~28-38 dias)
+    const pushPaga = (day, desc, val, cat, prazo) => { if (!(partial && day > TODAY)) push(d(day), desc, val, 'debito', cat, OP, 1, minusDays(d(day), prazo)); };
     // receitas
-    for (let i = 0; i < 7; i++) push2(3 + i * 3, `Venda no PDV — lote #${m}${1000 + i}`, rnd(7300 * growth, 1400), 'credito', 'Vendas de Mercadorias', OP);
-    push2(10, 'NF-e serviço — contrato mensal', rnd(10200 * growth, 900), 'credito', 'Prestação de Serviços', OP);
-    push2(21, 'NF-e serviço — projeto pontual', rnd(4600 * growth, 700), 'credito', 'Prestação de Serviços', OP);
+    for (let i = 0; i < 7; i++) pushRecebe(3 + i * 3, `Venda no PDV — lote #${m}${1000 + i}`, rnd(7300 * growth, 1400), 'Vendas de Mercadorias', Math.round(rnd(24, 12)));
+    pushRecebe(10, 'NF-e serviço — contrato mensal', rnd(10200 * growth, 900), 'Prestação de Serviços', Math.round(rnd(30, 8)));
+    pushRecebe(21, 'NF-e serviço — projeto pontual', rnd(4600 * growth, 700), 'Prestação de Serviços', Math.round(rnd(35, 14)));
     push2(5, 'Aluguel da sala 2 (recebido)', 1200, 'credito', 'Receita de Aluguel', OP);
     push2(28, 'Rendimento do CDB', rnd(300 * growth, 60), 'credito', 'Rendimentos de Aplicação', RES);
     // custos
-    push2(6, 'Fornecedor Atacado — reposição de estoque', rnd(13200 * growth, 1600), 'debito', 'Compra de Mercadorias', OP);
-    push2(17, 'Distribuidora — pedido complementar', rnd(6400 * growth, 1000), 'debito', 'Compra de Mercadorias', OP);
+    pushPaga(6, 'Fornecedor Atacado — reposição de estoque', rnd(13200 * growth, 1600), 'Compra de Mercadorias', Math.round(rnd(33, 12)));
+    pushPaga(17, 'Distribuidora — pedido complementar', rnd(6400 * growth, 1000), 'Compra de Mercadorias', Math.round(rnd(30, 10)));
     push2(6, 'Transportadora — frete sobre compras', rnd(600, 120), 'debito', 'Frete sobre Compras', OP);
     // despesas com vendas
     push2(30, 'Comissão dos vendedores', rnd(1850 * growth, 300), 'debito', 'Comissões sobre Vendas', OP);
@@ -180,7 +185,7 @@ if (seeded.rows[0].n === 0) {
   push('2026-08-14', 'Transferência recebida da conta movimento', 5000, 'credito', 'Transferência entre Contas (Entrada)', RES);
 
   for (const row of tx) {
-    await q(`INSERT INTO transactions (user_id,date,description,value,type,category_id,bank_id,reconciled) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`, row);
+    await q(`INSERT INTO transactions (user_id,date,description,value,type,category_id,bank_id,reconciled,accrual_date) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, row);
   }
   // ajusta saldos dos bancos a partir das transações
   await q(`UPDATE banks b SET balance = COALESCE((SELECT SUM(CASE WHEN t.type='credito' THEN t.value ELSE -t.value END) FROM transactions t WHERE t.bank_id=b.id),0) WHERE b.user_id=$1`, [uid]);

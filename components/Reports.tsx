@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Transaction, Category } from '../types';
 import {
-  ResponsiveContainer, ComposedChart, Area, Bar, XAxis, YAxis, CartesianGrid,
+  ResponsiveContainer, ComposedChart, Area, Bar, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ReferenceLine,
 } from 'recharts';
 import {
   ChevronLeft, ChevronRight, CalendarRange, TrendingUp, Info,
-  Target, AlertCircle, ArrowDownRight, ArrowUpRight, Scale, Gauge, Wallet,
+  Target, AlertCircle, ArrowDownRight, ArrowUpRight, Scale, Gauge, Wallet, RefreshCw,
 } from 'lucide-react';
+import { MethodologyNote, fmtMonthKey, daysTxt } from './reportUi';
 
 interface ReportsProps {
   token: string;
@@ -58,12 +59,13 @@ const Stat: React.FC<{ label: string; value: string; hint?: string; tone?: 'ok' 
 };
 
 const Reports: React.FC<ReportsProps> = ({ token }) => {
-  const [activeTab, setActiveTab] = useState<'cashflow' | 'dre' | 'analysis' | 'forecasts'>('cashflow');
+  const [activeTab, setActiveTab] = useState<'cashflow' | 'dre' | 'analysis' | 'forecasts' | 'cycle'>('cashflow');
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth());
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any>(null);
   const [flow, setFlow] = useState<any>(null);
+  const [cycleMonths, setCycleMonths] = useState(12);
 
   const headers = useMemo(() => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }), [token]);
 
@@ -81,6 +83,7 @@ const Reports: React.FC<ReportsProps> = ({ token }) => {
       const ep = activeTab === 'cashflow' ? `/api/reports/cash-flow?year=${year}&month=${month}`
         : activeTab === 'forecasts' ? `/api/reports/forecasts?year=${year}&month=${month}`
         : activeTab === 'dre' ? `/api/reports/dre-hierarchical?year=${year}&month=${month}`
+        : activeTab === 'cycle' ? `/api/reports/financial-cycle?year=${year}&month=${month}&months=${cycleMonths}`
         : `/api/reports/analysis?year=${year}&month=${month}`;
       try {
         const res = await fetch(ep, { headers });
@@ -91,7 +94,7 @@ const Reports: React.FC<ReportsProps> = ({ token }) => {
     };
     run();
     return () => { cancelled = true; };
-  }, [activeTab, year, month, headers]);
+  }, [activeTab, year, month, headers, cycleMonths]);
 
   useEffect(() => {
     if (activeTab !== 'cashflow') return;
@@ -473,6 +476,136 @@ const Reports: React.FC<ReportsProps> = ({ token }) => {
     );
   };
 
+  /* -------------------------------------------------------- CICLO FINANCEIRO */
+  const renderCycle = () => {
+    if (!data || !data.atual) return null;
+    const a = data.atual;
+    const sm = data.serieMensal || [];
+    const cmp = data.comparacao || {};
+
+    const dtxt = (v: number | null) => (v === null || v === undefined ? '—' : daysTxt(v));
+    const deltaHint = (d: number | null | undefined, unit: 'dias' | 'R$') => {
+      if (d === null || d === undefined) return undefined;
+      const s = d > 0 ? '+' : '';
+      return `${s}${unit === 'dias' ? Math.round(d) + 'd' : brl(d)} vs. mês anterior`;
+    };
+    const chartRows = sm.map((s: any) => ({
+      mes: fmtMonthKey(s.mes),
+      PMR: s.pmr, PMP: s.pmp, CCC: s.ccc, NCG: s.ncg,
+      'NCG/Receita %': s.ncgSobreReceita,
+      Receita: s.receitaLiquida,
+    }));
+
+    const methods: Record<string, string> = {
+      competencia: 'da data de competência dos lançamentos',
+      carteira: 'estimado pela carteira de previsões em aberto',
+      ciclo: 'derivado de PMR e PMP',
+      indisponivel: 'indisponível',
+    };
+
+    return (
+      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-faint">Janela:</span>
+          {[6, 12, 24, 36].map(n => (
+            <button key={n} onClick={() => setCycleMonths(n)}
+              className={`px-2.5 py-1 rounded-md font-medium ${cycleMonths === n ? 'bg-brand text-white' : 'bg-surface border border-line text-muted hover:text-ink'}`}>
+              {n}m
+            </button>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <Stat label="PMR — prazo de recebimento" value={dtxt(a.pmr)}
+            hint={a.pmrMetodo === 'indisponivel' ? 'informe a competência nas receitas' : `${methods[a.pmrMetodo]}${cmp.vsMesAnterior?.pmr != null ? ` · ${deltaHint(cmp.vsMesAnterior.pmr, 'dias')}` : ''}`}
+            tone={a.pmr === null ? 'muted' : 'ink'} />
+          <Stat label="PMP — prazo de pagamento" value={dtxt(a.pmp)}
+            hint={a.pmpMetodo === 'indisponivel' ? 'informe a competência nas despesas' : methods[a.pmpMetodo]}
+            tone={a.pmp === null ? 'muted' : 'ink'} />
+          <Stat label="PME — prazo de estoque" value="indisponível" tone="muted"
+            hint="depende de controle de estoque" />
+          <Stat label="Ciclo operacional" value={dtxt(a.cicloOperacional)} tone={a.cicloOperacional === null ? 'muted' : 'ink'}
+            hint="PMR + PME (sem PME)" />
+          <Stat label="CCC — ciclo financeiro" value={dtxt(a.ccc)} tone={a.ccc === null ? 'muted' : (a.ccc > 45 ? 'danger' : 'ink')}
+            hint="PMR + PME − PMP (sem PME)" />
+          <Stat label="Capital de giro líquido" value={a.cgl != null ? brl(a.cgl) : '—'} tone={a.cgl == null ? 'muted' : (a.cgl >= 0 ? 'ok' : 'danger')}
+            hint="Caixa + NCG" />
+          <Stat label="NCG" value={a.ncg != null ? brl(a.ncg) : '—'} tone={a.ncg == null ? 'muted' : 'ink'}
+            hint={a.ncgSobreReceita != null ? `${a.ncgSobreReceita.toFixed(1)}% da receita líquida` : methods[a.ncgMetodo]} />
+          <Stat label="Saldo em tesouraria" value={a.tesouraria != null ? brl(a.tesouraria) : '—'} tone={a.tesouraria == null ? 'muted' : (a.tesouraria >= 0 ? 'ok' : 'danger')}
+            hint="disponível líquido (= caixa)" />
+        </div>
+
+        <div className="grid lg:grid-cols-2 gap-5">
+          <Card>
+            <h3 className="text-ink font-bold mb-1">Evolução — PMR, PMP e CCC</h3>
+            <p className="text-muted text-xs mb-4">Meses sem data de competência ficam em branco.</p>
+            <div className="h-64 w-full overflow-x-auto">
+              <div className="min-w-[520px] h-full">
+                <ResponsiveContainer>
+                  <ComposedChart data={chartRows} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" vertical={false} />
+                    <XAxis dataKey="mes" tick={CHART_AXIS} axisLine={false} tickLine={false} />
+                    <YAxis tick={CHART_AXIS} axisLine={false} tickLine={false} tickFormatter={(v) => `${Math.round(v)}d`} width={44} />
+                    <Tooltip {...CHART_TOOLTIP} formatter={(v: any) => (v == null ? '—' : `${Math.round(v)} dias`)} />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    <Line type="monotone" dataKey="PMR" stroke="var(--color-ok)" strokeWidth={2} dot={false} connectNulls />
+                    <Line type="monotone" dataKey="PMP" stroke="var(--color-danger)" strokeWidth={2} dot={false} connectNulls />
+                    <Line type="monotone" dataKey="CCC" stroke="var(--color-brand)" strokeWidth={2} dot={false} connectNulls />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </Card>
+
+          <Card>
+            <h3 className="text-ink font-bold mb-1">NCG e NCG / Receita</h3>
+            <p className="text-muted text-xs mb-4">Necessidade de capital de giro pelo ciclo (PMR × receita diária − PMP × despesa diária).</p>
+            <div className="h-64 w-full overflow-x-auto">
+              <div className="min-w-[520px] h-full">
+                <ResponsiveContainer>
+                  <ComposedChart data={chartRows} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-line)" vertical={false} />
+                    <XAxis dataKey="mes" tick={CHART_AXIS} axisLine={false} tickLine={false} />
+                    <YAxis yAxisId="l" tick={CHART_AXIS} axisLine={false} tickLine={false} tickFormatter={brlShort} width={64} />
+                    <YAxis yAxisId="r" orientation="right" tick={CHART_AXIS} axisLine={false} tickLine={false} tickFormatter={(v) => `${v.toFixed(0)}%`} width={44} />
+                    <Tooltip {...CHART_TOOLTIP} formatter={(v: any, n: any) => (n === 'NCG/Receita %' ? pctTxt(v) : brl(v))} />
+                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    <Bar yAxisId="l" dataKey="NCG" fill="var(--color-info)" fillOpacity={0.6} radius={[3, 3, 0, 0]} maxBarSize={28} connectNulls />
+                    <Line yAxisId="r" type="monotone" dataKey="NCG/Receita %" stroke="var(--color-warn)" strokeWidth={2} dot={false} connectNulls />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {data.interpretacao?.length > 0 && (
+          <Card>
+            <h3 className="text-ink font-bold mb-3 flex items-center gap-2"><Info size={16} className="text-brand" /> Interpretação</h3>
+            <ul className="space-y-2 text-sm text-muted">
+              {data.interpretacao.map((line: string, i: number) => (
+                <li key={i} className="flex gap-2"><span className="text-brand">•</span><span>{line}</span></li>
+              ))}
+            </ul>
+          </Card>
+        )}
+
+        {data.meta?.metodologia && (
+          <MethodologyNote items={[
+            ['PMR — Prazo Médio de Recebimento', data.meta.metodologia.pmr],
+            ['PMP — Prazo Médio de Pagamento', data.meta.metodologia.pmp],
+            ['PME — Prazo Médio de Estoque', data.meta.metodologia.pme],
+            ['Caixa', data.meta.metodologia.caixa],
+            ['NCG — Necessidade de Capital de Giro', data.meta.metodologia.ncg],
+            ['Capital de Giro Líquido', data.meta.metodologia.cgl],
+            ['Saldo em Tesouraria', data.meta.metodologia.tesouraria],
+          ]} />
+        )}
+      </div>
+    );
+  };
+
   /* ------------------------------------------------------------- PREVISÕES */
   const renderForecasts = () => {
     if (!data || !data.summary) return null;
@@ -542,6 +675,7 @@ const Reports: React.FC<ReportsProps> = ({ token }) => {
     { id: 'forecasts', label: 'Previsões' },
     { id: 'dre', label: 'DRE Gerencial' },
     { id: 'analysis', label: 'Análise Detalhada' },
+    { id: 'cycle', label: 'Ciclo Financeiro' },
   ];
 
   return (
@@ -586,6 +720,7 @@ const Reports: React.FC<ReportsProps> = ({ token }) => {
             {activeTab === 'forecasts' && renderForecasts()}
             {activeTab === 'dre' && renderDre()}
             {activeTab === 'analysis' && renderAnalysis()}
+            {activeTab === 'cycle' && renderCycle()}
           </>
         )}
       </div>

@@ -41,24 +41,26 @@ const Transactions: React.FC<TransactionsProps> = ({
 
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
+    accrualDate: '',
     description: '',
     value: '',
     type: TransactionType.DEBIT,
     bankId: activeBanks[0]?.id || 0,
     creditCardId: null as number | null,
-    categoryId: 0, 
+    categoryId: 0,
   });
 
   useEffect(() => {
     if (isModalOpen && !editingId) {
        setFormData({
         date: new Date().toISOString().split('T')[0],
+        accrualDate: '',
         description: '',
         value: '',
         type: TransactionType.DEBIT,
         bankId: activeBanks[0]?.id || 0,
         creditCardId: null,
-        categoryId: 0, 
+        categoryId: 0,
        });
     }
   }, [isModalOpen, editingId, banks]);
@@ -67,6 +69,7 @@ const Transactions: React.FC<TransactionsProps> = ({
       setEditingId(t.id);
       setFormData({
           date: t.date,
+          accrualDate: t.accrualDate || '',
           description: t.description,
           value: String(t.value),
           type: t.type,
@@ -129,13 +132,14 @@ const Transactions: React.FC<TransactionsProps> = ({
     
     const payload = {
       date: formData.date,
+      accrualDate: formData.accrualDate || null,
       description: formData.description,
-      value: Math.abs(Number(formData.value)), 
+      value: Math.abs(Number(formData.value)),
       type: formData.type,
       bankId: formData.bankId ? Number(formData.bankId) : null,
       creditCardId: formData.creditCardId,
       categoryId: Number(formData.categoryId),
-      reconciled: editingId ? true : false 
+      reconciled: editingId ? true : false
     };
 
     if (editingId) {
@@ -505,15 +509,26 @@ const Transactions: React.FC<TransactionsProps> = ({
                     </select>
                 </div>
                 <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-muted">Data</label>
-                    <input 
-                        type="date" 
+                    <label className="text-sm font-medium text-muted">Data (caixa)</label>
+                    <input
+                        type="date"
                         required
                         className="w-full px-3 py-2 bg-surface border border-line rounded-lg focus:ring-2 focus:ring-brand/50 focus:border-brand outline-none transition-all text-ink"
                         value={formData.date}
                         onChange={e => setFormData({...formData, date: e.target.value})}
                     />
                 </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-muted">Data de competência <span className="text-faint font-normal">(emissão da nota — opcional)</span></label>
+                <input
+                    type="date"
+                    className="w-full px-3 py-2 bg-surface border border-line rounded-lg focus:ring-2 focus:ring-brand/50 focus:border-brand outline-none transition-all text-ink"
+                    value={formData.accrualDate}
+                    onChange={e => setFormData({...formData, accrualDate: e.target.value})}
+                />
+                <p className="text-[11px] text-faint">Deixe vazio se foi à vista. Usada no cálculo de PMR/PMP (aba Ciclo Financeiro).</p>
               </div>
 
               <div className="space-y-1.5">

@@ -20,6 +20,7 @@ import registerOfxRoutes from './src/server/routes/ofx.routes.js';
 import registerKeywordRuleRoutes from './src/server/routes/keywordRules.routes.js';
 import registerIntegrationRoutes from './src/server/routes/integration.routes.js';
 import registerReportRoutes from './src/server/routes/reports.routes.js';
+import registerPlanningRoutes from './src/server/routes/planning.routes.js';
 import registerAdminRoutes from './src/server/routes/admin.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -75,6 +76,7 @@ registerOfxRoutes(app);
 registerKeywordRuleRoutes(app);
 registerIntegrationRoutes(app);
 registerReportRoutes(app);
+registerPlanningRoutes(app);
 registerAdminRoutes(app);
 
 // START

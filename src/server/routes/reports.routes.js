@@ -1,6 +1,8 @@
 import { pool } from '../db.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { dreBucketFor } from '../accounting.js';
+import { computeDre } from '../lib/dre.js';
+import { computeFinancialCycle } from '../lib/financialCycle.js';
 
 // Lê year/month da query e valida antes de irem para o SQL — um `year=abc`
 // vira NaN e quebra `EXTRACT(...) = $n` com 500. `month` é 0-indexado (JS);
@@ -340,86 +342,6 @@ app.get('/api/reports/analysis', authenticateToken, async (req, res) => {
         params.push(targetYear, prevYear);
     }
 
-    // Custos/despesas operacionais que entram no cálculo de fixo x variável.
-    const OPERACIONAIS = new Set(['cmv', 'desp_vendas', 'desp_pessoal', 'desp_admin', 'desp_gerais']);
-
-    // Reduz um conjunto de linhas ao DRE + composição fixo/variável + Pareto.
-    function computeDre(rows) {
-        const B = {};                // bucket -> soma
-        const catDespesa = {};       // categoria -> soma (só despesas que afetam o DRE)
-        const catReceita = {};       // categoria -> soma (só receitas operacionais)
-        let custosFixos = 0, custosVariaveis = 0;
-        let nReceitaBruta = 0;
-        let entradasCaixa = 0, saidasCaixa = 0;   // movimento real de caixa (tudo)
-
-        rows.forEach(r => {
-            const val = Number(r.value) || 0;
-            if (r.type === 'credito') entradasCaixa += val; else saidasCaixa += val;
-
-            const bk = dreBucketFor(r);
-            if (!bk) return; // patrimonial/interno — fora do DRE
-            B[bk] = (B[bk] || 0) + val;
-
-            const cat = r.category_name || 'Sem categoria';
-            if (r.type === 'credito') {
-                if (bk === 'receita_bruta') { nReceitaBruta += 1; catReceita[cat] = (catReceita[cat] || 0) + val; }
-                if (bk === 'outras_receitas_op') catReceita[cat] = (catReceita[cat] || 0) + val;
-            } else {
-                if (OPERACIONAIS.has(bk)) {
-                    catDespesa[cat] = (catDespesa[cat] || 0) + val;
-                    if (r.behavior_type === 'fixa') custosFixos += val;
-                    else custosVariaveis += val;
-                }
-            }
-        });
-        const g = k => B[k] || 0;
-
-        const receitaBruta = g('receita_bruta');
-        const deducoes = g('deducoes');
-        const receitaLiquida = receitaBruta - deducoes;
-        const cmv = g('cmv');
-        const lucroBruto = receitaLiquida - cmv;
-        const despVendas = g('desp_vendas'), despPessoal = g('desp_pessoal'),
-              despAdmin = g('desp_admin'), despGerais = g('desp_gerais');
-        const despesasOperacionais = despVendas + despPessoal + despAdmin + despGerais;
-        const outrasRecOp = g('outras_receitas_op');
-        const resultadoOperacional = lucroBruto - despesasOperacionais + outrasRecOp;
-        const resultadoFinanceiro = g('receita_financeira') - g('despesa_financeira');
-        const despesasFinanceiras = g('despesa_financeira');
-        const resultadoAntesTributos = resultadoOperacional + resultadoFinanceiro;
-        const resultadoNaoOperacional = g('receita_nao_op') - g('despesa_nao_op');
-        const irpjCsll = g('irpj_csll');
-        const lucroLiquido = resultadoAntesTributos + resultadoNaoOperacional - irpjCsll;
-
-        // Margem de contribuição = RL − (custos e despesas VARIÁVEIS)
-        const custosDespVariaveis = custosVariaveis;
-        const margemContribuicao = receitaLiquida - custosDespVariaveis;
-        const margemContribuicaoPct = receitaLiquida > 0 ? (margemContribuicao / receitaLiquida) * 100 : 0;
-        const custosDespFixas = custosFixos;
-        // Ponto de equilíbrio contábil (R$ de receita líquida)
-        const pontoEquilibrio = margemContribuicaoPct > 0 ? custosDespFixas / (margemContribuicaoPct / 100) : null;
-        const margemSegurancaPct = (pontoEquilibrio && receitaLiquida > 0)
-            ? ((receitaLiquida - pontoEquilibrio) / receitaLiquida) * 100 : null;
-        const grauAlavancagem = resultadoOperacional !== 0 ? margemContribuicao / resultadoOperacional : null;
-
-        return {
-            receitaBruta, deducoes, receitaLiquida, cmv, lucroBruto,
-            despVendas, despPessoal, despAdmin, despGerais, despesasOperacionais, outrasRecOp,
-            resultadoOperacional, resultadoFinanceiro, despesasFinanceiras,
-            resultadoAntesTributos, resultadoNaoOperacional, irpjCsll, lucroLiquido,
-            margemBrutaPct: receitaLiquida > 0 ? (lucroBruto / receitaLiquida) * 100 : 0,
-            margemOperacionalPct: receitaLiquida > 0 ? (resultadoOperacional / receitaLiquida) * 100 : 0,
-            margemLiquidaPct: receitaLiquida > 0 ? (lucroLiquido / receitaLiquida) * 100 : 0,
-            margemContribuicao, margemContribuicaoPct,
-            custosDespFixas, custosDespVariaveis,
-            pctCustoFixo: (custosFixos + custosVariaveis) > 0 ? (custosFixos / (custosFixos + custosVariaveis)) * 100 : 0,
-            pontoEquilibrio, margemSegurancaPct, grauAlavancagem,
-            nReceitaBruta, ticketMedio: nReceitaBruta > 0 ? receitaBruta / nReceitaBruta : 0,
-            entradasCaixa, saidasCaixa, geracaoCaixa: entradasCaixa - saidasCaixa,
-            catDespesa, catReceita,
-        };
-    }
-
     try {
         const { rows } = await pool.query(q, params);
         const inPeriod = (r, yy, mm) => {
@@ -589,6 +511,24 @@ app.get('/api/reports/analysis', authenticateToken, async (req, res) => {
         });
     } catch (err) {
         console.error('Analysis Report Error:', err.stack);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Ciclo Financeiro — PMR, PMP, PME, Ciclo Operacional, CCC, NCG, Capital de
+// Giro, Saldo em Tesouraria. Ver src/server/lib/financialCycle.js.
+app.get('/api/reports/financial-cycle', authenticateToken, async (req, res) => {
+    const p = parsePeriod(req.query);
+    if (p.bad) return res.status(400).json({ error: p.bad });
+    const { y, m } = p;
+    const month = m !== null ? m : new Date().getMonth();
+    const allowed = [6, 12, 24, 36];
+    const months = allowed.includes(parseInt(req.query.months, 10)) ? parseInt(req.query.months, 10) : 12;
+    try {
+        const data = await computeFinancialCycle({ pool, userId: req.userId, year: y, month, months });
+        res.json(data);
+    } catch (err) {
+        console.error('Financial Cycle Error:', err.stack);
         res.status(500).json({ error: err.message });
     }
 });

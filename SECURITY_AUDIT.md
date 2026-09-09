@@ -59,6 +59,29 @@ recálculo de saldo, 5 relatórios) + migrations testadas em banco vazio E
   `PASSWORD_ADMIN` forte (o usuário disse já ter ajustado).
 - Disparar o deploy no EasyPanel (fora do repo).
 
+---
+
+## Feature — área Planejamento (branch `feature/planejamento`)
+
+Fora do escopo da auditoria, mas seguindo o mesmo padrão de segurança. **Fase 1:**
+aba "Ciclo Financeiro" em Relatórios (PMR/PMP/PME/CCC/NCG/Capital de Giro/Saldo
+em Tesouraria) + nova área "Planejamento" (independente) com Dashboard executivo
+funcional e as outras 6 sub-abas em esqueleto "Em breve".
+
+- Migration `0002_accrual_date.sql`: `transactions.accrual_date` +
+  `forecasts.accrual_date` (data de competência, opcional). Base do PMR/PMP.
+- Rotas novas: `GET /api/reports/financial-cycle`, `GET /api/planning/overview`.
+  **Auditoria multi-tenant:** toda query filtra `WHERE user_id = $1`; único input
+  do frontend é `year`/`month`/`months` (validados). Sem ID vindo do cliente.
+- `PATCH /api/forecasts/:id/realize` virou **atômico** (BEGIN/COMMIT: marca
+  `realized=1` + cria o lançamento numa transação só). Elimina a janela de
+  falha parcial e a dupla contagem do fluxo antigo (2 chamadas do frontend).
+- `computeDre` extraído para `src/server/lib/dre.js` (fonte única, cálculo
+  inalterado; PE/MC conferidos).
+- **Testes:** 21 checagens do ciclo + 17 de planejamento (inclui: realizar
+  previsão → previsto cai o valor exato, realizado sobe o mesmo, líquido
+  inalterado; 1 transação criada, não 2; realize repetido → 409).
+
 Correções de brinde nesta rodada: `?year=abc` / `?month=13` nos relatórios →
 **400** (era 500 no `::date`); `month=0` (janeiro) nos relatórios cash-flow /
 DRE / previsões era tratado como "ano todo" — agora mostra janeiro.

@@ -168,21 +168,14 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
       const finalDate = realizeModal.date;
 
       try {
-        await fetch(`/api/forecasts/${forecast.id}/realize`, { method: 'PATCH', headers: getHeaders() });
-        const descSuffix = forecast.installmentTotal ? ` (${forecast.installmentCurrent}/${forecast.installmentTotal})` : (forecast.groupId ? ' (Recorrente)' : '');
-        await fetch('/api/transactions', {
-            method: 'POST',
+        // Um passo só: o backend marca a previsão como realizada E cria o
+        // lançamento na mesma transação (sem risco de dupla contagem).
+        const res = await fetch(`/api/forecasts/${forecast.id}/realize`, {
+            method: 'PATCH',
             headers: getHeaders(),
-            body: JSON.stringify({
-                date: finalDate,
-                description: forecast.description + descSuffix,
-                value: forecast.value,
-                type: forecast.type,
-                categoryId: forecast.categoryId,
-                bankId: forecast.bankId,
-                reconciled: false
-            })
+            body: JSON.stringify({ realizedDate: finalDate }),
         });
+        if (!res.ok) throw new Error('realize falhou');
         await onRefresh();
         setRealizeModal({ isOpen: false, forecast: null, date: '' });
         if (overdueForecasts.length <= 1) setIsOverdueModalOpen(false);
