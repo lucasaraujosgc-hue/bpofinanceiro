@@ -36,7 +36,7 @@ app.get('/api/planning/overview', authenticateToken, async (req, res) => {
     const horizonteEnd = lastDayOf(y, m + horizonte);
 
     try {
-        const [txRes, caixaRes, fcRes] = await Promise.all([
+        const [txRes, caixaRes, fcRes, budRes] = await Promise.all([
             pool.query(
                 `SELECT t.type, t.value, t.date,
                         c.name AS category_name, c.group_type, c.behavior_type
@@ -52,11 +52,28 @@ app.get('/api/planning/overview', authenticateToken, async (req, res) => {
                  FROM forecasts f LEFT JOIN categories c ON f.category_id = c.id
                  WHERE f.user_id = $1 AND COALESCE(f.realized, 0) = 0`,
                 [userId]),
+            pool.query(
+                `SELECT b.year, bi.month, bi.kind, SUM(bi.amount)::float AS amount
+                 FROM budget_items bi JOIN budgets b ON b.id = bi.budget_id
+                 WHERE bi.user_id = $1 AND b.year IN ($2, $3)
+                 GROUP BY b.year, bi.month, bi.kind`,
+                [userId, y, y - 1]),
         ]);
 
         const tx = txRes.rows;
         const caixaAtual = Number(caixaRes.rows[0].caixa) || 0;
         const forecasts = fcRes.rows;
+
+        // ---- orçado por mês ('YYYY-MM' -> {receita, despesa}) ----
+        const budByMonth = {};
+        for (const r of budRes.rows) {
+            const mk = `${r.year}-${String(r.month).padStart(2, '0')}`;
+            if (!budByMonth[mk]) budByMonth[mk] = { receita: 0, despesa: 0 };
+            budByMonth[mk][r.kind] = Number(r.amount) || 0;
+        }
+        const hasBudget = budRes.rows.length > 0;
+        const orcRefRec = budByMonth[refKey]?.receita ?? null;
+        const orcRefDesp = budByMonth[refKey]?.despesa ?? null;
 
         // ---- DRE por mês (12 meses) ----
         const monthsSeq = [];
@@ -136,12 +153,19 @@ app.get('/api/planning/overview', authenticateToken, async (req, res) => {
         if (cur.margemLiquidaPct < 0 && cur.receitaBruta > 0) {
             alertas.push({ tipo: 'margem', severidade: 'alta', mensagem: `Margem líquida negativa no mês (${cur.margemLiquidaPct.toFixed(1)}%).` });
         }
+        // ---- alertas de orçamento (só se houver orçamento no mês) ----
+        if (orcRefRec !== null && orcRefRec > 0 && receitaRealizada < orcRefRec * 0.9) {
+            alertas.push({ tipo: 'orcamento', severidade: 'media', mensagem: `Receita realizada ${((1 - receitaRealizada / orcRefRec) * 100).toFixed(0)}% abaixo do orçado (${brl(orcRefRec)}).` });
+        }
+        if (orcRefDesp !== null && orcRefDesp > 0 && despesaRealizada > orcRefDesp * 1.1) {
+            alertas.push({ tipo: 'orcamento', severidade: 'media', mensagem: `Despesa realizada ${((despesaRealizada / orcRefDesp - 1) * 100).toFixed(0)}% acima do orçado (${brl(orcRefDesp)}).` });
+        }
 
         // ---- séries (12 meses) ----
         const series = {
-            receita: monthsSeq.map(k => ({ mes: k, realizado: dreByMonth[k].receitaBruta, previsto: (fcByMonth[k]?.receita) || 0, orcado: null })),
-            despesa: monthsSeq.map(k => ({ mes: k, realizado: (dreByMonth[k].cmv + dreByMonth[k].despesasOperacionais), previsto: (fcByMonth[k]?.despesa) || 0, orcado: null })),
-            resultado: monthsSeq.map(k => ({ mes: k, realizado: dreByMonth[k].lucroLiquido, previsto: ((fcByMonth[k]?.receita) || 0) - ((fcByMonth[k]?.despesa) || 0), orcado: null })),
+            receita: monthsSeq.map(k => ({ mes: k, realizado: dreByMonth[k].receitaBruta, previsto: (fcByMonth[k]?.receita) || 0, orcado: budByMonth[k]?.receita ?? null })),
+            despesa: monthsSeq.map(k => ({ mes: k, realizado: (dreByMonth[k].cmv + dreByMonth[k].despesasOperacionais), previsto: (fcByMonth[k]?.despesa) || 0, orcado: budByMonth[k]?.despesa ?? null })),
+            resultado: monthsSeq.map(k => ({ mes: k, realizado: dreByMonth[k].lucroLiquido, previsto: ((fcByMonth[k]?.receita) || 0) - ((fcByMonth[k]?.despesa) || 0), orcado: budByMonth[k] ? (budByMonth[k].receita - budByMonth[k].despesa) : null })),
             margem: monthsSeq.map(k => ({ mes: k, pct: dreByMonth[k].margemLiquidaPct })),
         };
         // caixa acumulado (12 meses) — cumulativo do net mensal + estimativa até refKey
@@ -162,9 +186,10 @@ app.get('/api/planning/overview', authenticateToken, async (req, res) => {
         res.json({
             periodo: { ano: y, mes: m + 1 },
             horizonte,
-            receita: { realizada: receitaRealizada, orcada: null, prevista: receitaPrevista },
-            despesa: { realizada: despesaRealizada, orcada: null, prevista: despesaPrevista },
-            resultado: { realizado: resultadoRealizado, orcado: null, projetado: resultadoProjetado },
+            hasBudget,
+            receita: { realizada: receitaRealizada, orcada: orcRefRec, prevista: receitaPrevista },
+            despesa: { realizada: despesaRealizada, orcada: orcRefDesp, prevista: despesaPrevista },
+            resultado: { realizado: resultadoRealizado, orcado: (orcRefRec !== null || orcRefDesp !== null) ? ((orcRefRec || 0) - (orcRefDesp || 0)) : null, projetado: resultadoProjetado },
             caixa: { atual: caixaAtual, projetado: caixaProjetado },
             pontoEquilibrio: cur.pontoEquilibrio,
             margemSegurancaPct: cur.margemSegurancaPct,
@@ -176,7 +201,9 @@ app.get('/api/planning/overview', authenticateToken, async (req, res) => {
             series,
             meta: {
                 regime: 'caixa',
-                nota: 'Orçado ainda não disponível — habilita na aba Orçamento. Realizado vem dos lançamentos; Previsto, das previsões em aberto.',
+                nota: hasBudget
+                    ? 'Realizado vem dos lançamentos; Previsto, das previsões em aberto; Orçado, do orçamento do ano.'
+                    : 'Orçado ainda não disponível — crie um orçamento na aba Orçamento. Realizado vem dos lançamentos; Previsto, das previsões em aberto.',
             },
         });
     } catch (err) {

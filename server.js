@@ -21,6 +21,7 @@ import registerKeywordRuleRoutes from './src/server/routes/keywordRules.routes.j
 import registerIntegrationRoutes from './src/server/routes/integration.routes.js';
 import registerReportRoutes from './src/server/routes/reports.routes.js';
 import registerPlanningRoutes from './src/server/routes/planning.routes.js';
+import registerBudgetRoutes from './src/server/routes/budgets.routes.js';
 import registerAdminRoutes from './src/server/routes/admin.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -77,6 +78,7 @@ registerKeywordRuleRoutes(app);
 registerIntegrationRoutes(app);
 registerReportRoutes(app);
 registerPlanningRoutes(app);
+registerBudgetRoutes(app);
 registerAdminRoutes(app);
 
 // START

@@ -214,6 +214,27 @@ if (seeded.rows[0].n === 0) {
   await q(`INSERT INTO ofx_imports (user_id,file_name,import_date,bank_id,transaction_count,content) VALUES ($1,$2,$3,$4,$5,'')`,
     [uid, 'extrato_inter_ago2026.ofx', '2026-09-01T10:14:00Z', bankIds['Banco Inter'], 12]);
 
+  // ---- orçamento 2026 (área Planejamento / Orçado × Realizado) ----
+  const bud = await q(`INSERT INTO budgets (user_id, year, name) VALUES ($1, 2026, 'Orçamento 2026') RETURNING id`, [uid]);
+  const budId = bud.rows[0].id;
+  const budLines = [
+    ['Vendas de Mercadorias', 'receita', 'receita_bruta', 46000],
+    ['Prestação de Serviços', 'receita', 'receita_bruta', 15500],
+    ['Compra de Mercadorias', 'despesa', 'custo_operacional', 19000],
+    ['Salários e Ordenados', 'despesa', 'despesa_pessoal', 9200],
+    ['Pró-Labore', 'despesa', 'despesa_pessoal', 5000],
+    ['Aluguel e Condomínio', 'despesa', 'despesa_administrativa', 3500],
+    ['Impostos sobre Vendas (DAS)', 'despesa', 'impostos', 4300],
+    ['Marketing e Publicidade', 'despesa', 'despesa_com_vendas', 1400],
+  ];
+  for (const [name, kind, grp, base] of budLines) {
+    for (let mo = 1; mo <= 12; mo++) {
+      const v = Math.round((base * (0.92 + mo * 0.015)) * 100) / 100; // leve crescimento ao longo do ano
+      await q(`INSERT INTO budget_items (budget_id, user_id, month, category_id, group_type, kind, amount) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [budId, uid, mo, catId[name], grp, kind, v]);
+    }
+  }
+
   const n = await q(`SELECT COUNT(*)::int AS n FROM transactions`);
   console.log(`[preview] pronto — ${n.rows[0].n} lançamentos. Login: demo@virgula.com.br / demo1234`);
 }

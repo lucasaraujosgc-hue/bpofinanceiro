@@ -264,3 +264,37 @@ export const adminBankUpdateSchema = z.object({
     name: shortText.min(1, 'nome obrigatório'),
     logoData: z.string().max(1_000_000).nullish(),
 }).loose();
+
+// --- planejamento: orçamento --------------------------------------
+
+const budgetYear = z.coerce.number().int().min(2000).max(2100);
+const pctChange = z.coerce.number().min(-100).max(1000).default(0); // % de crescimento/redução
+
+export const budgetCreateSchema = z.object({
+    year: budgetYear,
+    name: z.string().trim().max(120).nullish(),
+}).loose();
+
+export const budgetItemsSchema = z.object({
+    items: z.array(z.object({
+        month: z.coerce.number().int().min(1).max(12),
+        categoryId: idRef,
+        groupType: z.string().trim().max(60).nullish(),
+        kind: z.enum(['receita', 'despesa']),
+        amount: money,
+        quantity: z.coerce.number().finite().nonnegative().max(1e9).nullish(),
+    })).max(2000),
+}).loose();
+
+export const budgetClearLineSchema = z.object({
+    categoryId: idRef,
+    groupType: z.string().trim().max(60).nullish(),
+}).loose();
+
+export const budgetGenerateSchema = z.object({
+    method: z.enum(['history_avg', 'prev_year', 'copy']),
+    months: z.coerce.number().int().min(1).max(36).default(12),
+    growthPct: pctChange,
+    fromYear: budgetYear.nullish(),
+    scope: z.enum(['all', 'receitas', 'despesas']).default('all'),
+}).loose();

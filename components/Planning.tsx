@@ -11,9 +11,12 @@ import {
   MONTHS, brl, brlShort, pctTxt, fmtMonthKey, CHART_AXIS, CHART_TOOLTIP,
   Card, Stat, ComingSoon,
 } from './reportUi';
+import { Category } from '../types';
+import PlanningBudget from './PlanningBudget';
 
 interface PlanningProps {
   token: string;
+  categories: Category[];
 }
 
 type SubTab = 'dashboard' | 'orcamento' | 'orcado-realizado' | 'forecast' | 'cenarios' | 'simulador' | 'modelagem';
@@ -33,7 +36,7 @@ const sev = (s: string) =>
     : s === 'media' ? 'border-warn/30 bg-warn/10 text-warn'
       : 'border-info/30 bg-info/10 text-info';
 
-const Planning: React.FC<PlanningProps> = ({ token }) => {
+const Planning: React.FC<PlanningProps> = ({ token, categories }) => {
   const [sub, setSub] = useState<SubTab>('dashboard');
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth());
@@ -62,8 +65,12 @@ const Planning: React.FC<PlanningProps> = ({ token }) => {
     if (!data) return <p className="text-faint text-sm text-center py-16">Sem dados para o período.</p>;
 
     const { receita, despesa, resultado, caixa, series, alertas } = data;
+    const hasBudget = !!data.hasBudget;
     const chartData = (key: 'receita' | 'despesa' | 'resultado') =>
-      (series[key] || []).map((d: any) => ({ mes: fmtMonthKey(d.mes), Realizado: d.realizado, Previsto: d.previsto }));
+      (series[key] || []).map((d: any) => ({
+        mes: fmtMonthKey(d.mes), Realizado: d.realizado, Previsto: d.previsto,
+        ...(hasBudget ? { Orçado: d.orcado } : {}),
+      }));
     const caixaData = (series.caixa || []).map((d: any) => ({ mes: fmtMonthKey(d.mes), Saldo: d.saldo }));
     const margemData = (series.margem || []).map((d: any) => ({ mes: fmtMonthKey(d.mes), Margem: d.pct }));
 
@@ -118,8 +125,8 @@ const Planning: React.FC<PlanningProps> = ({ token }) => {
         <div className="grid lg:grid-cols-2 gap-5">
           {(['receita', 'despesa', 'resultado'] as const).map((k) => (
             <Card key={k}>
-              <h3 className="text-ink font-bold capitalize mb-1">{k}: Realizado × Previsto</h3>
-              <p className="text-muted text-xs mb-4">Últimos 12 meses. A coluna "Orçado" aparece quando você criar um orçamento.</p>
+              <h3 className="text-ink font-bold capitalize mb-1">{k}: Realizado × Previsto{hasBudget ? ' × Orçado' : ''}</h3>
+              <p className="text-muted text-xs mb-4">Últimos 12 meses.{hasBudget ? '' : ' A coluna "Orçado" aparece quando você criar um orçamento.'}</p>
               <div className="h-64 w-full overflow-x-auto">
                 <div className="min-w-[520px] h-full">
                   <ResponsiveContainer>
@@ -129,8 +136,9 @@ const Planning: React.FC<PlanningProps> = ({ token }) => {
                       <YAxis tick={CHART_AXIS} axisLine={false} tickLine={false} tickFormatter={brlShort} width={64} />
                       <Tooltip {...CHART_TOOLTIP} formatter={(v: any) => brl(v)} />
                       <Legend wrapperStyle={{ fontSize: 12 }} />
-                      <Bar dataKey="Realizado" fill="var(--color-brand)" radius={[3, 3, 0, 0]} maxBarSize={26} />
-                      <Bar dataKey="Previsto" fill="var(--color-info)" fillOpacity={0.55} radius={[3, 3, 0, 0]} maxBarSize={26} />
+                      <Bar dataKey="Realizado" fill="var(--color-brand)" radius={[3, 3, 0, 0]} maxBarSize={hasBudget ? 18 : 26} />
+                      <Bar dataKey="Previsto" fill="var(--color-info)" fillOpacity={0.55} radius={[3, 3, 0, 0]} maxBarSize={hasBudget ? 18 : 26} />
+                      {hasBudget && <Bar dataKey="Orçado" fill="var(--color-warn)" fillOpacity={0.55} radius={[3, 3, 0, 0]} maxBarSize={18} />}
                     </ComposedChart>
                   </ResponsiveContainer>
                 </div>
@@ -187,8 +195,7 @@ const Planning: React.FC<PlanningProps> = ({ token }) => {
     );
   };
 
-  const soon: Record<Exclude<SubTab, 'dashboard'>, [string, string]> = {
-    'orcamento': ['Orçamento', 'Crie o orçamento por mês, categoria e grupo da DRE — anual com distribuição mensal, a partir de histórico, crescimento/redução percentual ou cópia de outro período.'],
+  const soon: Record<Exclude<SubTab, 'dashboard' | 'orcamento'>, [string, string]> = {
     'orcado-realizado': ['Orçado × Realizado', 'Comparação por categoria e grupo: orçado, realizado, diferença em R$ e %, status, e análise automática das principais variações. Depende do Orçamento.'],
     'forecast': ['Forecast', 'Projeção Realizado + Forecast para 3, 6, 12, 24 ou 36 meses, por média histórica, média móvel, crescimento (histórico ou informado), orçamento ou sazonalidade. Evolui as previsões que já existem.'],
     'cenarios': ['Cenários', 'Cenário Base, Otimista e Pessimista com premissas próprias (crescimento de receita, despesas, margem, prazos, investimentos, empréstimos). Gera DRE e fluxo de caixa projetados.'],
@@ -230,7 +237,9 @@ const Planning: React.FC<PlanningProps> = ({ token }) => {
       </div>
 
       <div className="min-h-[400px]">
-        {sub === 'dashboard' ? renderDashboard() : (
+        {sub === 'dashboard' && renderDashboard()}
+        {sub === 'orcamento' && <PlanningBudget token={token} categories={categories} />}
+        {sub !== 'dashboard' && sub !== 'orcamento' && (
           <ComingSoon title={soon[sub][0]}>{soon[sub][1]}</ComingSoon>
         )}
       </div>

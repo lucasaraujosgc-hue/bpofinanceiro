@@ -349,7 +349,7 @@ function App() {
       case 'categories': return <Categories categories={categories} onAddCategory={handleAddCategory} onDeleteCategory={handleDeleteCategory} onUpdateCategory={handleUpdateCategory} />;
       case 'integration': return <IntegrationConfig categories={categories} banks={activeBanks} />;
       case 'reports': return <Reports token={currentToken} transactions={transactions} categories={categories} />;
-      case 'planning': return <Planning token={currentToken} />;
+      case 'planning': return <Planning token={currentToken} categories={categories} />;
       case 'forecasts': return <Forecasts token={currentToken} userId={user.id} banks={activeBanks} creditCards={creditCards} transactions={transactions} categories={categories} onUpdate={fetchInitialData} onNavigate={setActiveTab} />;
       case 'tutorial': return <Tutorial />;
       default: return <Dashboard token={currentToken} userId={user.id} transactions={transactions} banks={activeBanks} forecasts={forecasts} categories={categories} onRefresh={fetchInitialData} />;
