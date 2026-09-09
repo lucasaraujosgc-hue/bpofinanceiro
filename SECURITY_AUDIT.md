@@ -92,6 +92,16 @@ indicadores (atingimento de receita, controle de despesa, resultado/margem
 orçado × realizado); análise automática das maiores variações (só data-driven).
 `components/PlanningBudgetVsActual.tsx`.
 
+**Fase 4 — Forecast:** `GET /api/planning/forecast` (`src/server/lib/forecast.js`)
+— projeção Realizado + Forecast (3/6/12/24/36 meses) por média histórica / média
+móvel / crescimento histórico / orçamento / sazonalidade, + crescimento %
+informado combinável. Aproveita a tabela `forecasts` existente: onde há previsão
+cadastrada para o mês, usa `max(previsão, projeção estatística)`. Categorias
+patrimoniais (`dre: null`) não se projetam estatisticamente. Método usado sempre
+visível na tela. `components/PlanningForecast.tsx`. Bug latente corrigido de
+brinde: grupos do DRE agora chaveados por `(grupo, tipo)` — `nao_operacional`
+(type 'ambos') misturava entradas e saídas num só subtotal (afetava Fase 3 e 4).
+
 Toda rota nova: autentica, confere `budgets.user_id = req.userId` (ID do
 frontend nunca confiado), zod, queries `$n`.
 

@@ -2,6 +2,7 @@ import { pool } from '../db.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { computeDre } from '../lib/dre.js';
 import { computeFinancialCycle } from '../lib/financialCycle.js';
+import { computeForecast } from '../lib/forecast.js';
 
 // Validação de year/month (mesmo espírito do parsePeriod dos relatórios).
 function parseRef(q) {
@@ -208,6 +209,23 @@ app.get('/api/planning/overview', authenticateToken, async (req, res) => {
         });
     } catch (err) {
         console.error('Planning Overview Error:', err.stack);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Forecast — projeção Realizado + Forecast (ver src/server/lib/forecast.js).
+const FC_METHODS = ['media_historica', 'media_movel', 'crescimento_historico', 'orcamento', 'sazonalidade'];
+app.get('/api/planning/forecast', authenticateToken, async (req, res) => {
+    const method = FC_METHODS.includes(req.query.method) ? req.query.method : 'media_historica';
+    const horizon = [3, 6, 12, 24, 36].includes(parseInt(req.query.horizon, 10)) ? parseInt(req.query.horizon, 10) : 12;
+    const historyMonths = [3, 6, 12, 24].includes(parseInt(req.query.historyMonths, 10)) ? parseInt(req.query.historyMonths, 10) : 12;
+    let growthPct = parseFloat(req.query.growthPct);
+    growthPct = Number.isFinite(growthPct) ? Math.max(-90, Math.min(200, growthPct)) : 0;
+    try {
+        const data = await computeForecast(req.userId, { method, horizon, historyMonths, growthPct });
+        res.json(data);
+    } catch (err) {
+        console.error('Planning Forecast Error:', err.stack);
         res.status(500).json({ error: err.message });
     }
 });

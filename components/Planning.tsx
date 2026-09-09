@@ -14,6 +14,7 @@ import {
 import { Category } from '../types';
 import PlanningBudget from './PlanningBudget';
 import PlanningBudgetVsActual from './PlanningBudgetVsActual';
+import PlanningForecast from './PlanningForecast';
 
 interface PlanningProps {
   token: string;
@@ -196,8 +197,7 @@ const Planning: React.FC<PlanningProps> = ({ token, categories }) => {
     );
   };
 
-  const soon: Record<Exclude<SubTab, 'dashboard' | 'orcamento' | 'orcado-realizado'>, [string, string]> = {
-    'forecast': ['Forecast', 'Projeção Realizado + Forecast para 3, 6, 12, 24 ou 36 meses, por média histórica, média móvel, crescimento (histórico ou informado), orçamento ou sazonalidade. Evolui as previsões que já existem.'],
+  const soon: Record<Exclude<SubTab, 'dashboard' | 'orcamento' | 'orcado-realizado' | 'forecast'>, [string, string]> = {
     'cenarios': ['Cenários', 'Cenário Base, Otimista e Pessimista com premissas próprias (crescimento de receita, despesas, margem, prazos, investimentos, empréstimos). Gera DRE e fluxo de caixa projetados.'],
     'simulador': ['Simulador', '"E se a receita subir 20%?", "E se eu reduzir despesas administrativas em 15%?". Altere premissas e veja o impacto imediato — sem tocar nos dados reais.'],
     'modelagem': ['Modelagem Financeira', 'Projeção completa de 12/24/36 meses: DRE projetada (na estrutura gerencial atual), fluxo de caixa, capital de giro, ponto de equilíbrio, margem de segurança e necessidade de caixa.'],
@@ -240,7 +240,8 @@ const Planning: React.FC<PlanningProps> = ({ token, categories }) => {
         {sub === 'dashboard' && renderDashboard()}
         {sub === 'orcamento' && <PlanningBudget token={token} categories={categories} />}
         {sub === 'orcado-realizado' && <PlanningBudgetVsActual token={token} categories={categories} />}
-        {sub !== 'dashboard' && sub !== 'orcamento' && sub !== 'orcado-realizado' && (
+        {sub === 'forecast' && <PlanningForecast token={token} />}
+        {sub !== 'dashboard' && sub !== 'orcamento' && sub !== 'orcado-realizado' && sub !== 'forecast' && (
           <ComingSoon title={soon[sub][0]}>{soon[sub][1]}</ComingSoon>
         )}
       </div>

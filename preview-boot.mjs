@@ -126,25 +126,30 @@ if (seeded.rows[0].n === 0) {
 
   const OP = 'Itaú';           // conta operacional principal
   const RES = 'Banco Inter';   // reserva
-  const TODAY = 22;             // "hoje" = 08/09/2026 — não gera lançamento futuro no mês corrente
-  // capital de constituição (histórico — não aparece nos relatórios do período)
-  push('2026-01-08', 'Integralização de capital dos sócios', 34200, 'credito', 'Aporte de Sócio', OP);
-  push('2026-01-08', 'Integralização de capital dos sócios', 11500, 'credito', 'Aporte de Sócio', RES);
-  const months = [
-    { y: 2026, m: 6, growth: 0.90 },
-    { y: 2026, m: 7, growth: 1.00 },
-    { y: 2026, m: 8, growth: 1.12 },
-    { y: 2026, m: 9, growth: 0.9 }, // mês corrente parcial
-  ];
+  const TODAY = 22;             // "hoje" ~ meados de set/2026 — não gera lançamento futuro no mês corrente
+  // capital de constituição
+  push('2024-10-05', 'Integralização de capital dos sócios', 34200, 'credito', 'Aporte de Sócio', OP);
+  push('2024-10-05', 'Integralização de capital dos sócios', 11500, 'credito', 'Aporte de Sócio', RES);
+  // 24 meses de histórico: out/2024 → set/2026 (mês corrente parcial), com
+  // tendência de alta + sazonalidade (dez forte, jan/fev fracos).
+  const SEAS = [0.86, 0.80, 1.02, 0.98, 1.06, 1.12, 0.90, 0.84, 1.08, 1.16, 1.14, 1.34];
+  const months = [];
+  for (let ym = 2024 * 12 + 9; ym <= 2026 * 12 + 8; ym++) {
+    const y = Math.floor(ym / 12), m = (ym % 12) + 1;
+    const t = ym - (2024 * 12 + 9); // 0..23
+    const growth = Math.round((0.62 + t * 0.021 + (Math.random() - 0.5) * 0.07) * SEAS[m - 1] * 1000) / 1000;
+    months.push({ y, m, growth });
+  }
   for (const { y, m, growth } of months) {
     const M = String(m).padStart(2, '0');
-    const partial = m === 9;
-    const d = (day) => `${y}-${M}-${String(day).padStart(2, '0')}`;
-    const push2 = (day, ...rest) => { if (!(partial && day > TODAY)) push(d(day), ...rest); };
+    const partial = (y === 2026 && m === 9);
+    const dim = new Date(y, m, 0).getDate();                 // dias no mês (clampa 30/31 em fev)
+    const d = (day) => `${y}-${M}-${String(Math.min(day, dim)).padStart(2, '0')}`;
+    const push2 = (day, ...rest) => { if (!(partial && Math.min(day, dim) > TODAY)) push(d(day), ...rest); };
     // recebe com competência = venda alguns dias antes (gera PMR ~22-30 dias)
-    const pushRecebe = (day, desc, val, cat, prazo) => { if (!(partial && day > TODAY)) push(d(day), desc, val, 'credito', cat, OP, 1, minusDays(d(day), prazo)); };
+    const pushRecebe = (day, desc, val, cat, prazo) => { if (!(partial && Math.min(day, dim) > TODAY)) push(d(day), desc, val, 'credito', cat, OP, 1, minusDays(d(day), prazo)); };
     // paga com competência = compra alguns dias antes (gera PMP ~28-38 dias)
-    const pushPaga = (day, desc, val, cat, prazo) => { if (!(partial && day > TODAY)) push(d(day), desc, val, 'debito', cat, OP, 1, minusDays(d(day), prazo)); };
+    const pushPaga = (day, desc, val, cat, prazo) => { if (!(partial && Math.min(day, dim) > TODAY)) push(d(day), desc, val, 'debito', cat, OP, 1, minusDays(d(day), prazo)); };
     // receitas
     for (let i = 0; i < 7; i++) pushRecebe(3 + i * 3, `Venda no PDV — lote #${m}${1000 + i}`, rnd(7300 * growth, 1400), 'Vendas de Mercadorias', Math.round(rnd(24, 12)));
     pushRecebe(10, 'NF-e serviço — contrato mensal', rnd(10200 * growth, 900), 'Prestação de Serviços', Math.round(rnd(30, 8)));
@@ -202,6 +207,12 @@ if (seeded.rows[0].n === 0) {
     ['2026-09-25', 'Comissão dos vendedores', 2200, 'debito', 'Comissões sobre Vendas', 0],
     ['2026-09-26', 'Vendas da semana (previsão)', 12600, 'credito', 'Vendas de Mercadorias', 0],
     ['2026-09-28', 'Rendimento do CDB', 340, 'credito', 'Rendimentos de Aplicação', 0],
+    // meses futuros — alimentam o Forecast (previsão > projeção estatística)
+    ['2026-10-10', 'NF-e serviço — contrato anual fechado', 12000, 'credito', 'Prestação de Serviços', 0],
+    ['2026-10-15', 'Fornecedor — pedido grande de fim de ano', 22000, 'debito', 'Compra de Mercadorias', 0],
+    ['2026-11-20', 'Compra de equipamento (planejada)', 9000, 'debito', 'Compra de Equipamento', 0],
+    ['2026-12-18', '13º salário', 9200, 'debito', 'Salários e Ordenados', 0],
+    ['2026-12-20', 'Distribuição de lucros (planejada)', 12000, 'debito', 'Distribuição de Lucros', 0],
   ];
   for (const [date, desc, value, type, cat, realized] of fc) {
     await q(`INSERT INTO forecasts (user_id,date,description,value,type,category_id,bank_id,realized) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
@@ -215,12 +226,10 @@ if (seeded.rows[0].n === 0) {
     [uid, 'extrato_inter_ago2026.ofx', '2026-09-01T10:14:00Z', bankIds['Banco Inter'], 12]);
 
   // ---- orçamento 2026 (área Planejamento / Orçado × Realizado) ----
-  // Só de junho em diante (operação começa em jun no seed) — deixa o
-  // orçado × realizado comparável no período com dados.
   const bud = await q(`INSERT INTO budgets (user_id, year, name) VALUES ($1, 2026, 'Orçamento 2026') RETURNING id`, [uid]);
   const budId = bud.rows[0].id;
   const budLines = [
-    ['Vendas de Mercadorias', 'receita', 'receita_bruta', 50000],
+    ['Vendas de Mercadorias', 'receita', 'receita_bruta', 51000],
     ['Prestação de Serviços', 'receita', 'receita_bruta', 14500],
     ['Compra de Mercadorias', 'despesa', 'custo_operacional', 18500],
     ['Salários e Ordenados', 'despesa', 'despesa_pessoal', 9200],
@@ -230,10 +239,12 @@ if (seeded.rows[0].n === 0) {
     ['Marketing e Publicidade', 'despesa', 'despesa_com_vendas', 1300],
     ['Comissões sobre Vendas', 'despesa', 'despesa_com_vendas', 1900],
     ['Encargos (FGTS, INSS)', 'despesa', 'despesa_pessoal', 2650],
+    ['Energia, Água e Internet', 'despesa', 'despesa_administrativa', 900],
   ];
   for (const [name, kind, grp, base] of budLines) {
-    for (let mo = 6; mo <= 12; mo++) {
-      const v = Math.round((base * (0.96 + (mo - 6) * 0.02)) * 100) / 100; // leve crescimento
+    for (let mo = 1; mo <= 12; mo++) {
+      const seas = kind === 'receita' ? SEAS[mo - 1] : (0.97 + mo * 0.005);
+      const v = Math.round(base * seas * 100) / 100;
       await q(`INSERT INTO budget_items (budget_id, user_id, month, category_id, group_type, kind, amount) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
         [budId, uid, mo, catId[name], grp, kind, v]);
     }

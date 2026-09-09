@@ -7,10 +7,16 @@ import { ACCOUNTING_GROUPS } from '../accounting.js';
 // Orçado = soma dos itens do orçamento do ano para os meses do período.
 // ---------------------------------------------------------------------------
 
-const groupLabel = (gt, kind) =>
-    ACCOUNTING_GROUPS[gt]?.label || (kind === 'receita' ? 'Outras Receitas Operacionais' : 'Despesas Gerais e Operacionais');
 const groupOrder = Object.keys(ACCOUNTING_GROUPS);
-const gtKey = (gt, kind) => gt || (kind === 'receita' ? 'outras_receitas' : 'despesa_operacional');
+const rawGt = (gt, kind) => gt || (kind === 'receita' ? 'outras_receitas' : 'despesa_operacional');
+// Chave por (grupo, tipo): 'nao_operacional' (type 'ambos') tem entradas e saídas.
+const gtKey = (gt, kind) => `${rawGt(gt, kind)}|${kind}`;
+const groupLabel = (gt, kind) => {
+    const raw = rawGt(gt, kind);
+    const base = ACCOUNTING_GROUPS[raw]?.label || (kind === 'receita' ? 'Outras Receitas Operacionais' : 'Despesas Gerais e Operacionais');
+    return ACCOUNTING_GROUPS[raw]?.type === 'ambos' ? `${base} (${kind === 'receita' ? 'entradas' : 'saídas'})` : base;
+};
+const orderIdx = (key) => groupOrder.indexOf(String(key).split('|')[0]);
 
 function statusFor(kind, orcado, realizado) {
     if (orcado <= 0) return realizado > 0 ? 'sem_orcamento' : 'zerado';
@@ -75,7 +81,7 @@ export async function budgetVsActual(userId, year, fromMonth, toMonth) {
             g.categorias.sort((a, b) => Math.abs(b.difAbs) - Math.abs(a.difAbs));
             return { ...g, difAbs, difPct: g.orcado > 0 ? (difAbs / g.orcado) * 100 : null, status: statusFor(g.kind, g.orcado, g.realizado) };
         })
-        .sort((a, b) => groupOrder.indexOf(a.groupType) - groupOrder.indexOf(b.groupType));
+        .sort((a, b) => orderIdx(a.groupType) - orderIdx(b.groupType) || (a.kind === b.kind ? 0 : a.kind === 'receita' ? -1 : 1));
 
     // totais
     const sum = (arr, kind, field) => arr.filter(x => x.kind === kind).reduce((s, x) => s + x[field], 0);
