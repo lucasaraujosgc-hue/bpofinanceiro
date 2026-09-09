@@ -241,6 +241,25 @@ export async function computeScenario(userId, { assumptions = {}, horizonMonths 
             resultado: round2(dre.lucroLiquido),
             margemLiquidaPct: round2(dre.margemLiquidaPct),
             ncg: ncgMes === null ? null : round2(ncgMes),
+            // DRE gerencial completa do mês (para a aba Modelagem)
+            dre: {
+                receitaBruta: round2(dre.receitaBruta),
+                deducoes: round2(dre.deducoes),
+                receitaLiquida: round2(dre.receitaLiquida),
+                cmv: round2(dre.cmv),
+                lucroBruto: round2(dre.lucroBruto),
+                despesasOperacionais: round2(dre.despesasOperacionais),
+                outrasRecOp: round2(dre.outrasRecOp),
+                resultadoOperacional: round2(dre.resultadoOperacional),
+                resultadoFinanceiro: round2(dre.resultadoFinanceiro),
+                resultadoAntesTributos: round2(dre.resultadoAntesTributos),
+                resultadoNaoOperacional: round2(dre.resultadoNaoOperacional),
+                irpjCsll: round2(dre.irpjCsll),
+                lucroLiquido: round2(dre.lucroLiquido),
+                margemBrutaPct: round2(dre.margemBrutaPct),
+                margemOperacionalPct: round2(dre.margemOperacionalPct),
+                margemLiquidaPct: round2(dre.margemLiquidaPct),
+            },
             _deltaNcg: deltaNcg,
             _lucro: dre.lucroLiquido,
             _despesaOp: despesaOpMes,
@@ -281,6 +300,19 @@ export async function computeScenario(userId, { assumptions = {}, horizonMonths 
         delete s._deltaNcg; delete s._lucro; delete s._despesaOp;
     }
     const caixaFinal = caixa;
+    let mesMenorCaixa = null, _menor = Infinity;
+    for (const f of fluxo) { if (f.caixaFim < _menor) { _menor = f.caixaFim; mesMenorCaixa = f.mes; } }
+
+    // ---- quadro de capital de giro por mês (Caixa · NCG · CGL) ----
+    const capitalGiroSerie = fluxo.map((f, i) => {
+        const ncgM = ncgSerie[i]?.ncg ?? null;
+        return {
+            mes: f.mes,
+            caixa: f.caixaFim,
+            ncg: ncgM === null ? null : round2(ncgM),
+            cgl: ncgM === null ? null : round2(f.caixaFim + ncgM),
+        };
+    });
 
     // ---- grupos do DRE (estrutura ACCOUNTING_GROUPS) ----
     const dreGrupos = Object.values(grupoAgg)
@@ -333,12 +365,19 @@ export async function computeScenario(userId, { assumptions = {}, horizonMonths 
             pontoEquilibrio: dreTotal.pontoEquilibrio === null ? null : round2(dreTotal.pontoEquilibrio),
             pontoEquilibrioMensal: dreTotal.pontoEquilibrio === null ? null : round2(dreTotal.pontoEquilibrio / horizon),
             margemSegurancaPct: dreTotal.margemSegurancaPct === null ? null : round2(dreTotal.margemSegurancaPct),
+            margemContribuicao: round2(dreTotal.margemContribuicao),
+            margemContribuicaoPct: round2(dreTotal.margemContribuicaoPct),
+            grauAlavancagem: dreTotal.grauAlavancagem === null ? null : round2(dreTotal.grauAlavancagem),
             custosDespFixas: round2(dreTotal.custosDespFixas),
             custosDespVariaveis: round2(dreTotal.custosDespVariaveis),
             caixaInicial: round2(caixaAtual),
             caixaFinal: round2(caixaFinal),
             menorCaixaProjetado: round2(menorCaixa),
+            mesMenorCaixa,
+            // dinheiro que falta cobrir se o caixa ficar negativo em algum mês
+            necessidadeMaximaCaixa: menorCaixa < 0 ? round2(-menorCaixa) : 0,
             ncgFinal: ncgFinal === null ? null : round2(ncgFinal),
+            cglFinal: ncgFinal === null ? null : round2(caixaFinal + ncgFinal),
             ncgMetodo,
         },
         dre: {
@@ -367,6 +406,7 @@ export async function computeScenario(userId, { assumptions = {}, horizonMonths 
             menorCaixaProjetado: round2(menorCaixa),
             serie: fluxo,
         },
+        capitalGiroSerie,
         ncgSerie: ncgSerie.map(x => ({ mes: x.mes, ncg: x.ncg === null ? null : round2(x.ncg) })),
         aviso,
     };

@@ -129,19 +129,34 @@ NCG), gráfico base × simulado, atalhos ("Receita +20%", "Custos −10%"…),
 "Partir de" um cenário salvo. Metadados de premissa extraídos para
 `components/assumptions.ts` (compartilhado com Cenários).
 
+**Fase 7 — Modelagem Financeira:** tela integradora — nenhum motor novo, nenhuma
+tabela nova. `computeScenario` ganhou `serieMensal[].dre` (DRE gerencial
+completa por mês), `capitalGiroSerie` (Caixa · NCG · CGL) e indicadores extras
+(`grauAlavancagem`, `margemContribuicao`, `cglFinal`, `necessidadeMaximaCaixa`,
+`mesMenorCaixa`). `components/PlanningModel.tsx` consome `/preview` + `/compare`:
+resumo executivo, **DRE projetada** e **fluxo de caixa projetado** (método
+direto) em colunas mensais (≤12 m) ou anuais (>12 m), quadro de capital de giro
++ alerta de necessidade máxima de caixa (destaque quando o caixa fura o zero),
+indicadores (PE período/mês, MC, GAO…), comparação com os cenários salvos, e
+**export CSV** (`lib/csv.ts`, separador `;` + decimal `,` + BOM — abre no Excel
+pt-BR). Fórmula do ponto de equilíbrio reusada de `computeDre` (revisada na
+Fase 1), não duplicada.
+
 Toda rota nova: autentica, confere `*.user_id = req.userId` (ID do frontend
 nunca confiado — `loadScenario`/`ownedBudget`), zod (`assumptionsSchema` /
 `simulateSchema` com clamps), queries `$n`.
 
 - **Testes:** 21 ciclo + 17 planejamento + 21 orçamento + 20 orçado×realizado
-  + 28 forecast + 44 cenários + 16 simulador (inclui: realizar previsão →
-  previsto cai o valor exato, realizado sobe o mesmo, líquido inalterado; 1
-  transação criada, não 2; realize repetido → 409; upsert de orçamento sem
-  duplicar; identidade subtotal-de-grupo = Σ categorias; cenário sem PMR/PMP →
-  NCG indisponível; otimista > base > pessimista em receita/lucro; margem bruta
-  alvo reflete na DRE; IDOR em `/:id/projection` → 404; **simulador é efêmero:
-  nº de cenários inalterado após simular**; base == simulado quando as premissas
-  são iguais).
+  + 28 forecast + 44 cenários + 16 simulador + 20 modelagem (inclui: realizar
+  previsão → previsto cai o valor exato, realizado sobe o mesmo, líquido
+  inalterado; 1 transação criada, não 2; realize repetido → 409; upsert de
+  orçamento sem duplicar; identidade subtotal-de-grupo = Σ categorias; cenário
+  sem PMR/PMP → NCG indisponível; otimista > base > pessimista em receita/lucro;
+  margem bruta alvo reflete na DRE; IDOR em `/:id/projection` → 404; simulador é
+  efêmero: nº de cenários inalterado após simular; base == simulado com
+  premissas iguais; **Σ DRE mensal = DRE do horizonte; CGL = caixa + NCG por
+  mês; necessidadeMaximaCaixa = −menorCaixa; consumidores antigos não
+  quebraram**).
 
 Correções de brinde nesta rodada: `?year=abc` / `?month=13` nos relatórios →
 **400** (era 500 no `::date`); `month=0` (janeiro) nos relatórios cash-flow /
