@@ -478,6 +478,12 @@ só testar conexão. Rodar `migrate` como passo separado do deploy (o
 
 ## 11. 🟠 Webhook Pluggy sem verificação de assinatura
 
+**✅ SEM OBJETO.** A integração Pluggy inteira foi removida (rota
+`/api/pluggy/webhook`, `pluggy_connections`, widget e deps). Nada a assinar.
+O texto original segue para referência:
+
+---
+
 `server.js:817-841` — `POST /api/pluggy/webhook`, público, sem nenhuma
 verificação.
 
