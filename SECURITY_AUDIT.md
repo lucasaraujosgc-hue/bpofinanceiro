@@ -39,19 +39,22 @@ Legenda: 🔴 crítico · 🟠 alto · 🟡 médio · ⚪ baixo / higiene
 | §9 `server.js` monolítico | ✅ **split** (branch `refactor/split-server`): `src/server/{config,db,schema,accounting}.js` + `middleware/` + `services/` + `lib/` + `routes/*.routes.js` (10 módulos). `server.js` virou bootstrap de ~100 linhas. Handlers movidos verbatim, rotas/ordem preservadas. Shim SQLite→PG segue em `db.js` (documentado) |
 | §2 modelo de sessão | ✅ **access curto (15 min) + refresh rotativo (~90 d) com detecção de reuso** — tabela `auth_sessions` (digest sha256), `POST /api/auth/refresh` + `/api/auth/logout`, reset de senha e block/delete revogam a sessão. Frontend: patch de `window.fetch` (`lib/http.ts`) renova em 401 de forma transparente (single-flight). Token inválido → 401 `token_expired` (era 403) |
 | §5 validação de entrada | ✅ **zod** em todo endpoint de escrita (`src/server/schemas.js` + `middleware/validate.js`). Campos perigosos travados: `value` finito ≥ 0 (rejeita NaN/negativo/Infinity), `type` ∈ {credito,debito}, `date` AAAA-MM-DD **e dia real do calendário** (`2026-13-99` → 400, não 500 no `::date`), `email` com formato. `.loose()` deixa passar chave extra p/ não quebrar telas. `limit` de `audit-signups` com teto 200 |
+| §10 schema no boot | ✅ **migrations versionadas** (`src/server/migrations/*.sql` + `migrate.js` + `migrate-cli.js`). `0001_baseline.sql` = schema atual, idempotente (roda tanto em banco vazio quanto no de produção). Tracking em `schema_migrations`, cada migration numa transação, advisory lock serializa runners. `db_init`/`ensureColumn` **removidos**. `npm run migrate` + hook `prestart` (deploy falha se a migration falhar); server aplica pendentes no boot como rede de segurança |
 
 **Verificação (contra PGlite via `preview-boot.mjs` — dados simulados):**
 `npm run build` OK · boot produção OK · login OK · IDOR `POST /api/forecasts`
 com `bankId` alheio → **403** · 9 logins errados → **429** · header CSP presente
 em produção sem violações no SPA · DRE/Análise/Fluxo renderizam com dados reais.
-Split + sessão + zod: **68 checagens de API** (24 base + 13 helpers + 14 sessão
-+ 17 validação) + teste de navegador (renovação transparente, single-flight,
-logout forçado, forms de lançamento/previsão).
+Split + sessão + zod + migrations: **68 checagens de API** (24 base + 13 helpers
++ 14 sessão + 17 validação) + navegador (renovação transparente, single-flight,
+logout forçado, forms) + migrations testadas em banco vazio E em banco "legado"
+simulado (colunas novas adicionadas, seed não duplicado, 2ª run = no-op).
 
 ### Pendente (não feito)
 
-- **Migrations no lugar do `db_init`** (§10) — schema ainda nasce no boot.
 - QA visual das telas internas nos dois temas.
+- Matar o shim SQLite→PG (`db.js`) — ~40 queries ainda passam por `_convertQuery`
+  (§9). Não é bug; é dívida.
 - Hardening de query param nos relatórios (`year`/`month` sem `parseInt` guard —
   baixo risco: valores vêm de dropdown).
 - `.env`: conferir que `ENCRYPTION_KEY` é hex de 32 bytes e `PASSWORD_ADMIN` é
@@ -436,6 +439,17 @@ real.
 
 ## 10. 🟡 `db_init()` altera schema no boot
 
+**✅ CORRIGIDO.** `src/server/migrations/*.sql` (numeradas) + `migrate.js`
+(runner: tracking em `schema_migrations`, 1 transação por migration, advisory
+lock contra runners concorrentes) + `migrate-cli.js`. `0001_baseline.sql` é
+idempotente e reconcilia o DB de produção que já existe. `npm run migrate` e o
+hook `prestart` aplicam como passo de deploy (deploy falha se a migration
+falhar); o server aplica pendentes no boot como rede de segurança e, em prod,
+**aborta** se falhar (nada de schema meio-migrado silencioso). `ensureColumn`
+(que engolia erros) foi removido. O texto original segue para referência:
+
+---
+
 `server.js:337-401` — `CREATE TABLE IF NOT EXISTS` + `ensureColumn`
 (`ALTER TABLE ADD COLUMN IF NOT EXISTS`) a cada startup. É o **oposto** da regra
 do `cliente_final` (schema só por migration; `initDb()` só testa conexão).
@@ -545,7 +559,7 @@ cru.
 
 **Sprint 2 (estrutural):**
 10. ✅ zod em todos os endpoints de escrita (§5).
-11. Migrations no lugar do `db_init` (§10). — **pendente** (última peça estrutural)
+11. ✅ Migrations no lugar do `db_init` (§10).
 12. ~~Quebrar `server.js` em módulos~~ ✅ (`refactor/split-server`); matar o shim SQLite→PG ainda pendente (§9).
 13. ✅ AES-GCM + leitura do formato CBC legado (§4).
 14. ✅ Modelo de sessão: access 15 min + refresh rotativo com detecção de reuso + `auth_sessions` (§2).

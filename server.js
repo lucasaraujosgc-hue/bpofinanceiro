@@ -6,7 +6,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 
 import { IS_PROD, PORT, ADMIN_EMAIL, corsOrigins } from './src/server/config.js';
-import { initSchema } from './src/server/schema.js';
+import { runMigrations } from './src/server/migrate.js';
 import { mountLogos } from './src/server/services/logo.js';
 import { purgeExpiredSessions } from './src/server/services/session.js';
 import { apiLimiter, loginLimiter, flowLimiter, refreshLimiter } from './src/server/middleware/rateLimit.js';
@@ -65,8 +65,6 @@ app.use(['/api/request-signup', '/api/complete-signup', '/api/validate-signup-to
 
 mountLogos(app);
 
-initSchema().then(purgeExpiredSessions).catch(() => {});
-
 // --- ROTAS ---
 registerAuthRoutes(app);
 registerBankRoutes(app);
@@ -81,6 +79,18 @@ registerAdminRoutes(app);
 
 // START
 async function startServer() {
+    // Migrations versionadas (src/server/migrations/*.sql). Idempotente e
+    // serializado por advisory lock — seguro rodar aqui mesmo que o hook
+    // `prestart` já tenha rodado. Em produção, falha = não sobe.
+    try {
+        await runMigrations();
+    } catch (e) {
+        console.error('[migrate] falha ao aplicar migrations:', e.message);
+        if (IS_PROD) process.exit(1);
+        console.warn('[migrate] seguindo mesmo assim (dev)');
+    }
+    purgeExpiredSessions();
+
     if (!IS_PROD) {
         const { createServer: createViteServer } = await import('vite');
         const vite = await createViteServer({

@@ -1,0 +1,2 @@
+# Migrations são lidas e divididas por \n pelo runner — força LF.
+*.sql text eol=lf

@@ -51,22 +51,9 @@ const bcrypt = require('bcryptjs');
 const pool = new pgpkg.Pool();
 const q = (sql, params) => pool.query(sql, params);
 
-// ---- schema (espelha db_init do server.js) --------------------------------
-const DDL = [
-  `CREATE TABLE IF NOT EXISTS global_banks (id SERIAL PRIMARY KEY, name TEXT, logo TEXT)`,
-  `CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, email TEXT UNIQUE, password TEXT, cnpj TEXT, razao_social TEXT, phone TEXT, reset_token TEXT, reset_token_expires BIGINT, role TEXT DEFAULT 'user', created_at TEXT, blocked INT DEFAULT 0, business_type TEXT DEFAULT 'servico')`,
-  `CREATE TABLE IF NOT EXISTS pending_signups (email TEXT PRIMARY KEY, token TEXT, cnpj TEXT, razao_social TEXT, phone TEXT, created_at BIGINT, business_type TEXT DEFAULT 'servico')`,
-  `CREATE TABLE IF NOT EXISTS banks (id SERIAL PRIMARY KEY, user_id INT, name TEXT, account_number TEXT, nickname TEXT, logo TEXT, active INT DEFAULT 1, balance NUMERIC(15,2) DEFAULT 0)`,
-  `CREATE TABLE IF NOT EXISTS credit_cards (id SERIAL PRIMARY KEY, user_id INT, bank_id INT, name TEXT, closing_day INT, due_day INT, limit_value NUMERIC(15,2))`,
-  `CREATE TABLE IF NOT EXISTS categories (id SERIAL PRIMARY KEY, user_id INT, name TEXT, type TEXT, group_type TEXT, main_group TEXT, sub_group TEXT, nature TEXT, affects_dre BOOLEAN DEFAULT true, affects_cashflow BOOLEAN DEFAULT true, affects_balance BOOLEAN DEFAULT false, cost_classification TEXT, behavior_type TEXT)`,
-  `CREATE TABLE IF NOT EXISTS ofx_imports (id SERIAL PRIMARY KEY, user_id INT, file_name TEXT, import_date TEXT, bank_id INT, transaction_count INT, content TEXT)`,
-  `CREATE TABLE IF NOT EXISTS transactions (id SERIAL PRIMARY KEY, user_id INT, date TEXT, description TEXT, value NUMERIC(15,2), type TEXT, category_id INT, bank_id INT, credit_card_id INT, reconciled INT, ofx_import_id INT)`,
-  `CREATE TABLE IF NOT EXISTS forecasts (id SERIAL PRIMARY KEY, user_id INT, date TEXT, description TEXT, value NUMERIC(15,2), type TEXT, category_id INT, bank_id INT, credit_card_id INT, realized INT, installment_current INT, installment_total INT, group_id TEXT)`,
-  `CREATE TABLE IF NOT EXISTS keyword_rules (id SERIAL PRIMARY KEY, user_id INT, keyword TEXT, type TEXT, category_id INT, bank_id INT)`,
-  `CREATE TABLE IF NOT EXISTS audit_logs (id SERIAL PRIMARY KEY, user_id TEXT, action TEXT, details TEXT, ip_address TEXT, created_at TEXT)`,
-  `CREATE TABLE IF NOT EXISTS integration_settings (user_id INT PRIMARY KEY, token TEXT, start_date TEXT, target_type TEXT, category_in_id INT, category_out_id INT, total_imported INT DEFAULT 0, last_sync TEXT, bank_in_id INT, bank_out_id INT)`,
-];
-for (const d of DDL) await q(d);
+// ---- schema: roda as migrations reais (fica sempre em sincronia) ----------
+const { runMigrations } = await import('./src/server/migrate.js');
+await runMigrations({ silent: true });
 
 const seeded = await q(`SELECT COUNT(*)::int AS n FROM users`);
 if (seeded.rows[0].n === 0) {

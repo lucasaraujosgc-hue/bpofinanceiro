@@ -115,12 +115,3 @@ export const db = {
     };
   }
 };
-
-export const ensureColumn = async (table, column, definition) => {
-    try {
-        let pgDef = definition.replace(/INTEGER/g, 'INT').replace(/REAL/g, 'NUMERIC(15,2)');
-        await pool.query(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS ${column} ${pgDef}`);
-    } catch (e) {
-        console.error("Error adding column", e.message);
-    }
-};
