@@ -2,11 +2,28 @@ import { pool } from '../db.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { dreBucketFor } from '../accounting.js';
 
+// Lê year/month da query e valida antes de irem para o SQL — um `year=abc`
+// vira NaN e quebra `EXTRACT(...) = $n` com 500. `month` é 0-indexado (JS);
+// 0 = janeiro (é um mês de verdade, não "ano todo"). Retorna { y, m } ou { bad }.
+function parsePeriod(q) {
+    const y = parseInt(q.year, 10);
+    if (!Number.isInteger(y) || y < 2000 || y > 2100) return { bad: 'ano inválido' };
+    const raw = q.month;
+    const hasMonth = raw !== undefined && raw !== '' && raw !== 'null' && raw !== null;
+    let m = null;
+    if (hasMonth) {
+        m = parseInt(raw, 10);
+        if (!Number.isInteger(m) || m < 0 || m > 11) return { bad: 'mês inválido' };
+    }
+    return { y, m };
+}
+const isYmd = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s));
+
 export default function register(app) {
 app.get('/api/reports/cash-flow', authenticateToken, async (req, res) => {
-    const { year, month } = req.query;
-    const y = parseInt(year);
-    const m = month ? parseInt(month) : null;
+    const p = parsePeriod(req.query);
+    if (p.bad) return res.status(400).json({ error: p.bad });
+    const { y, m } = p;
     const userId = req.userId;
 
     try {
@@ -59,6 +76,7 @@ app.get('/api/reports/cash-flow', authenticateToken, async (req, res) => {
 app.get('/api/reports/daily-flow', authenticateToken, async (req, res) => {
     const { startDate, endDate } = req.query;
     if (!startDate || !endDate) return res.status(400).json({ error: 'Datas necessárias' });
+    if (!isYmd(startDate) || !isYmd(endDate)) return res.status(400).json({ error: 'Datas inválidas (use AAAA-MM-DD)' });
 
     try {
         // Saldo de abertura: tudo que entrou/saiu ANTES de startDate.
@@ -110,10 +128,10 @@ app.get('/api/reports/daily-flow', authenticateToken, async (req, res) => {
 
 // DRE CORRIGIDO COM LÓGICA CONTÁBIL E POSTGRES SQL
 app.get('/api/reports/dre', authenticateToken, async (req, res) => {
-    const { year, month } = req.query;
+    const p = parsePeriod(req.query);
+    if (p.bad) return res.status(400).json({ error: p.bad });
+    const { y, m } = p;
     const userId = req.userId;
-    const y = parseInt(year);
-    const m = month ? parseInt(month) : null;
 
     let query = `SELECT t.*, c.name as category_name, c.group_type FROM transactions t LEFT JOIN categories c ON t.category_id = c.id WHERE t.user_id = $1 AND EXTRACT(YEAR FROM t.date::date) = $2`;
     const params = [userId, y];
@@ -197,10 +215,10 @@ app.get('/api/reports/dre', authenticateToken, async (req, res) => {
 // caixa (o sistema só conhece lançamentos realizados). Base da análise
 // vertical (AV): Receita Operacional Líquida.
 app.get('/api/reports/dre-hierarchical', authenticateToken, async (req, res) => {
+    const p = parsePeriod(req.query);
+    if (p.bad) return res.status(400).json({ error: p.bad });
+    const { y, m } = p;
     const userId = req.userId;
-    const y = parseInt(req.query.year);
-    const m = req.query.month !== undefined && req.query.month !== '' && req.query.month !== 'null'
-        ? parseInt(req.query.month) : null;
 
     let query = `SELECT t.type, t.value, c.name AS category_name, c.group_type
                  FROM transactions t
@@ -297,10 +315,10 @@ app.get('/api/reports/dre-hierarchical', authenticateToken, async (req, res) => 
 });
 
 app.get('/api/reports/analysis', authenticateToken, async (req, res) => {
+    const p = parsePeriod(req.query);
+    if (p.bad) return res.status(400).json({ error: p.bad });
+    const { y, m } = p;
     const userId = req.userId;
-    const y = parseInt(req.query.year);
-    const m = req.query.month !== undefined && req.query.month !== '' && req.query.month !== 'null'
-        ? parseInt(req.query.month) : null;
 
     const targetYear = y;
     const targetMonth = m !== null ? m + 1 : null;
@@ -577,10 +595,10 @@ app.get('/api/reports/analysis', authenticateToken, async (req, res) => {
 
 
 app.get('/api/reports/forecasts', authenticateToken, async (req, res) => {
-    const { year, month } = req.query;
+    const p = parsePeriod(req.query);
+    if (p.bad) return res.status(400).json({ error: p.bad });
+    const { y, m } = p;
     const userId = req.userId;
-    const y = parseInt(year);
-    const m = month ? parseInt(month) : null;
 
     let query = `SELECT f.*, c.name as category_name FROM forecasts f LEFT JOIN categories c ON f.category_id = c.id WHERE f.user_id = $1 AND EXTRACT(YEAR FROM f.date::date) = $2`;
     const params = [userId, y];

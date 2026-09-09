@@ -1,18 +1,32 @@
-import { db, pool } from '../db.js';
+import { pool } from '../db.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
 import { ofxImportCreateSchema } from '../schemas.js';
 
 export default function register(app) {
-app.get('/api/ofx-imports', authenticateToken, (req, res) => {
-    db.all(`SELECT id, file_name, import_date, bank_id, transaction_count FROM ofx_imports WHERE user_id = ? ORDER BY import_date DESC`, [req.userId], (err, rows) => {
-        res.json((rows || []).map(r => ({...r, fileName: r.file_name, importDate: r.import_date, bankId: r.bank_id, transactionCount: r.transaction_count})));
-    });
+app.get('/api/ofx-imports', authenticateToken, async (req, res) => {
+    try {
+        const { rows } = await pool.query(
+            `SELECT id, file_name, import_date, bank_id, transaction_count FROM ofx_imports WHERE user_id = $1 ORDER BY import_date DESC`,
+            [req.userId]);
+        res.json(rows.map(r => ({ ...r, fileName: r.file_name, importDate: r.import_date, bankId: r.bank_id, transactionCount: r.transaction_count })));
+    } catch (err) {
+        console.error('GET /ofx-imports error:', err.message);
+        res.status(500).json({ error: 'Server Error' });
+    }
 });
-app.post('/api/ofx-imports', authenticateToken, validateBody(ofxImportCreateSchema), (req, res) => {
+app.post('/api/ofx-imports', authenticateToken, validateBody(ofxImportCreateSchema), async (req, res) => {
     const { fileName, importDate, bankId, transactionCount, content } = req.body;
-    db.run(`INSERT INTO ofx_imports (user_id, file_name, import_date, bank_id, transaction_count, content) VALUES (?, ?, ?, ?, ?, ?)`,
-        [req.userId, fileName, importDate, bankId, transactionCount, content], function(err) { res.json({id: this.lastID}); });
+    try {
+        const ins = await pool.query(
+            `INSERT INTO ofx_imports (user_id, file_name, import_date, bank_id, transaction_count, content)
+             VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+            [req.userId, fileName, importDate, bankId, transactionCount, content]);
+        res.json({ id: ins.rows[0].id });
+    } catch (err) {
+        console.error('POST /ofx-imports error:', err.message);
+        res.status(500).json({ error: err.message });
+    }
 });
 app.delete('/api/ofx-imports/:id', authenticateToken, async (req, res) => {
     const client = await pool.connect();

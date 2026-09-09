@@ -1,14 +1,18 @@
-import { db, pool } from '../db.js';
+import { pool } from '../db.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { assertUserOwns } from '../lib/ownership.js';
 import { validateBody } from '../middleware/validate.js';
 import { forecastCreateSchema, forecastUpdateSchema } from '../schemas.js';
 
 export default function register(app) {
-app.get('/api/forecasts', authenticateToken, (req, res) => {
-    db.all(`SELECT * FROM forecasts WHERE user_id = ? ORDER BY date`, [req.userId], (err, rows) => {
-        res.json((rows || []).map(r => ({...r, realized: !!r.realized, categoryId: r.category_id, bankId: r.bank_id, creditCardId: r.credit_card_id, installmentCurrent: r.installment_current, installmentTotal: r.installment_total, groupId: r.group_id})));
-    });
+app.get('/api/forecasts', authenticateToken, async (req, res) => {
+    try {
+        const { rows } = await pool.query(`SELECT * FROM forecasts WHERE user_id = $1 ORDER BY date`, [req.userId]);
+        res.json(rows.map(r => ({ ...r, realized: !!r.realized, categoryId: r.category_id, bankId: r.bank_id, creditCardId: r.credit_card_id, installmentCurrent: r.installment_current, installmentTotal: r.installment_total, groupId: r.group_id })));
+    } catch (err) {
+        console.error('GET /forecasts error:', err.message);
+        res.status(500).json({ error: 'Server Error' });
+    }
 });
 app.post('/api/forecasts', authenticateToken, validateBody(forecastCreateSchema), async (req, res) => {
     const { date, description, value, type, categoryId, bankId, creditCardId, realized, installmentCurrent, installmentTotal, groupId } = req.body;
@@ -39,22 +43,40 @@ app.put('/api/forecasts/:id', authenticateToken, validateBody(forecastUpdateSche
         res.status(500).json({ error: err.message });
     }
 });
-app.patch('/api/forecasts/:id/realize', authenticateToken, (req, res) => {
-    db.run(`UPDATE forecasts SET realized = 1 WHERE id = ? AND user_id = ?`, [req.params.id, req.userId], (err) => res.json({success: !err}));
+app.patch('/api/forecasts/:id/realize', authenticateToken, async (req, res) => {
+    try {
+        await pool.query(`UPDATE forecasts SET realized = 1 WHERE id = $1 AND user_id = $2`, [req.params.id, req.userId]);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('PATCH /forecasts realize error:', err.message);
+        res.json({ success: false });
+    }
 });
-app.delete('/api/forecasts/:id', authenticateToken, (req, res) => {
+app.delete('/api/forecasts/:id', authenticateToken, async (req, res) => {
     const mode = req.query.mode || 'single';
-    if (mode === 'single') {
-        db.run(`DELETE FROM forecasts WHERE id = ? AND user_id = ?`, [req.params.id, req.userId], (err) => res.json({success: !err}));
-    } else {
-        db.get(`SELECT group_id, date FROM forecasts WHERE id = ? AND user_id = ?`, [req.params.id, req.userId], (err, current) => {
-            if(!current) return res.status(404).json({ success: false, error: "Não encontrado" });
-            if(!current.group_id) return db.run(`DELETE FROM forecasts WHERE id = ? AND user_id = ?`, [req.params.id, req.userId], () => res.json({success:true}));
-            let sql = `DELETE FROM forecasts WHERE group_id = ? AND user_id = ?`;
-            const params = [current.group_id, req.userId];
-            if (mode === 'future') { sql += ` AND date >= ?`; params.push(current.date); }
-            db.run(sql, params, (err) => res.json({success: !err}));
-        });
+    try {
+        if (mode === 'single') {
+            await pool.query(`DELETE FROM forecasts WHERE id = $1 AND user_id = $2`, [req.params.id, req.userId]);
+            return res.json({ success: true });
+        }
+
+        const { rows: [current] } = await pool.query(
+            `SELECT group_id, date FROM forecasts WHERE id = $1 AND user_id = $2`, [req.params.id, req.userId]);
+        if (!current) return res.status(404).json({ success: false, error: "Não encontrado" });
+
+        if (!current.group_id) {
+            await pool.query(`DELETE FROM forecasts WHERE id = $1 AND user_id = $2`, [req.params.id, req.userId]);
+            return res.json({ success: true });
+        }
+
+        let sql = `DELETE FROM forecasts WHERE group_id = $1 AND user_id = $2`;
+        const params = [current.group_id, req.userId];
+        if (mode === 'future') { sql += ` AND date >= $3`; params.push(current.date); }
+        await pool.query(sql, params);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('DELETE /forecasts error:', err.message);
+        res.status(500).json({ success: false, error: err.message });
     }
 });
 }

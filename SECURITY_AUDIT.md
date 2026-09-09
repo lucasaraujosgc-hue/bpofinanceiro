@@ -36,7 +36,7 @@ Legenda: 🔴 crítico · 🟠 alto · 🟡 médio · ⚪ baixo / higiene
 | tabela órfã `pluggy_connections` | ✅ `DROP TABLE IF EXISTS` no `db_init` |
 | favicon / título | ✅ favicon → `virgulacontabil.com.br/.../icon-192.png`; `<title>` = "Ferramenta Financeira \| Vírgula Contábil" |
 | DRE / plano de contas | ✅ reescrito conforme art. 187 (ver `docs/RELATORIOS.md`); grupos contábeis, análise vertical/horizontal, ponto de equilíbrio |
-| §9 `server.js` monolítico | ✅ **split** (branch `refactor/split-server`): `src/server/{config,db,schema,accounting}.js` + `middleware/` + `services/` + `lib/` + `routes/*.routes.js` (10 módulos). `server.js` virou bootstrap de ~100 linhas. Handlers movidos verbatim, rotas/ordem preservadas. Shim SQLite→PG segue em `db.js` (documentado) |
+| §9 `server.js` monolítico + shim | ✅ **split** em `src/server/` (`config/db/accounting/schema` + `middleware/` + `services/` + `lib/` + `routes/*.routes.js`). `server.js` = bootstrap de ~110 linhas. ✅ **shim SQLite→PG morto**: `_convertQuery` + `db.{run,get,all,prepare}` removidos; todas as ~40 queries agora são `pool.query` com `$n` direto e `async/await` + try/catch. Bug latente corrigido: `SUM(value) as totalValue` (pg minúsculo → `totalvalue`) virou `::float AS "totalValue"` |
 | §2 modelo de sessão | ✅ **access curto (15 min) + refresh rotativo (~90 d) com detecção de reuso** — tabela `auth_sessions` (digest sha256), `POST /api/auth/refresh` + `/api/auth/logout`, reset de senha e block/delete revogam a sessão. Frontend: patch de `window.fetch` (`lib/http.ts`) renova em 401 de forma transparente (single-flight). Token inválido → 401 `token_expired` (era 403) |
 | §5 validação de entrada | ✅ **zod** em todo endpoint de escrita (`src/server/schemas.js` + `middleware/validate.js`). Campos perigosos travados: `value` finito ≥ 0 (rejeita NaN/negativo/Infinity), `type` ∈ {credito,debito}, `date` AAAA-MM-DD **e dia real do calendário** (`2026-13-99` → 400, não 500 no `::date`), `email` com formato. `.loose()` deixa passar chave extra p/ não quebrar telas. `limit` de `audit-signups` com teto 200 |
 | §10 schema no boot | ✅ **migrations versionadas** (`src/server/migrations/*.sql` + `migrate.js` + `migrate-cli.js`). `0001_baseline.sql` = schema atual, idempotente (roda tanto em banco vazio quanto no de produção). Tracking em `schema_migrations`, cada migration numa transação, advisory lock serializa runners. `db_init`/`ensureColumn` **removidos**. `npm run migrate` + hook `prestart` (deploy falha se a migration falhar); server aplica pendentes no boot como rede de segurança |
@@ -45,20 +45,23 @@ Legenda: 🔴 crítico · 🟠 alto · 🟡 médio · ⚪ baixo / higiene
 `npm run build` OK · boot produção OK · login OK · IDOR `POST /api/forecasts`
 com `bankId` alheio → **403** · 9 logins errados → **429** · header CSP presente
 em produção sem violações no SPA · DRE/Análise/Fluxo renderizam com dados reais.
-Split + sessão + zod + migrations: **68 checagens de API** (24 base + 13 helpers
-+ 14 sessão + 17 validação) + navegador (renovação transparente, single-flight,
-logout forçado, forms) + migrations testadas em banco vazio E em banco "legado"
-simulado (colunas novas adicionadas, seed não duplicado, 2ª run = no-op).
+Split + sessão + zod + migrations + fim do shim: **75 checagens de API** (24
+base + 13 helpers + 14 sessão + 17 validação + 7 guardas de relatório) +
+navegador (todos os forms — banco/categoria/lançamento/previsão/regra —,
+recálculo de saldo, 5 relatórios) + migrations testadas em banco vazio E
+"legado" simulado (colunas adicionadas, seed não duplicado, 2ª run = no-op).
 
 ### Pendente (não feito)
 
-- QA visual das telas internas nos dois temas.
-- Matar o shim SQLite→PG (`db.js`) — ~40 queries ainda passam por `_convertQuery`
-  (§9). Não é bug; é dívida.
-- Hardening de query param nos relatórios (`year`/`month` sem `parseInt` guard —
-  baixo risco: valores vêm de dropdown).
-- `.env`: conferir que `ENCRYPTION_KEY` é hex de 32 bytes e `PASSWORD_ADMIN` é
-  forte (o usuário disse já ter ajustado).
+- **QA visual** das telas internas nos dois temas (claro/escuro) — precisa de
+  revisão humana.
+- `.env` de produção: confirmar `ENCRYPTION_KEY` = 32 bytes hex e
+  `PASSWORD_ADMIN` forte (o usuário disse já ter ajustado).
+- Disparar o deploy no EasyPanel (fora do repo).
+
+Correções de brinde nesta rodada: `?year=abc` / `?month=13` nos relatórios →
+**400** (era 500 no `::date`); `month=0` (janeiro) nos relatórios cash-flow /
+DRE / previsões era tratado como "ano todo" — agora mostra janeiro.
 
 ---
 
@@ -405,16 +408,19 @@ Fraquezas em volta:
 
 ## 9. 🟡 `server.js` monolítico + shim SQLite→PG por regex
 
-**Estado:** o monólito foi quebrado (branch `refactor/split-server`) em
-`src/server/{config,db,schema,accounting}.js` + `middleware/` + `services/` +
-`lib/` + `routes/*.routes.js`. `server.js` é bootstrap. O shim `db.*` foi
-isolado em `src/server/db.js` (com comentário do porquê) mas **não** foi
-removido — as ~40 queries que o usam continuam passando por `_convertQuery`.
-Os modos de falha abaixo seguem válidos até o shim morrer.
+**✅ CORRIGIDO.** O monólito foi quebrado em `src/server/` e o shim `db.*` +
+`_convertQuery` foram **deletados**. `src/server/db.js` agora exporta só o
+`pool`. Todas as ~40 queries foram portadas para `pool.query` com `$n` direto,
+`async/await` e `try/catch` por handler. O `RETURNING id` agora é explícito
+onde precisa; `COUNT(*)` usa `::int`; o alias quebrado `SUM(value) as
+totalValue` (pg minúsculo) virou `::float AS "totalValue"`. Verificado ponta a
+ponta (75 checagens + navegador). O texto original segue para referência:
+
+---
 
 `src/server/db.js` (`db` adapter) + `_convertQuery`.
 
-Modos de falha concretos:
+Modos de falha concretos (todos eliminados com a remoção do shim):
 
 - `sql.replace(/\?/g, () => '$' + (i++))` troca **todo** `?`, inclusive dentro
   de string literal e dos operadores JSONB do Postgres (`?`, `?|`, `?&`,
@@ -560,7 +566,7 @@ cru.
 **Sprint 2 (estrutural):**
 10. ✅ zod em todos os endpoints de escrita (§5).
 11. ✅ Migrations no lugar do `db_init` (§10).
-12. ~~Quebrar `server.js` em módulos~~ ✅ (`refactor/split-server`); matar o shim SQLite→PG ainda pendente (§9).
+12. ✅ Quebrar `server.js` em módulos + **matar o shim SQLite→PG** (§9).
 13. ✅ AES-GCM + leitura do formato CBC legado (§4).
 14. ✅ Modelo de sessão: access 15 min + refresh rotativo com detecção de reuso + `auth_sessions` (§2).
 15. ✅ `logAudit` nas ações de admin + `GET /api/admin/audit` (§7).

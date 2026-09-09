@@ -1,4 +1,4 @@
-import { db, pool } from '../db.js';
+import { pool } from '../db.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { assertUserOwns } from '../lib/ownership.js';
 import { recalculateBankBalance } from '../lib/banks.js';
@@ -59,18 +59,29 @@ app.put('/api/transactions/:id', authenticateToken, validateBody(transactionUpda
         res.status(500).json({ error: err.message });
     }
 });
-app.delete('/api/transactions/:id', authenticateToken, (req, res) => {
-    db.get(`SELECT bank_id, credit_card_id FROM transactions WHERE id = ? AND user_id = ?`, [req.params.id, req.userId], (err, row) => {
-        if(!row) return res.json({success:false});
-        db.run(`DELETE FROM transactions WHERE id = ? AND user_id = ?`, [req.params.id, req.userId], (err) => {
-            if (!row.credit_card_id) recalculateBankBalance(row.bank_id);
-            res.json({success: true});
-        });
-    });
+app.delete('/api/transactions/:id', authenticateToken, async (req, res) => {
+    try {
+        const { rows: [row] } = await pool.query(
+            `SELECT bank_id, credit_card_id FROM transactions WHERE id = $1 AND user_id = $2`, [req.params.id, req.userId]);
+        if (!row) return res.json({ success: false });
+        await pool.query(`DELETE FROM transactions WHERE id = $1 AND user_id = $2`, [req.params.id, req.userId]);
+        if (!row.credit_card_id) recalculateBankBalance(row.bank_id);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('DELETE /transactions error:', err.message);
+        res.status(500).json({ success: false, error: err.message });
+    }
 });
-app.patch('/api/transactions/:id/reconcile', authenticateToken, validateBody(transactionReconcileSchema), (req, res) => {
+app.patch('/api/transactions/:id/reconcile', authenticateToken, validateBody(transactionReconcileSchema), async (req, res) => {
     const { reconciled } = req.body;
-    db.run(`UPDATE transactions SET reconciled = ? WHERE id = ? AND user_id = ?`, [reconciled?1:0, req.params.id, req.userId], (err) => res.json({success: !err}));
+    try {
+        await pool.query(`UPDATE transactions SET reconciled = $1 WHERE id = $2 AND user_id = $3`,
+            [reconciled ? 1 : 0, req.params.id, req.userId]);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('PATCH /transactions reconcile error:', err.message);
+        res.json({ success: false });
+    }
 });
 app.patch('/api/transactions/batch-update', authenticateToken, validateBody(transactionBatchUpdateSchema), async (req, res) => {
     const { transactionIds, categoryId } = req.body;

@@ -1,28 +1,51 @@
-import { db, pool } from '../db.js';
+import { pool } from '../db.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { assertUserOwns } from '../lib/ownership.js';
 import { validateBody } from '../middleware/validate.js';
 import { bankCreateSchema, bankUpdateSchema, creditCardCreateSchema, creditCardUpdateSchema } from '../schemas.js';
 
 export default function register(app) {
-app.get('/api/global-banks', (req, res) => {
-    db.all('SELECT * FROM global_banks ORDER BY name', [], (err, rows) => res.json(rows || []));
+app.get('/api/global-banks', async (req, res) => {
+    try {
+        const { rows } = await pool.query('SELECT * FROM global_banks ORDER BY name');
+        res.json(rows);
+    } catch (err) {
+        console.error('GET /global-banks error:', err.message);
+        res.json([]);
+    }
 });
-app.get('/api/banks', authenticateToken, (req, res) => {
-    db.all('SELECT * FROM banks WHERE user_id = ? ORDER BY active DESC, name', [req.userId], (err, rows) => res.json(rows || []));
+app.get('/api/banks', authenticateToken, async (req, res) => {
+    try {
+        const { rows } = await pool.query('SELECT * FROM banks WHERE user_id = $1 ORDER BY active DESC, name', [req.userId]);
+        res.json(rows);
+    } catch (err) {
+        console.error('GET /banks error:', err.message);
+        res.status(500).json({ error: 'Server Error' });
+    }
 });
-app.post('/api/banks', authenticateToken, validateBody(bankCreateSchema), (req, res) => {
+app.post('/api/banks', authenticateToken, validateBody(bankCreateSchema), async (req, res) => {
     const { name, accountNumber, nickname, logo } = req.body;
-    db.run(`INSERT INTO banks (user_id, name, account_number, nickname, logo) VALUES (?, ?, ?, ?, ?)`, 
-        [req.userId, name, accountNumber, nickname, logo], function(err) {
-        if(err) return res.status(500).json({error: err.message});
-        res.json({id: this.lastID});
-    });
+    try {
+        const ins = await pool.query(
+            `INSERT INTO banks (user_id, name, account_number, nickname, logo) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+            [req.userId, name, accountNumber, nickname, logo]);
+        res.json({ id: ins.rows[0].id });
+    } catch (err) {
+        console.error('POST /banks error:', err.message);
+        res.status(500).json({ error: err.message });
+    }
 });
-app.put('/api/banks/:id', authenticateToken, validateBody(bankUpdateSchema), (req, res) => {
+app.put('/api/banks/:id', authenticateToken, validateBody(bankUpdateSchema), async (req, res) => {
     const { nickname, active } = req.body;
-    db.run(`UPDATE banks SET nickname = COALESCE(?, nickname), active = COALESCE(?, active) WHERE id = ? AND user_id = ?`,
-        [nickname, active, req.params.id, req.userId], (err) => res.json({success: !err}));
+    try {
+        await pool.query(
+            `UPDATE banks SET nickname = COALESCE($1, nickname), active = COALESCE($2, active) WHERE id = $3 AND user_id = $4`,
+            [nickname, active, req.params.id, req.userId]);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('PUT /banks error:', err.message);
+        res.json({ success: false });
+    }
 });
 app.delete('/api/banks/:id', authenticateToken, async (req, res) => {
     const client = await pool.connect();
@@ -44,13 +67,17 @@ app.delete('/api/banks/:id', authenticateToken, async (req, res) => {
 });
 
 // Cartões de Crédito
-app.get('/api/credit-cards', authenticateToken, (req, res) => {
-    db.all('SELECT * FROM credit_cards WHERE user_id = ? ORDER BY name', [req.userId], (err, rows) => {
-        res.json((rows || []).map(r => ({
+app.get('/api/credit-cards', authenticateToken, async (req, res) => {
+    try {
+        const { rows } = await pool.query('SELECT * FROM credit_cards WHERE user_id = $1 ORDER BY name', [req.userId]);
+        res.json(rows.map(r => ({
             id: r.id, bankId: r.bank_id, name: r.name,
-            closingDay: r.closing_day, dueDay: r.due_day, limitValue: r.limit_value
+            closingDay: r.closing_day, dueDay: r.due_day, limitValue: r.limit_value,
         })));
-    });
+    } catch (err) {
+        console.error('GET /credit-cards error:', err.message);
+        res.status(500).json({ error: 'Server Error' });
+    }
 });
 app.post('/api/credit-cards', authenticateToken, validateBody(creditCardCreateSchema), async (req, res) => {
     const { bankId, name, closingDay, dueDay, limitValue } = req.body;
@@ -67,10 +94,17 @@ app.post('/api/credit-cards', authenticateToken, validateBody(creditCardCreateSc
         res.status(500).json({ error: err.message });
     }
 });
-app.put('/api/credit-cards/:id', authenticateToken, validateBody(creditCardUpdateSchema), (req, res) => {
+app.put('/api/credit-cards/:id', authenticateToken, validateBody(creditCardUpdateSchema), async (req, res) => {
     const { name, closingDay, dueDay, limitValue } = req.body;
-    db.run(`UPDATE credit_cards SET name = ?, closing_day = ?, due_day = ?, limit_value = ? WHERE id = ? AND user_id = ?`,
-        [name, closingDay, dueDay, limitValue, req.params.id, req.userId], (err) => res.json({success: !err}));
+    try {
+        await pool.query(
+            `UPDATE credit_cards SET name = $1, closing_day = $2, due_day = $3, limit_value = $4 WHERE id = $5 AND user_id = $6`,
+            [name, closingDay, dueDay, limitValue, req.params.id, req.userId]);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('PUT /credit-cards error:', err.message);
+        res.json({ success: false });
+    }
 });
 app.delete('/api/credit-cards/:id', authenticateToken, async (req, res) => {
     const client = await pool.connect();
@@ -82,7 +116,7 @@ app.delete('/api/credit-cards/:id', authenticateToken, async (req, res) => {
         res.json({success: true});
     } catch (e) {
         await client.query('ROLLBACK');
-        console.error("Credit card delete delete error:", e.stack);
+        console.error("Credit card delete error:", e.stack);
         res.status(500).json({success: false, error: e.message});
     } finally {
         client.release();
