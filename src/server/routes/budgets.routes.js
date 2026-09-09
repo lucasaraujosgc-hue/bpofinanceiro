@@ -7,6 +7,7 @@ import {
 import {
     getOrCreateBudget, loadBudget, realizedByCategory, generateItems, upsertItems,
 } from '../lib/budget.js';
+import { budgetVsActual } from '../lib/budgetVsActual.js';
 
 // Confere que o orçamento pertence ao usuário. `id` vem do frontend — nunca confiar.
 async function ownedBudget(id, userId) {
@@ -98,6 +99,29 @@ app.delete('/api/planning/budgets/:id/items', authenticateToken, validateBody(bu
         res.json({ items });
     } catch (err) {
         console.error('DELETE /planning/budgets/:id/items error:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Orçado × Realizado do período. period: 'month' (usa month, 0-11), 'ytd', 'year'.
+app.get('/api/planning/budget-vs-actual', authenticateToken, async (req, res) => {
+    const year = parseYear(req.query);
+    if (!year) return res.status(400).json({ error: 'ano inválido' });
+    const period = ['month', 'ytd', 'year'].includes(req.query.period) ? req.query.period : 'ytd';
+    let fromMonth = 1, toMonth = 12;
+    if (period === 'month') {
+        const m = parseInt(req.query.month, 10);
+        if (!Number.isInteger(m) || m < 0 || m > 11) return res.status(400).json({ error: 'mês inválido' });
+        fromMonth = toMonth = m + 1;
+    } else if (period === 'ytd') {
+        const now = new Date();
+        toMonth = (now.getFullYear() === year) ? now.getMonth() + 1 : 12;
+    }
+    try {
+        const data = await budgetVsActual(req.userId, year, fromMonth, toMonth);
+        res.json({ ...data, period });
+    } catch (err) {
+        console.error('GET /planning/budget-vs-actual error:', err.message);
         res.status(500).json({ error: err.message });
     }
 });

@@ -13,6 +13,7 @@ import {
 } from './reportUi';
 import { Category } from '../types';
 import PlanningBudget from './PlanningBudget';
+import PlanningBudgetVsActual from './PlanningBudgetVsActual';
 
 interface PlanningProps {
   token: string;
@@ -195,8 +196,7 @@ const Planning: React.FC<PlanningProps> = ({ token, categories }) => {
     );
   };
 
-  const soon: Record<Exclude<SubTab, 'dashboard' | 'orcamento'>, [string, string]> = {
-    'orcado-realizado': ['Orçado × Realizado', 'Comparação por categoria e grupo: orçado, realizado, diferença em R$ e %, status, e análise automática das principais variações. Depende do Orçamento.'],
+  const soon: Record<Exclude<SubTab, 'dashboard' | 'orcamento' | 'orcado-realizado'>, [string, string]> = {
     'forecast': ['Forecast', 'Projeção Realizado + Forecast para 3, 6, 12, 24 ou 36 meses, por média histórica, média móvel, crescimento (histórico ou informado), orçamento ou sazonalidade. Evolui as previsões que já existem.'],
     'cenarios': ['Cenários', 'Cenário Base, Otimista e Pessimista com premissas próprias (crescimento de receita, despesas, margem, prazos, investimentos, empréstimos). Gera DRE e fluxo de caixa projetados.'],
     'simulador': ['Simulador', '"E se a receita subir 20%?", "E se eu reduzir despesas administrativas em 15%?". Altere premissas e veja o impacto imediato — sem tocar nos dados reais.'],
@@ -239,7 +239,8 @@ const Planning: React.FC<PlanningProps> = ({ token, categories }) => {
       <div className="min-h-[400px]">
         {sub === 'dashboard' && renderDashboard()}
         {sub === 'orcamento' && <PlanningBudget token={token} categories={categories} />}
-        {sub !== 'dashboard' && sub !== 'orcamento' && (
+        {sub === 'orcado-realizado' && <PlanningBudgetVsActual token={token} categories={categories} />}
+        {sub !== 'dashboard' && sub !== 'orcamento' && sub !== 'orcado-realizado' && (
           <ComingSoon title={soon[sub][0]}>{soon[sub][1]}</ComingSoon>
         )}
       </div>

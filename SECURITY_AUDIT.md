@@ -78,9 +78,27 @@ funcional e as outras 6 sub-abas em esqueleto "Em breve".
   falha parcial e a dupla contagem do fluxo antigo (2 chamadas do frontend).
 - `computeDre` extraído para `src/server/lib/dre.js` (fonte única, cálculo
   inalterado; PE/MC conferidos).
-- **Testes:** 21 checagens do ciclo + 17 de planejamento (inclui: realizar
-  previsão → previsto cai o valor exato, realizado sobe o mesmo, líquido
-  inalterado; 1 transação criada, não 2; realize repetido → 409).
+
+**Fase 2 — Orçamento:** migration `0003_planning_budgets.sql` (`budgets`,
+`budget_items`). Rotas `/api/planning/budgets/*` (CRUD, upsert em lote,
+geradores: ano anterior / média N meses / cópia, com ajuste % e escopo).
+`components/PlanningBudget.tsx` (grade categoria×12 meses). Overview já traz
+`orcada`/`orcado` + `hasBudget`.
+
+**Fase 3 — Orçado × Realizado:** `GET /api/planning/budget-vs-actual`
+(`src/server/lib/budgetVsActual.js`) — comparação por categoria e grupo do DRE
+num período (mês / acumulado / ano): orçado, realizado, Δ R$/%, status;
+indicadores (atingimento de receita, controle de despesa, resultado/margem
+orçado × realizado); análise automática das maiores variações (só data-driven).
+`components/PlanningBudgetVsActual.tsx`.
+
+Toda rota nova: autentica, confere `budgets.user_id = req.userId` (ID do
+frontend nunca confiado), zod, queries `$n`.
+
+- **Testes:** 21 ciclo + 17 planejamento + 21 orçamento + 20 orçado×realizado
+  (inclui: realizar previsão → previsto cai o valor exato, realizado sobe o
+  mesmo, líquido inalterado; 1 transação criada, não 2; realize repetido → 409;
+  upsert de orçamento sem duplicar; identidade subtotal-de-grupo = Σ categorias).
 
 Correções de brinde nesta rodada: `?year=abc` / `?month=13` nos relatórios →
 **400** (era 500 no `::date`); `month=0` (janeiro) nos relatórios cash-flow /
