@@ -1,7 +1,7 @@
 import { pool } from '../db.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { validateBody } from '../middleware/validate.js';
-import { scenarioCreateSchema, scenarioUpdateSchema } from '../schemas.js';
+import { scenarioCreateSchema, scenarioUpdateSchema, simulateSchema } from '../schemas.js';
 import { computeScenario, compareScenarios, normalizeAssumptions } from '../lib/scenario.js';
 
 // ---------------------------------------------------------------------------
@@ -225,7 +225,7 @@ app.get('/api/planning/scenarios/:id/projection', authenticateToken, async (req,
     }
 });
 
-// ---- projeção ad-hoc (premissas no corpo, sem salvar) — usado pelo Simulador ----
+// ---- projeção ad-hoc (premissas no corpo, sem salvar) ----
 app.post('/api/planning/scenarios/preview', authenticateToken, validateBody(scenarioUpdateSchema), async (req, res) => {
     try {
         const data = await computeScenario(req.userId, {
@@ -236,6 +236,21 @@ app.post('/api/planning/scenarios/preview', authenticateToken, validateBody(scen
         res.json(data);
     } catch (err) {
         console.error('POST /planning/scenarios/preview error:', err.stack);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ---- Simulador: base × simulado numa chamada só, sem tocar em nada no banco ----
+app.post('/api/planning/scenarios/simulate', authenticateToken, validateBody(simulateSchema), async (req, res) => {
+    const horizonMonths = req.body.horizonMonths || 12;
+    try {
+        const [base, simulado] = await Promise.all([
+            computeScenario(req.userId, { assumptions: req.body.baseAssumptions || {}, horizonMonths, historyMonths: 12 }),
+            computeScenario(req.userId, { assumptions: req.body.assumptions || {}, horizonMonths, historyMonths: 12 }),
+        ]);
+        res.json({ base, simulado });
+    } catch (err) {
+        console.error('POST /planning/scenarios/simulate error:', err.stack);
         res.status(500).json({ error: err.message });
     }
 });

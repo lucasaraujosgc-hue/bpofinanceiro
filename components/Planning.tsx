@@ -16,6 +16,7 @@ import PlanningBudget from './PlanningBudget';
 import PlanningBudgetVsActual from './PlanningBudgetVsActual';
 import PlanningForecast from './PlanningForecast';
 import PlanningScenarios from './PlanningScenarios';
+import PlanningSimulator from './PlanningSimulator';
 
 interface PlanningProps {
   token: string;
@@ -198,8 +199,7 @@ const Planning: React.FC<PlanningProps> = ({ token, categories }) => {
     );
   };
 
-  const soon: Record<Exclude<SubTab, 'dashboard' | 'orcamento' | 'orcado-realizado' | 'forecast' | 'cenarios'>, [string, string]> = {
-    'simulador': ['Simulador', '"E se a receita subir 20%?", "E se eu reduzir despesas administrativas em 15%?". Altere premissas e veja o impacto imediato — sem tocar nos dados reais.'],
+  const soon: Record<Exclude<SubTab, 'dashboard' | 'orcamento' | 'orcado-realizado' | 'forecast' | 'cenarios' | 'simulador'>, [string, string]> = {
     'modelagem': ['Modelagem Financeira', 'Projeção completa de 12/24/36 meses: DRE projetada (na estrutura gerencial atual), fluxo de caixa, capital de giro, ponto de equilíbrio, margem de segurança e necessidade de caixa.'],
   };
 
@@ -242,7 +242,8 @@ const Planning: React.FC<PlanningProps> = ({ token, categories }) => {
         {sub === 'orcado-realizado' && <PlanningBudgetVsActual token={token} categories={categories} />}
         {sub === 'forecast' && <PlanningForecast token={token} />}
         {sub === 'cenarios' && <PlanningScenarios token={token} />}
-        {sub !== 'dashboard' && sub !== 'orcamento' && sub !== 'orcado-realizado' && sub !== 'forecast' && sub !== 'cenarios' && (
+        {sub === 'simulador' && <PlanningSimulator token={token} />}
+        {sub !== 'dashboard' && sub !== 'orcamento' && sub !== 'orcado-realizado' && sub !== 'forecast' && sub !== 'cenarios' && sub !== 'simulador' && (
           <ComingSoon title={soon[sub][0]}>{soon[sub][1]}</ComingSoon>
         )}
       </div>

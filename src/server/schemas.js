@@ -375,3 +375,10 @@ export const scenarioUpdateSchema = z.object({
     description: z.string().trim().max(1000).nullish(),
     assumptions: assumptionsSchema.optional(),
 }).loose();
+
+// Simulador (efêmero, não persiste): compara uma base × premissas simuladas.
+export const simulateSchema = z.object({
+    baseAssumptions: assumptionsSchema.optional(),
+    assumptions: assumptionsSchema.optional(),
+    horizonMonths: scenarioHorizon.optional(),
+}).loose();

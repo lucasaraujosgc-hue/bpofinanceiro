@@ -10,6 +10,9 @@ import {
   brl, brlShort, pctTxt, fmtMonthKey, CHART_AXIS, CHART_TOOLTIP,
   Card, Stat, MethodologyNote,
 } from './reportUi';
+import {
+  ASSUMPTION_GROUPS, NULLABLE_KEYS, assumptionsToForm, formToAssumptions,
+} from './assumptions';
 
 interface Props { token: string; }
 
@@ -23,40 +26,6 @@ const KIND_BADGE: Record<string, string> = {
 };
 const KIND_LABEL: Record<string, string> = {
   base: 'Base', otimista: 'Otimista', pessimista: 'Pessimista', custom: 'Personalizado',
-};
-
-// campos de premissa: [chave, rótulo, sufixo, dica]
-const FIELDS: Record<string, [string, string, string, string][]> = {
-  'Receita': [
-    ['receita_crescimento_pct', 'Crescimento da receita', '% a.a.', 'Aplicado às receitas operacionais. Impostos sobre vendas acompanham.'],
-  ],
-  'Custos e despesas': [
-    ['custos_variaveis_delta_pct', 'Variação dos custos variáveis', '%', 'CMV e despesas variáveis (comissões, frete, marketing…).'],
-    ['custos_fixos_delta_pct', 'Variação dos custos fixos', '%', 'Aluguel, folha, pró-labore, contabilidade…'],
-    ['margem_bruta_alvo_pct', 'Margem bruta alvo', '%', 'Se preenchida, recalcula o CMV para atingir essa margem (sobrepõe o Δ de custo variável no CMV). Deixe vazio para não usar.'],
-  ],
-  'Recebimento e pagamento': [
-    ['inadimplencia_pct', 'Inadimplência', '% da receita', 'Lançada como despesa operacional ("Perdas estimadas com inadimplência").'],
-    ['pmr_dias', 'Prazo médio de recebimento', 'dias', 'Usado só para estimar a necessidade de capital de giro (NCG).'],
-    ['pmp_dias', 'Prazo médio de pagamento', 'dias', 'Usado só para estimar a NCG.'],
-  ],
-  'Caixa e capital': [
-    ['investimentos_mensais', 'Investimentos / mês', 'R$', 'Saída de caixa mensal (imobilizado). Não afeta o resultado.'],
-    ['aportes_mensais', 'Aportes de sócios / mês', 'R$', 'Entrada de caixa mensal. Não afeta o resultado.'],
-    ['emprestimo_valor', 'Empréstimo (captação)', 'R$', 'Entrada de caixa única no 1º mês projetado.'],
-    ['emprestimo_juros_mes_pct', 'Juros do empréstimo', '% a.m.', 'Sobre o saldo devedor. Entra como despesa financeira.'],
-    ['emprestimo_amortizacao_meses', 'Amortização', 'meses', 'Nº de meses para pagar o principal (saída de caixa, fora do resultado).'],
-    ['distribuicao_lucros_pct', 'Distribuição de lucros', '% do lucro', 'Saída de caixa mensal = % sobre o lucro líquido do mês.'],
-  ],
-};
-const NULLABLE = new Set(['margem_bruta_alvo_pct', 'pmr_dias', 'pmp_dias']);
-
-const toStr = (v: any) => (v === null || v === undefined ? '' : String(v));
-const parseField = (k: string, s: string): number | null => {
-  const t = String(s).trim().replace(',', '.');
-  if (t === '') return NULLABLE.has(k) ? null : 0;
-  const n = Number(t);
-  return Number.isFinite(n) ? n : (NULLABLE.has(k) ? null : 0);
 };
 
 const PlanningScenarios: React.FC<Props> = ({ token }) => {
@@ -93,9 +62,7 @@ const PlanningScenarios: React.FC<Props> = ({ token }) => {
   // sincroniza o formulário com o cenário selecionado
   useEffect(() => {
     if (!sel) { setForm({}); return; }
-    const f: Record<string, string> = {};
-    for (const groups of Object.values(FIELDS)) for (const [k] of groups) f[k] = toStr(sel.assumptions?.[k]);
-    setForm(f);
+    setForm(assumptionsToForm(sel.assumptions));
     setDirty(false);
   }, [sel]);
 
@@ -160,8 +127,7 @@ const PlanningScenarios: React.FC<Props> = ({ token }) => {
   const saveAssumptions = async () => {
     if (!sel) return;
     setSaving(true); setMsg(null);
-    const assumptions: Record<string, number | null> = {};
-    for (const groups of Object.values(FIELDS)) for (const [k] of groups) assumptions[k] = parseField(k, form[k] ?? '');
+    const assumptions = formToAssumptions(form);
     try {
       const r = await fetch(`/api/planning/scenarios/${sel.id}`, { method: 'PUT', headers, body: JSON.stringify({ assumptions }) });
       const j = await r.json().catch(() => ({}));
@@ -240,7 +206,7 @@ const PlanningScenarios: React.FC<Props> = ({ token }) => {
                   <Sparkles size={15} className="text-brand" /> Premissas — {sel.name}
                 </h3>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => { const f: Record<string, string> = {}; for (const gs of Object.values(FIELDS)) for (const [k] of gs) f[k] = toStr(sel.assumptions?.[k]); setForm(f); setDirty(false); }}
+                  <button onClick={() => { setForm(assumptionsToForm(sel.assumptions)); setDirty(false); }}
                     className="flex items-center gap-1 text-xs px-2 py-1 rounded border border-line text-muted hover:text-ink"><RotateCcw size={12} /> Desfazer</button>
                   <button onClick={saveAssumptions} disabled={saving || !dirty}
                     className={`flex items-center gap-1.5 text-sm px-4 py-1.5 rounded-lg font-medium ${dirty ? 'bg-brand text-white hover:bg-brand-strong' : 'bg-sunken text-faint'}`}>
@@ -252,17 +218,17 @@ const PlanningScenarios: React.FC<Props> = ({ token }) => {
                 </div>
               </div>
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-x-5 gap-y-4">
-                {Object.entries(FIELDS).map(([group, fields]) => (
-                  <div key={group} className="space-y-2">
-                    <p className="text-[11px] font-bold uppercase tracking-wide text-faint">{group}</p>
-                    {fields.map(([k, label, suffix, hint]) => (
-                      <label key={k} className="block">
-                        <span className="text-xs text-muted flex items-center gap-1" title={hint}>{label} <span className="text-faint">({suffix})</span></span>
+                {ASSUMPTION_GROUPS.map(group => (
+                  <div key={group.title} className="space-y-2">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-faint">{group.title}</p>
+                    {group.fields.map(f => (
+                      <label key={f.key} className="block">
+                        <span className="text-xs text-muted flex items-center gap-1" title={f.hint}>{f.label} <span className="text-faint">({f.suffix})</span></span>
                         <input
                           inputMode="decimal"
-                          value={form[k] ?? ''}
-                          onChange={e => setField(k, e.target.value)}
-                          placeholder={NULLABLE.has(k) ? '—' : '0'}
+                          value={form[f.key] ?? ''}
+                          onChange={e => setField(f.key, e.target.value)}
+                          placeholder={NULLABLE_KEYS.has(f.key) ? '—' : '0'}
                           className="mt-0.5 w-full bg-surface border border-line rounded-lg px-2 py-1.5 text-ink text-sm focus:border-brand outline-none tabular-nums"
                         />
                       </label>

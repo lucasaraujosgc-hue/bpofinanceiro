@@ -118,17 +118,30 @@ patrimoniais − variação da NCG), ponto de equilíbrio, caixa final e NCG
 Simulador). Cenário Base (premissas em zero) ≈ Forecast por média histórica.
 Regime de caixa mantido explícito na UI. `components/PlanningScenarios.tsx`.
 
+**Fase 6 — Simulador:** `POST /api/planning/scenarios/simulate` — roda
+`computeScenario` **duas vezes** (base × premissas simuladas) e devolve
+`{ base, simulado }` numa chamada. **Efêmero: não escreve nada** (nem
+`planning_scenarios`, nem transações/previsões). O usuário pode "Salvar como
+cenário" (a única escrita, explícita). `components/PlanningSimulator.tsx`:
+sliders + inputs ao vivo (debounce 280 ms), tabela Base × Simulado × Δ (receita,
+custos, EBITDA, lucro, margem, PE, caixa final, menor caixa, capital de giro,
+NCG), gráfico base × simulado, atalhos ("Receita +20%", "Custos −10%"…),
+"Partir de" um cenário salvo. Metadados de premissa extraídos para
+`components/assumptions.ts` (compartilhado com Cenários).
+
 Toda rota nova: autentica, confere `*.user_id = req.userId` (ID do frontend
-nunca confiado — `loadScenario`/`ownedBudget`), zod (`assumptionsSchema` com
-clamps), queries `$n`.
+nunca confiado — `loadScenario`/`ownedBudget`), zod (`assumptionsSchema` /
+`simulateSchema` com clamps), queries `$n`.
 
 - **Testes:** 21 ciclo + 17 planejamento + 21 orçamento + 20 orçado×realizado
-  + 28 forecast + 44 cenários (inclui: realizar previsão → previsto cai o valor
-  exato, realizado sobe o mesmo, líquido inalterado; 1 transação criada, não 2;
-  realize repetido → 409; upsert de orçamento sem duplicar; identidade
-  subtotal-de-grupo = Σ categorias; cenário sem PMR/PMP → NCG indisponível;
-  otimista > base > pessimista em receita/lucro; margem bruta alvo reflete na
-  DRE; IDOR em `/:id/projection` → 404).
+  + 28 forecast + 44 cenários + 16 simulador (inclui: realizar previsão →
+  previsto cai o valor exato, realizado sobe o mesmo, líquido inalterado; 1
+  transação criada, não 2; realize repetido → 409; upsert de orçamento sem
+  duplicar; identidade subtotal-de-grupo = Σ categorias; cenário sem PMR/PMP →
+  NCG indisponível; otimista > base > pessimista em receita/lucro; margem bruta
+  alvo reflete na DRE; IDOR em `/:id/projection` → 404; **simulador é efêmero:
+  nº de cenários inalterado após simular**; base == simulado quando as premissas
+  são iguais).
 
 Correções de brinde nesta rodada: `?year=abc` / `?month=13` nos relatórios →
 **400** (era 500 no `::date`); `month=0` (janeiro) nos relatórios cash-flow /
