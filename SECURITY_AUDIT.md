@@ -38,21 +38,24 @@ Legenda: 🔴 crítico · 🟠 alto · 🟡 médio · ⚪ baixo / higiene
 | DRE / plano de contas | ✅ reescrito conforme art. 187 (ver `docs/RELATORIOS.md`); grupos contábeis, análise vertical/horizontal, ponto de equilíbrio |
 | §9 `server.js` monolítico | ✅ **split** (branch `refactor/split-server`): `src/server/{config,db,schema,accounting}.js` + `middleware/` + `services/` + `lib/` + `routes/*.routes.js` (10 módulos). `server.js` virou bootstrap de ~100 linhas. Handlers movidos verbatim, rotas/ordem preservadas. Shim SQLite→PG segue em `db.js` (documentado) |
 | §2 modelo de sessão | ✅ **access curto (15 min) + refresh rotativo (~90 d) com detecção de reuso** — tabela `auth_sessions` (digest sha256), `POST /api/auth/refresh` + `/api/auth/logout`, reset de senha e block/delete revogam a sessão. Frontend: patch de `window.fetch` (`lib/http.ts`) renova em 401 de forma transparente (single-flight). Token inválido → 401 `token_expired` (era 403) |
+| §5 validação de entrada | ✅ **zod** em todo endpoint de escrita (`src/server/schemas.js` + `middleware/validate.js`). Campos perigosos travados: `value` finito ≥ 0 (rejeita NaN/negativo/Infinity), `type` ∈ {credito,debito}, `date` AAAA-MM-DD **e dia real do calendário** (`2026-13-99` → 400, não 500 no `::date`), `email` com formato. `.loose()` deixa passar chave extra p/ não quebrar telas. `limit` de `audit-signups` com teto 200 |
 
 **Verificação (contra PGlite via `preview-boot.mjs` — dados simulados):**
 `npm run build` OK · boot produção OK · login OK · IDOR `POST /api/forecasts`
 com `bankId` alheio → **403** · 9 logins errados → **429** · header CSP presente
 em produção sem violações no SPA · DRE/Análise/Fluxo renderizam com dados reais.
-Split + sessão: 51 checagens de API (24 base + 13 helpers de módulo + 14 sessão)
-+ teste de navegador (renovação transparente, single-flight, logout forçado).
+Split + sessão + zod: **68 checagens de API** (24 base + 13 helpers + 14 sessão
++ 17 validação) + teste de navegador (renovação transparente, single-flight,
+logout forçado, forms de lançamento/previsão).
 
 ### Pendente (não feito)
 
-- **zod / validação de schema** (§5) — nenhum endpoint de escrita valida tipo,
-  faixa ou formato. Só coerção pontual (`Number(value)`, `|| null`).
+- **Migrations no lugar do `db_init`** (§10) — schema ainda nasce no boot.
 - QA visual das telas internas nos dois temas.
-- `.env`: `ENCRYPTION_KEY` não é hex de 32 bytes (deriva via sha256),
-  `PASSWORD_ADMIN` está curto, e falta `APP_URL`.
+- Hardening de query param nos relatórios (`year`/`month` sem `parseInt` guard —
+  baixo risco: valores vêm de dropdown).
+- `.env`: conferir que `ENCRYPTION_KEY` é hex de 32 bytes e `PASSWORD_ADMIN` é
+  forte (o usuário disse já ter ajustado).
 
 ---
 
@@ -277,6 +280,15 @@ app.use(cors({ origin: (process.env.CORS_ORIGINS || '').split(',').filter(Boolea
 ---
 
 ## 5. 🟠 Validação de entrada da API
+
+**✅ CORRIGIDO.** `src/server/schemas.js` (um schema zod por endpoint de
+escrita) + `middleware/validate.js` (`validateBody`). Aplicado em auth, banks,
+cartões, categorias, transactions, forecasts, ofx, keyword-rules,
+integration/settings e admin. Os schemas são `.loose()` (chave extra passa,
+não quebra tela) mas travam os campos abaixo. `audit-signups?limit=` agora tem
+teto 200. O texto original do achado segue para referência:
+
+---
 
 **Não existe** nenhuma validação de schema (sem zod / express-validator). Os
 corpos são desestruturados e vão direto pra query. SQL é parametrizado (sem
@@ -532,8 +544,8 @@ cru.
 9. CSP real + remover Tailwind CDN/importmap (§7, §12).
 
 **Sprint 2 (estrutural):**
-10. zod em todos os endpoints de escrita (§5). — **pendente**
-11. Migrations no lugar do `db_init` (§10). — pendente
+10. ✅ zod em todos os endpoints de escrita (§5).
+11. Migrations no lugar do `db_init` (§10). — **pendente** (última peça estrutural)
 12. ~~Quebrar `server.js` em módulos~~ ✅ (`refactor/split-server`); matar o shim SQLite→PG ainda pendente (§9).
 13. ✅ AES-GCM + leitura do formato CBC legado (§4).
 14. ✅ Modelo de sessão: access 15 min + refresh rotativo com detecção de reuso + `auth_sessions` (§2).

@@ -1,6 +1,8 @@
 import { db } from '../db.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { INITIAL_CATEGORIES_SEED } from '../schema.js';
+import { validateBody } from '../middleware/validate.js';
+import { categoryCreateSchema, categoryUpdateSchema } from '../schemas.js';
 
 export default function register(app) {
 app.get('/api/categories', authenticateToken, (req, res) => {
@@ -18,14 +20,14 @@ app.get('/api/categories', authenticateToken, (req, res) => {
         }
     });
 });
-app.post('/api/categories', authenticateToken, (req, res) => {
+app.post('/api/categories', authenticateToken, validateBody(categoryCreateSchema), (req, res) => {
     const { name, type, groupType, mainGroup, subGroup, nature, affectsDre, affectsCashflow, affectsBalance, costClassification, behaviorType } = req.body;
     db.run(`INSERT INTO categories (user_id, name, type, group_type, main_group, sub_group, nature, affects_dre, affects_cashflow, affects_balance, cost_classification, behavior_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
     [req.userId, name, type, groupType, mainGroup, subGroup, nature, affectsDre !== undefined ? affectsDre : true, affectsCashflow !== undefined ? affectsCashflow : true, affectsBalance || false, costClassification, behaviorType], function(err) {
         res.json({ id: this.lastID });
     });
 });
-app.put('/api/categories/:id', authenticateToken, (req, res) => {
+app.put('/api/categories/:id', authenticateToken, validateBody(categoryUpdateSchema), (req, res) => {
     const { name, type, groupType, mainGroup, subGroup, nature, affectsDre, affectsCashflow, affectsBalance, costClassification, behaviorType } = req.body;
     db.run(`UPDATE categories SET name = ?, type = ?, group_type = ?, main_group = ?, sub_group = ?, nature = ?, affects_dre = ?, affects_cashflow = ?, affects_balance = ?, cost_classification = ?, behavior_type = ? WHERE id = ? AND user_id = ?`, 
     [name, type, groupType, mainGroup, subGroup, nature, affectsDre !== undefined ? affectsDre : true, affectsCashflow !== undefined ? affectsCashflow : true, affectsBalance || false, costClassification, behaviorType, req.params.id, req.userId], (err) => res.json({success: !err}));

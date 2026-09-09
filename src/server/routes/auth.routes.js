@@ -12,11 +12,19 @@ import {
     revokeAllSessionsForUser,
     RefreshError,
 } from '../services/session.js';
+import { validateBody } from '../middleware/validate.js';
+import {
+    loginSchema,
+    requestSignupSchema,
+    completeSignupSchema,
+    recoverPasswordSchema,
+    resetPasswordConfirmSchema,
+} from '../schemas.js';
 
 const uaOf = (req) => String(req.headers['user-agent'] || '').slice(0, 400);
 
 export default function register(app) {
-app.post('/api/login', (req, res) => {
+app.post('/api/login', validateBody(loginSchema), (req, res) => {
     const { email, password } = req.body;
     const inputEmail = (email || '').trim();
     const inputPass = (password || '').trim();
@@ -86,7 +94,7 @@ app.post('/api/auth/logout', async (req, res) => {
     res.json({ success: true });
 });
 
-app.post('/api/request-signup', (req, res) => {
+app.post('/api/request-signup', validateBody(requestSignupSchema), (req, res) => {
     const { email, cnpj, razaoSocial, phone, businessType } = req.body;
     const token = crypto.randomBytes(32).toString('hex');
     
@@ -137,7 +145,7 @@ app.get('/api/validate-signup-token/:token', (req, res) => {
     });
 });
 
-app.post('/api/complete-signup', (req, res) => {
+app.post('/api/complete-signup', validateBody(completeSignupSchema), (req, res) => {
     const { token, password } = req.body;
     if (!password || String(password).length < 8) {
         return res.status(400).json({ error: "A senha precisa ter ao menos 8 caracteres." });
@@ -165,7 +173,7 @@ app.post('/api/complete-signup', (req, res) => {
     });
 });
 
-app.post('/api/recover-password', (req, res) => {
+app.post('/api/recover-password', validateBody(recoverPasswordSchema), (req, res) => {
     const { email } = req.body;
     const token = crypto.randomBytes(32).toString('hex');
     // Guarda só o hash do token — vazamento de DB não permite tomar contas.
@@ -182,7 +190,7 @@ app.post('/api/recover-password', (req, res) => {
     });
 });
 
-app.post('/api/reset-password-confirm', (req, res) => {
+app.post('/api/reset-password-confirm', validateBody(resetPasswordConfirmSchema), (req, res) => {
     const { token, newPassword } = req.body;
     if (!newPassword || String(newPassword).length < 8) {
         return res.status(400).json({ error: "A senha precisa ter ao menos 8 caracteres." });

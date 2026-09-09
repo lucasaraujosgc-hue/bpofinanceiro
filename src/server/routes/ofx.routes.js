@@ -1,5 +1,7 @@
 import { db, pool } from '../db.js';
 import { authenticateToken } from '../middleware/auth.js';
+import { validateBody } from '../middleware/validate.js';
+import { ofxImportCreateSchema } from '../schemas.js';
 
 export default function register(app) {
 app.get('/api/ofx-imports', authenticateToken, (req, res) => {
@@ -7,7 +9,7 @@ app.get('/api/ofx-imports', authenticateToken, (req, res) => {
         res.json((rows || []).map(r => ({...r, fileName: r.file_name, importDate: r.import_date, bankId: r.bank_id, transactionCount: r.transaction_count})));
     });
 });
-app.post('/api/ofx-imports', authenticateToken, (req, res) => {
+app.post('/api/ofx-imports', authenticateToken, validateBody(ofxImportCreateSchema), (req, res) => {
     const { fileName, importDate, bankId, transactionCount, content } = req.body;
     db.run(`INSERT INTO ofx_imports (user_id, file_name, import_date, bank_id, transaction_count, content) VALUES (?, ?, ?, ?, ?, ?)`,
         [req.userId, fileName, importDate, bankId, transactionCount, content], function(err) { res.json({id: this.lastID}); });

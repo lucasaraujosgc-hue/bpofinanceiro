@@ -1,6 +1,8 @@
 import { db, pool } from '../db.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { assertUserOwns } from '../lib/ownership.js';
+import { validateBody } from '../middleware/validate.js';
+import { bankCreateSchema, bankUpdateSchema, creditCardCreateSchema, creditCardUpdateSchema } from '../schemas.js';
 
 export default function register(app) {
 app.get('/api/global-banks', (req, res) => {
@@ -9,7 +11,7 @@ app.get('/api/global-banks', (req, res) => {
 app.get('/api/banks', authenticateToken, (req, res) => {
     db.all('SELECT * FROM banks WHERE user_id = ? ORDER BY active DESC, name', [req.userId], (err, rows) => res.json(rows || []));
 });
-app.post('/api/banks', authenticateToken, (req, res) => {
+app.post('/api/banks', authenticateToken, validateBody(bankCreateSchema), (req, res) => {
     const { name, accountNumber, nickname, logo } = req.body;
     db.run(`INSERT INTO banks (user_id, name, account_number, nickname, logo) VALUES (?, ?, ?, ?, ?)`, 
         [req.userId, name, accountNumber, nickname, logo], function(err) {
@@ -17,7 +19,7 @@ app.post('/api/banks', authenticateToken, (req, res) => {
         res.json({id: this.lastID});
     });
 });
-app.put('/api/banks/:id', authenticateToken, (req, res) => {
+app.put('/api/banks/:id', authenticateToken, validateBody(bankUpdateSchema), (req, res) => {
     const { nickname, active } = req.body;
     db.run(`UPDATE banks SET nickname = COALESCE(?, nickname), active = COALESCE(?, active) WHERE id = ? AND user_id = ?`,
         [nickname, active, req.params.id, req.userId], (err) => res.json({success: !err}));
@@ -50,7 +52,7 @@ app.get('/api/credit-cards', authenticateToken, (req, res) => {
         })));
     });
 });
-app.post('/api/credit-cards', authenticateToken, async (req, res) => {
+app.post('/api/credit-cards', authenticateToken, validateBody(creditCardCreateSchema), async (req, res) => {
     const { bankId, name, closingDay, dueDay, limitValue } = req.body;
     try {
         const owned = await assertUserOwns(req.userId, { bankId });
@@ -65,7 +67,7 @@ app.post('/api/credit-cards', authenticateToken, async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-app.put('/api/credit-cards/:id', authenticateToken, (req, res) => {
+app.put('/api/credit-cards/:id', authenticateToken, validateBody(creditCardUpdateSchema), (req, res) => {
     const { name, closingDay, dueDay, limitValue } = req.body;
     db.run(`UPDATE credit_cards SET name = ?, closing_day = ?, due_day = ?, limit_value = ? WHERE id = ? AND user_id = ?`,
         [name, closingDay, dueDay, limitValue, req.params.id, req.userId], (err) => res.json({success: !err}));

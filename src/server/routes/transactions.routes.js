@@ -2,6 +2,8 @@ import { db, pool } from '../db.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { assertUserOwns } from '../lib/ownership.js';
 import { recalculateBankBalance } from '../lib/banks.js';
+import { validateBody } from '../middleware/validate.js';
+import { transactionCreateSchema, transactionUpdateSchema, transactionReconcileSchema, transactionBatchUpdateSchema } from '../schemas.js';
 
 export default function register(app) {
 app.get('/api/transactions', authenticateToken, async (req, res) => {
@@ -13,7 +15,7 @@ app.get('/api/transactions', authenticateToken, async (req, res) => {
         res.status(500).json({error: "Server Error"});
     }
 });
-app.post('/api/transactions', authenticateToken, async (req, res) => {
+app.post('/api/transactions', authenticateToken, validateBody(transactionCreateSchema), async (req, res) => {
     const { date, description, value, type, categoryId, bankId, creditCardId, reconciled, ofxImportId } = req.body;
     try {
         // 400 (não 403): é validação de payload. O apiFetch do frontend desloga
@@ -38,7 +40,7 @@ app.post('/api/transactions', authenticateToken, async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-app.put('/api/transactions/:id', authenticateToken, async (req, res) => {
+app.put('/api/transactions/:id', authenticateToken, validateBody(transactionUpdateSchema), async (req, res) => {
     const { date, description, value, type, categoryId, bankId, creditCardId, reconciled } = req.body;
     try {
         const owned = await assertUserOwns(req.userId, { bankId, categoryId, creditCardId });
@@ -66,11 +68,11 @@ app.delete('/api/transactions/:id', authenticateToken, (req, res) => {
         });
     });
 });
-app.patch('/api/transactions/:id/reconcile', authenticateToken, (req, res) => {
+app.patch('/api/transactions/:id/reconcile', authenticateToken, validateBody(transactionReconcileSchema), (req, res) => {
     const { reconciled } = req.body;
     db.run(`UPDATE transactions SET reconciled = ? WHERE id = ? AND user_id = ?`, [reconciled?1:0, req.params.id, req.userId], (err) => res.json({success: !err}));
 });
-app.patch('/api/transactions/batch-update', authenticateToken, async (req, res) => {
+app.patch('/api/transactions/batch-update', authenticateToken, validateBody(transactionBatchUpdateSchema), async (req, res) => {
     const { transactionIds, categoryId } = req.body;
     if(!Array.isArray(transactionIds) || transactionIds.length === 0) return res.json({success: true});
     try {

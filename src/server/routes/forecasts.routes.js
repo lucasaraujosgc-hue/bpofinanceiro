@@ -1,6 +1,8 @@
 import { db, pool } from '../db.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { assertUserOwns } from '../lib/ownership.js';
+import { validateBody } from '../middleware/validate.js';
+import { forecastCreateSchema, forecastUpdateSchema } from '../schemas.js';
 
 export default function register(app) {
 app.get('/api/forecasts', authenticateToken, (req, res) => {
@@ -8,7 +10,7 @@ app.get('/api/forecasts', authenticateToken, (req, res) => {
         res.json((rows || []).map(r => ({...r, realized: !!r.realized, categoryId: r.category_id, bankId: r.bank_id, creditCardId: r.credit_card_id, installmentCurrent: r.installment_current, installmentTotal: r.installment_total, groupId: r.group_id})));
     });
 });
-app.post('/api/forecasts', authenticateToken, async (req, res) => {
+app.post('/api/forecasts', authenticateToken, validateBody(forecastCreateSchema), async (req, res) => {
     const { date, description, value, type, categoryId, bankId, creditCardId, realized, installmentCurrent, installmentTotal, groupId } = req.body;
     try {
         const owned = await assertUserOwns(req.userId, { bankId, categoryId, creditCardId });
@@ -23,7 +25,7 @@ app.post('/api/forecasts', authenticateToken, async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-app.put('/api/forecasts/:id', authenticateToken, async (req, res) => {
+app.put('/api/forecasts/:id', authenticateToken, validateBody(forecastUpdateSchema), async (req, res) => {
     const { date, description, value, type, categoryId, bankId, creditCardId } = req.body;
     try {
         const owned = await assertUserOwns(req.userId, { bankId, categoryId, creditCardId });

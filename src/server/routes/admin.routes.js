@@ -4,6 +4,8 @@ import { decrypt } from '../config.js';
 import { logAudit, getAuditActor } from '../services/audit.js';
 import { saveBankLogo } from '../services/logo.js';
 import { revokeAllSessionsForUser } from '../services/session.js';
+import { validateBody } from '../middleware/validate.js';
+import { adminBlockSchema, adminBankCreateSchema, adminBankUpdateSchema } from '../schemas.js';
 
 export default function register(app) {
 app.get('/api/admin/users', authenticateToken, checkAdmin, (req, res) => {
@@ -36,7 +38,7 @@ app.get('/api/admin/users', authenticateToken, checkAdmin, (req, res) => {
         }
     });
 });
-app.put('/api/admin/users/:id/block', authenticateToken, checkAdmin, (req, res) => {
+app.put('/api/admin/users/:id/block', authenticateToken, checkAdmin, validateBody(adminBlockSchema), (req, res) => {
     const { blocked } = req.body;
     db.run("UPDATE users SET blocked = ? WHERE id = ?", [blocked ? 1 : 0, req.params.id], function(err) {
         if(err) return res.status(500).json({error: err.message});
@@ -68,8 +70,8 @@ app.get('/api/admin/global-data', authenticateToken, checkAdmin, (req, res) => {
     });
 });
 app.get('/api/admin/audit-signups', authenticateToken, checkAdmin, async (req, res) => {
-    const limit = parseInt(req.query.limit) || 20;
-    const offset = parseInt(req.query.offset) || 0;
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 20, 1), 200);
+    const offset = Math.max(parseInt(req.query.offset) || 0, 0);
     
     try {
         const { rows } = await pool.query(`SELECT id, email, razao_social, created_at FROM users WHERE role != 'admin' ORDER BY created_at DESC LIMIT $1 OFFSET $2`, [limit, offset]);
@@ -84,7 +86,7 @@ app.get('/api/admin/audit-signups', authenticateToken, checkAdmin, async (req, r
 app.get('/api/admin/banks', authenticateToken, checkAdmin, (req, res) => {
     db.all('SELECT * FROM global_banks ORDER BY id DESC', [], (err, rows) => res.json(rows || []));
 });
-app.post('/api/admin/banks', authenticateToken, checkAdmin, (req, res) => {
+app.post('/api/admin/banks', authenticateToken, checkAdmin, validateBody(adminBankCreateSchema), (req, res) => {
     const { name, logoData } = req.body;
     let logoPath = '/logo/caixaf.png';
     if (logoData && logoData.startsWith('data:image')) {
@@ -99,7 +101,7 @@ app.post('/api/admin/banks', authenticateToken, checkAdmin, (req, res) => {
         res.json({ id: this.lastID, name, logo: logoPath });
     });
 });
-app.put('/api/admin/banks/:id', authenticateToken, checkAdmin, (req, res) => {
+app.put('/api/admin/banks/:id', authenticateToken, checkAdmin, validateBody(adminBankUpdateSchema), (req, res) => {
     const { name, logoData } = req.body;
     db.get('SELECT * FROM global_banks WHERE id = ?', [req.params.id], (err, row) => {
         if(!row) return res.status(404).json({error: "Not found"});

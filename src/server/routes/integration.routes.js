@@ -1,6 +1,8 @@
 import { pool } from '../db.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { encrypt, decrypt } from '../config.js';
+import { validateBody } from '../middleware/validate.js';
+import { integrationSettingsSchema } from '../schemas.js';
 
 export default function register(app) {
 app.get('/api/integration/settings', authenticateToken, async (req, res) => {
@@ -15,7 +17,7 @@ app.get('/api/integration/settings', authenticateToken, async (req, res) => {
     } catch(err) { res.status(500).json({ error: err.message }); }
 });
 
-app.put('/api/integration/settings', authenticateToken, async (req, res) => {
+app.put('/api/integration/settings', authenticateToken, validateBody(integrationSettingsSchema), async (req, res) => {
     const { token, start_date, target_type, category_in_id, category_out_id, bank_in_id, bank_out_id } = req.body;
     try {
         await pool.query(

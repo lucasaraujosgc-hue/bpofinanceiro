@@ -1,12 +1,14 @@
 import { db, pool } from '../db.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { assertUserOwns } from '../lib/ownership.js';
+import { validateBody } from '../middleware/validate.js';
+import { keywordRuleCreateSchema } from '../schemas.js';
 
 export default function register(app) {
 app.get('/api/keyword-rules', authenticateToken, (req, res) => {
     db.all(`SELECT * FROM keyword_rules WHERE user_id = ?`, [req.userId], (err, rows) => res.json((rows || []).map(r => ({...r, categoryId: r.category_id, bankId: r.bank_id}))));
 });
-app.post('/api/keyword-rules', authenticateToken, async (req, res) => {
+app.post('/api/keyword-rules', authenticateToken, validateBody(keywordRuleCreateSchema), async (req, res) => {
     const { keyword, type, categoryId, bankId } = req.body;
     try {
         const owned = await assertUserOwns(req.userId, { bankId, categoryId });
