@@ -102,13 +102,31 @@ visível na tela. `components/PlanningForecast.tsx`. Bug latente corrigido de
 brinde: grupos do DRE agora chaveados por `(grupo, tipo)` — `nao_operacional`
 (type 'ambos') misturava entradas e saídas num só subtotal (afetava Fase 3 e 4).
 
-Toda rota nova: autentica, confere `budgets.user_id = req.userId` (ID do
-frontend nunca confiado), zod, queries `$n`.
+**Fase 5 — Cenários:** migration `0004_planning_scenarios.sql`
+(`planning_scenarios` + `planning_assumptions` 1:1). Um cenário = 13 premissas
+(crescimento de receita, Δ custos variáveis/fixos, margem bruta alvo,
+inadimplência, PMR, PMP, investimentos, aportes, empréstimo + juros +
+amortização, distribuição de lucros) aplicadas sobre a média histórica por
+categoria. Gera **DRE projetada** (estrutura `ACCOUNTING_GROUPS` + `computeDre`,
+sem classificação paralela), **fluxo de caixa projetado** (resultado + itens
+patrimoniais − variação da NCG), ponto de equilíbrio, caixa final e NCG
+(`src/server/lib/scenario.js`). Rotas `/api/planning/scenarios/*` — CRUD,
+`/defaults` (cria Base/Otimista/Pessimista), `/:id/projection`, `/compare`
+(lado a lado), `/preview` (projeção ad-hoc sem salvar — base do futuro
+Simulador). Cenário Base (premissas em zero) ≈ Forecast por média histórica.
+Regime de caixa mantido explícito na UI. `components/PlanningScenarios.tsx`.
+
+Toda rota nova: autentica, confere `*.user_id = req.userId` (ID do frontend
+nunca confiado — `loadScenario`/`ownedBudget`), zod (`assumptionsSchema` com
+clamps), queries `$n`.
 
 - **Testes:** 21 ciclo + 17 planejamento + 21 orçamento + 20 orçado×realizado
-  (inclui: realizar previsão → previsto cai o valor exato, realizado sobe o
-  mesmo, líquido inalterado; 1 transação criada, não 2; realize repetido → 409;
-  upsert de orçamento sem duplicar; identidade subtotal-de-grupo = Σ categorias).
+  + 28 forecast + 44 cenários (inclui: realizar previsão → previsto cai o valor
+  exato, realizado sobe o mesmo, líquido inalterado; 1 transação criada, não 2;
+  realize repetido → 409; upsert de orçamento sem duplicar; identidade
+  subtotal-de-grupo = Σ categorias; cenário sem PMR/PMP → NCG indisponível;
+  otimista > base > pessimista em receita/lucro; margem bruta alvo reflete na
+  DRE; IDOR em `/:id/projection` → 404).
 
 Correções de brinde nesta rodada: `?year=abc` / `?month=13` nos relatórios →
 **400** (era 500 no `::date`); `month=0` (janeiro) nos relatórios cash-flow /

@@ -250,6 +250,27 @@ if (seeded.rows[0].n === 0) {
     }
   }
 
+  // ---- cenários (área Planejamento / Cenários, Fase 5) ----
+  const ASSUM_COLS = ['receita_crescimento_pct', 'custos_variaveis_delta_pct', 'custos_fixos_delta_pct',
+    'margem_bruta_alvo_pct', 'inadimplencia_pct', 'pmr_dias', 'pmp_dias', 'investimentos_mensais',
+    'aportes_mensais', 'emprestimo_valor', 'emprestimo_juros_mes_pct', 'emprestimo_amortizacao_meses',
+    'distribuicao_lucros_pct'];
+  const scenarios = [
+    ['Cenário Base', 'base', 'Projeção pela média histórica, sem ajustes.',
+      { pmr_dias: 28, pmp_dias: 32 }],
+    ['Cenário Otimista', 'otimista', 'Aceleração de vendas com custos sob controle.',
+      { receita_crescimento_pct: 15, custos_variaveis_delta_pct: 8, custos_fixos_delta_pct: 3, inadimplencia_pct: 1, pmr_dias: 22, pmp_dias: 35 }],
+    ['Cenário Pessimista', 'pessimista', 'Queda de receita, inadimplência maior e prazos piores.',
+      { receita_crescimento_pct: -12, custos_variaveis_delta_pct: -5, custos_fixos_delta_pct: 4, inadimplencia_pct: 6, pmr_dias: 45, pmp_dias: 25, emprestimo_valor: 40000, emprestimo_juros_mes_pct: 2.1, emprestimo_amortizacao_meses: 18 }],
+  ];
+  for (const [name, kind, desc, prem] of scenarios) {
+    const s = await q(`INSERT INTO planning_scenarios (user_id, name, kind, base_year, horizon_months, description) VALUES ($1,$2,$3,2026,12,$4) RETURNING id`,
+      [uid, name, kind, desc]);
+    const vals = ASSUM_COLS.map(c => (prem[c] !== undefined ? prem[c] : (c === 'margem_bruta_alvo_pct' || c === 'pmr_dias' || c === 'pmp_dias' ? null : 0)));
+    const place = ASSUM_COLS.map((_, i) => `$${i + 3}`).join(',');
+    await q(`INSERT INTO planning_assumptions (scenario_id, user_id, ${ASSUM_COLS.join(',')}) VALUES ($1,$2,${place})`, [s.rows[0].id, uid, ...vals]);
+  }
+
   const n = await q(`SELECT COUNT(*)::int AS n FROM transactions`);
   console.log(`[preview] pronto — ${n.rows[0].n} lançamentos. Login: demo@virgula.com.br / demo1234`);
 }

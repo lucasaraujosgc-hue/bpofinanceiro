@@ -298,3 +298,69 @@ export const budgetGenerateSchema = z.object({
     fromYear: budgetYear.nullish(),
     scope: z.enum(['all', 'receitas', 'despesas']).default('all'),
 }).loose();
+
+// --- planejamento: cenários -------------------------------------
+
+const scenarioHorizon = z.coerce.number().int().refine(
+    (n) => [3, 6, 12, 18, 24, 36].includes(n), 'horizonte deve ser 3, 6, 12, 18, 24 ou 36 meses',
+).default(12);
+
+// % de variação: aceita '' / null → default. Faixa ampla mas finita.
+const deltaPct = z.preprocess(
+    (v) => (v === '' || v === null || v === undefined ? 0 : v),
+    z.coerce.number().finite().min(-100).max(1000),
+).default(0);
+// % 0–100 (inadimplência, distribuição, juros)
+const ratePct = z.preprocess(
+    (v) => (v === '' || v === null || v === undefined ? 0 : v),
+    z.coerce.number().finite().min(0).max(100),
+).default(0);
+// dias de prazo: opcional (null = não informado)
+const prazoDias = z.preprocess(
+    (v) => (v === '' || v === null || v === undefined ? null : v),
+    z.coerce.number().int().min(0).max(3650).nullable(),
+);
+const nnMoney = z.preprocess(
+    (v) => (v === '' || v === null || v === undefined ? 0 : v),
+    z.coerce.number().finite().min(0).max(1e12),
+).default(0);
+
+export const assumptionsSchema = z.object({
+    receita_crescimento_pct: deltaPct,
+    custos_variaveis_delta_pct: deltaPct,
+    custos_fixos_delta_pct: deltaPct,
+    margem_bruta_alvo_pct: z.preprocess(
+        (v) => (v === '' || v === null || v === undefined ? null : v),
+        z.coerce.number().finite().min(-100).max(99).nullable(),
+    ),
+    inadimplencia_pct: ratePct,
+    pmr_dias: prazoDias,
+    pmp_dias: prazoDias,
+    investimentos_mensais: nnMoney,
+    aportes_mensais: nnMoney,
+    emprestimo_valor: nnMoney,
+    emprestimo_juros_mes_pct: ratePct,
+    emprestimo_amortizacao_meses: z.preprocess(
+        (v) => (v === '' || v === null || v === undefined ? 0 : v),
+        z.coerce.number().int().min(0).max(600),
+    ).default(0),
+    distribuicao_lucros_pct: ratePct,
+}).loose().partial();
+
+export const scenarioCreateSchema = z.object({
+    name: shortText.min(1, 'nome obrigatório').max(120),
+    kind: z.enum(['base', 'otimista', 'pessimista', 'custom']).default('custom'),
+    baseYear: budgetYear,
+    horizonMonths: scenarioHorizon,
+    description: z.string().trim().max(1000).nullish(),
+    assumptions: assumptionsSchema.optional(),
+}).loose();
+
+export const scenarioUpdateSchema = z.object({
+    name: shortText.min(1, 'nome obrigatório').max(120).optional(),
+    kind: z.enum(['base', 'otimista', 'pessimista', 'custom']).optional(),
+    baseYear: budgetYear.optional(),
+    horizonMonths: scenarioHorizon.optional(),
+    description: z.string().trim().max(1000).nullish(),
+    assumptions: assumptionsSchema.optional(),
+}).loose();
