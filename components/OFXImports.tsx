@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Bank, OFXImport, Transaction, TransactionType, KeywordRule } from '../types';
+import { fmtDateBR } from '../lib/date';
 import { FileUp, Trash2, Calendar, Database, FileSpreadsheet, AlertTriangle, ArrowRight, Save, X, Loader2 } from 'lucide-react';
 
 interface OFXImportsProps {
@@ -112,21 +113,23 @@ const OFXImports: React.FC<OFXImportsProps> = ({ token, userId, banks, keywordRu
 
                 // KEYWORD RULE MATCHING
                 let matchedCategoryId = 0;
+                let matchedDescription: string | null = null;
                 for (const rule of keywordRules) {
                     if (rule.type === type) {
                         // Check if rule applies to this bank (or globally)
                         const bankMatch = !rule.bankId || rule.bankId === currentBankId;
-                        
+
                         if (bankMatch && description.toLowerCase().includes(rule.keyword.toLowerCase())) {
                             matchedCategoryId = rule.categoryId;
+                            if ((rule as any).setDescription) matchedDescription = (rule as any).setDescription;
                             break;
                         }
                     }
                 }
-                
+
                 parsedTransactions.push({
                     date: formattedDate,
-                    description: description,
+                    description: matchedDescription || description,
                     value: Math.abs(rawValue),
                     type: type,
                     bankId: currentBankId,
@@ -417,7 +420,7 @@ const OFXImports: React.FC<OFXImportsProps> = ({ token, userId, banks, keywordRu
                               {conflicts.map(c => (
                                   <tr key={c.id} className="hover:bg-sunken/30">
                                       <td className="py-3 pr-4 opacity-70">
-                                          <div className="font-mono text-xs text-muted">{new Date(c.oldTx.date).toLocaleDateString()}</div>
+                                          <div className="font-mono text-xs text-muted">{fmtDateBR(c.oldTx.date)}</div>
                                           <div className="font-medium text-muted">{c.oldTx.description}</div>
                                           <div className={c.oldTx.type === 'debito' ? 'text-danger' : 'text-ok'}>{(c.oldTx.value).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
                                       </td>
@@ -438,7 +441,7 @@ const OFXImports: React.FC<OFXImportsProps> = ({ token, userId, banks, keywordRu
                                           </div>
                                       </td>
                                       <td className="py-3 pl-4">
-                                          <div className="font-mono text-xs text-brand">{new Date(c.newTx.date).toLocaleDateString()}</div>
+                                          <div className="font-mono text-xs text-brand">{fmtDateBR(c.newTx.date)}</div>
                                           <div className="font-medium text-ink">{c.newTx.description}</div>
                                           <div className={c.newTx.type === 'debito' ? 'text-danger' : 'text-ok'}>{(c.newTx.value).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
                                       </td>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { fmtDateBR } from '../lib/date';
 import { Users, LayoutDashboard, FileText, Trash2, LogOut, ShieldAlert, BarChart, Eye, X, Download, Calendar, Receipt, ArrowUpRight, FileSpreadsheet, Landmark, Plus, Upload, Edit2, Save, Ban, Search, Printer, RefreshCcw, FileCode, HardDrive, CheckCircle } from 'lucide-react';
 
 interface AdminPanelProps {
@@ -206,7 +207,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ token, onLogout }) => {
     const csvContent = [
         headers.join(","),
         ...transactions.map(t => {
-            const date = new Date(t.date).toLocaleDateString('pt-BR');
+            const date = fmtDateBR(t.date);
             const desc = `"${(t.description || '').replace(/"/g, '""')}"`; 
             const val = t.value.toFixed(2).replace('.', ',');
             const type = t.type === 'credito' ? 'Receita' : 'Despesa';
@@ -575,7 +576,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ token, onLogout }) => {
                                     ) : (
                                         filterByDate(userDetails.transactions).map((t: any) => (
                                             <tr key={t.id} className="hover:bg-sunken/60">
-                                                <td className="py-3 text-muted font-mono text-xs">{new Date(t.date).toLocaleDateString()}</td>
+                                                <td className="py-3 text-muted font-mono text-xs">{fmtDateBR(t.date)}</td>
                                                 <td className="py-3 text-ink">
                                                     {t.description}
                                                     <span className="block text-xs text-faint">{t.category_name || 'Sem categoria'}</span>

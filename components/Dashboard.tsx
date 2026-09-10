@@ -3,6 +3,8 @@ import { Transaction, TransactionType, Bank, Forecast, Category, CategoryType } 
 import { Wallet, CheckCircle2, TrendingUp, TrendingDown, Plus, Minus, X, ThumbsUp, ThumbsDown, Repeat, AlertTriangle, CalendarClock, Check, Trash2, ChevronLeft, ChevronRight, Calculator, Calendar, ShieldCheck } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Frequency, FREQUENCY_OPTIONS, recurrenceDates, installmentTotalFor } from '../lib/recurrence';
+import { fmtDateBR, ymOf } from '../lib/date';
+import CategoryTag from './CategoryTag';
 
 interface DashboardProps {
   token: string;
@@ -51,7 +53,6 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
       occurrences: 12,
   });
 
-  const startOfSelectedMonth = new Date(currentYear, currentMonth, 1);
   const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
   const getHeaders = () => ({
@@ -79,21 +80,20 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
 
   // --- Logic for Data Calculation ---
 
-  const overdueForecasts = forecasts.filter(f => {
-      const fDate = new Date(f.date);
-      const fDateMidnight = new Date(fDate.getFullYear(), fDate.getMonth(), fDate.getDate());
-      return fDateMidnight < startOfSelectedMonth && !f.realized && (!f.bankId || activeBankIds.includes(f.bankId));
-  }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const firstOfSelectedMonthISO = `${ymOf(currentYear, currentMonth)}-01`;
+  const overdueForecasts = forecasts.filter(f =>
+      String(f.date).slice(0, 10) < firstOfSelectedMonthISO && !f.realized && (!f.bankId || activeBankIds.includes(f.bankId))
+  ).sort((a, b) => String(a.date).localeCompare(String(b.date)));
 
   const allPendingForecasts = forecasts.filter(f => !f.realized && (!f.bankId || activeBankIds.includes(f.bankId)));
 
-  const currentMonthTransactions = transactions.filter(t => {
-      const d = new Date(t.date);
-      return d.getMonth() === currentMonth && d.getFullYear() === currentYear && (!t.bankId || activeBankIds.includes(t.bankId));
-  });
+  const selectedYm = ymOf(currentYear, currentMonth);
+  const currentMonthTransactions = transactions.filter(t =>
+      String(t.date).slice(0, 7) === selectedYm && (!t.bankId || activeBankIds.includes(t.bankId))
+  );
 
   const recentTransactions = [...currentMonthTransactions]
-      .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .sort((a, b) => String(b.date).localeCompare(String(a.date)))
       .slice(0, 5);
 
   const getTopCategories = (type: TransactionType) => {
@@ -128,10 +128,9 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
   const monthRealizedIncome = currentMonthTransactions.filter(t => t.type === TransactionType.CREDIT).reduce((acc, curr) => acc + curr.value, 0);
   const monthRealizedExpense = currentMonthTransactions.filter(t => t.type === TransactionType.DEBIT).reduce((acc, curr) => acc + curr.value, 0);
 
-  const currentMonthForecasts = forecasts.filter(f => {
-      const d = new Date(f.date);
-      return d.getMonth() === currentMonth && d.getFullYear() === currentYear && !f.realized && (!f.bankId || activeBankIds.includes(f.bankId));
-  });
+  const currentMonthForecasts = forecasts.filter(f =>
+      String(f.date).slice(0, 7) === selectedYm && !f.realized && (!f.bankId || activeBankIds.includes(f.bankId))
+  );
 
   const monthForecastIncome = currentMonthForecasts.filter(f => f.type === TransactionType.CREDIT).reduce((acc, curr) => acc + curr.value, 0);
   const monthForecastExpense = currentMonthForecasts.filter(f => f.type === TransactionType.DEBIT).reduce((acc, curr) => acc + curr.value, 0);
@@ -489,9 +488,9 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
                               const category = categories.find(c => c.id === t.categoryId);
                               return (
                                   <tr key={t.id} className="hover:bg-sunken/30">
-                                      <td className="px-4 py-2 text-muted font-mono">{new Date(t.date).toLocaleDateString('pt-BR')}</td>
+                                      <td className="px-4 py-2 text-muted font-mono">{fmtDateBR(t.date)}</td>
                                       <td className="px-4 py-2 text-ink font-medium">{t.description}</td>
-                                      <td className="px-4 py-2 text-muted">{category?.name || '-'}</td>
+                                      <td className="px-4 py-2"><CategoryTag category={category} /></td>
                                       <td className="px-4 py-2 text-muted flex items-center gap-2">
                                           {bank && <img src={bank.logo} className="w-4 h-4 rounded-full bg-white p-0.5" />}
                                           {bank?.name || 'Desconhecido'}
@@ -551,7 +550,7 @@ const Dashboard: React.FC<DashboardProps> = ({ token, userId, transactions, bank
                             {overdueForecasts.map(f => (
                                 <tr key={f.id} className="hover:bg-sunken/30 transition-colors">
                                     <td className="py-3 pl-2 text-warn font-mono text-xs">
-                                        {new Date(f.date).toLocaleDateString('pt-BR')}
+                                        {fmtDateBR(f.date)}
                                     </td>
                                     <td className="py-3 font-medium text-ink">
                                         {f.description}

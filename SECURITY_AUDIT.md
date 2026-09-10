@@ -162,6 +162,49 @@ Correções de brinde nesta rodada: `?year=abc` / `?month=13` nos relatórios �
 **400** (era 500 no `::date`); `month=0` (janeiro) nos relatórios cash-flow /
 DRE / previsões era tratado como "ano todo" — agora mostra janeiro.
 
+---
+
+## Feature — Lançamentos: lote, categorias visuais, data (branch `feature/lancamentos-ux`)
+
+Fora da auditoria; mesmo padrão de segurança. Base: `security/urgent-fixes`.
+
+1. **Bug de data (regime de caixa).** `date` é string `YYYY-MM-DD`; a tabela de
+   Lançamentos fazia `new Date(str).toLocaleDateString()` → parse UTC → em UTC-3
+   mostrava o dia anterior (o modal usava a string crua → certo). `lib/date.ts`
+   novo (`fmtDateBR`, `ymKey`, `ymOf`, `todayISO`); todos os `new Date(x.date)`
+   de exibição/filtro trocados por string (`Transactions`, `Dashboard`,
+   `AdminPanel`, `OFXImports`, `BankList`). Corrige de brinde o filtro de mês do
+   Dashboard (lançamento do dia 01 caía no mês anterior).
+2. **Edição em lote cross-mês.** `PATCH /api/transactions/batch`
+   (`transactionBatchSchema`): `{ ids, set }` — categoria / descrição (definir ou
+   `descriptionReplace` via SQL `replace()`) / data / valor / tipo / conciliação;
+   só os campos presentes em `set`; valor/tipo → recalcula o saldo dos bancos
+   afetados numa transação. **Segurança:** confere que TODOS os `ids` são do
+   usuário (`SELECT ... = ANY` + `rows.length === ids.length`) antes de escrever;
+   categoria via `assertUserOwns`; `set` vazio → 400. Substitui o antigo
+   `/batch-update` (só categoria + concilia, só no mês). Frontend: modo lote com
+   filtros próprios (valor com operador `≥`/`≤`/`entre`, período livre) sobre
+   todo o histórico + painel de ações.
+3. **Categoria com ícone + cor.** `0006_category_visual_rule_desc.sql` (colunas
+   `icon`, `color` em `categories`; `set_description` em `keyword_rules`).
+   `categoryShape` no zod: `color` só aceita `#rrggbb` (senão → null).
+   `components/categoryIcons.tsx` (46 ícones Lucide num mapa explícito — sem
+   `import *` p/ não estourar o bundle) + `components/CategoryTag.tsx` (pill
+   tingida). Renderizada em Lançamentos (+ barra de cor na linha), Dashboard,
+   Regras, Categorias.
+4. **Regra de importação renomeia a descrição.** `keyword_rules.set_description`;
+   `OFXImports` usa no match; **`POST /api/keyword-rules/:id/apply`** aplica a
+   regra RETROATIVAMENTE só aos lançamentos `category_id IS NULL` que casam
+   (keyword + tipo + banco) — nunca sobrescreve categorização feita.
+5. Brindes: chips de filtro rápido ("Sem categoria", "Não conciliados"),
+   **exportar CSV** da lista filtrada (`lib/csv.ts`).
+
+**Testes:** 25 checagens em `smoke-batch.mjs` (updated=N; `descriptionReplace`
+troca só o trecho; `set.date` grava a string exata; saldo recalculado 1×;
+`categoryId: null` remove; id alheio no array → 403; `set` vazio → 400; cor
+inválida → null; apply retroativo pega só os sem categoria e não sobrescreve na
+2ª vez). Regressão completa verde.
+
 ### Correções pré-Fase 6 (branch `feature/planejamento`)
 
 1. **Rate-limit derrubava todo mundo do mesmo IP.** `apiLimiter` era por IP

@@ -269,10 +269,11 @@ const BankList: React.FC<BankListProps> = ({ banks, creditCards, transactions, o
           // We are in the current period, which started last month
           startDate = new Date(today.getFullYear(), today.getMonth() - 1, card.closingDay + 1);
       }
-      
-      // Filter transactions
+      const startISO = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`;
+
+      // Filter transactions (compara strings 'YYYY-MM-DD' — sem drift de fuso)
       return transactions
-        .filter(t => t.creditCardId === card.id && t.type === TransactionType.DEBIT && new Date(t.date) >= startDate)
+        .filter(t => t.creditCardId === card.id && t.type === TransactionType.DEBIT && String(t.date).slice(0, 10) >= startISO)
         .reduce((sum, t) => sum + t.value, 0);
   };
 

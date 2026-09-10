@@ -3,7 +3,7 @@ import { authenticateToken } from '../middleware/auth.js';
 import { assertUserOwns } from '../lib/ownership.js';
 import { recalculateBankBalance } from '../lib/banks.js';
 import { validateBody } from '../middleware/validate.js';
-import { transactionCreateSchema, transactionUpdateSchema, transactionReconcileSchema, transactionBatchUpdateSchema, transactionBulkSchema } from '../schemas.js';
+import { transactionCreateSchema, transactionUpdateSchema, transactionReconcileSchema, transactionBatchSchema, transactionBulkSchema } from '../schemas.js';
 
 export default function register(app) {
 app.get('/api/transactions', authenticateToken, async (req, res) => {
@@ -160,18 +160,69 @@ app.patch('/api/transactions/:id/reconcile', authenticateToken, validateBody(tra
         res.json({ success: false });
     }
 });
-app.patch('/api/transactions/batch-update', authenticateToken, validateBody(transactionBatchUpdateSchema), async (req, res) => {
-    const { transactionIds, categoryId } = req.body;
-    if(!Array.isArray(transactionIds) || transactionIds.length === 0) return res.json({success: true});
+// Edição em lote — categoria / descrição (definir ou localizar-substituir) /
+// data / valor / tipo / conciliação, num conjunto de ids de QUALQUER mês.
+// 1 requisição, 1 transação de banco, saldos recalculados uma vez.
+app.patch('/api/transactions/batch', authenticateToken, validateBody(transactionBatchSchema), async (req, res) => {
+    const { ids, set } = req.body;
+
+    const { rows: owned } = await pool.query(
+        `SELECT id, bank_id, credit_card_id FROM transactions WHERE id = ANY($1::int[]) AND user_id = $2`,
+        [ids, req.userId]);
+    if (owned.length !== ids.length) return res.status(403).json({ error: 'Um ou mais lançamentos não são seus.' });
+
+    if (set.categoryId) {
+        const o = await assertUserOwns(req.userId, { categoryId: set.categoryId });
+        if (!o.ok) return res.status(400).json({ error: o.error });
+    }
+
+    // colunas dinâmicas — só o que veio em `set`
+    const cols = [];
+    const params = [];
+    const add = (frag, val) => { params.push(val); cols.push(frag.replace('$?', `$${params.length}`)); };
+    if (set.categoryId !== undefined) add('category_id = $?', set.categoryId || null);
+    if (set.description !== undefined) add('description = $?', set.description);
+    else if (set.descriptionReplace) {
+        params.push(set.descriptionReplace.from); const a = params.length;
+        params.push(set.descriptionReplace.to); const b = params.length;
+        cols.push(`description = replace(description, $${a}, $${b})`);
+    }
+    if (set.date !== undefined) add('date = $?', set.date);
+    if (set.value !== undefined) add('value = $?', set.value);
+    if (set.type !== undefined) add('type = $?', set.type);
+    if (set.reconciled !== undefined) add('reconciled = $?', set.reconciled ? 1 : 0);
+    if (cols.length === 0) return res.status(400).json({ error: 'Nada para alterar.' });
+
+    const client = await pool.connect();
     try {
-        await pool.query(
-            `UPDATE transactions SET category_id = $1, reconciled = 1 WHERE id = ANY($2::int[]) AND user_id = $3`,
-            [categoryId, transactionIds, req.userId]
-        );
-        res.json({success: true});
-    } catch(e) {
-        console.error("Batch update error:", e.message);
-        res.status(500).json({success: false});
+        await client.query('BEGIN');
+        params.push(ids); const idsIdx = params.length;
+        params.push(req.userId); const uidIdx = params.length;
+        const upd = await client.query(
+            `UPDATE transactions SET ${cols.join(', ')}
+             WHERE id = ANY($${idsIdx}::int[]) AND user_id = $${uidIdx} RETURNING id`,
+            params);
+
+        // valor/tipo mudaram → recomputa o saldo de cada banco afetado (sem cartão)
+        if (set.value !== undefined || set.type !== undefined) {
+            const bankIds = [...new Set(owned.filter(r => !r.credit_card_id && r.bank_id).map(r => r.bank_id))];
+            for (const bankId of bankIds) {
+                await client.query(
+                    `UPDATE banks SET balance = COALESCE((
+                         SELECT SUM(CASE WHEN type = 'credito' THEN value ELSE -value END)
+                         FROM transactions WHERE bank_id = $1 AND credit_card_id IS NULL
+                     ), 0) WHERE id = $1 AND user_id = $2`,
+                    [bankId, req.userId]);
+            }
+        }
+        await client.query('COMMIT');
+        res.json({ updated: upd.rows.length });
+    } catch (e) {
+        await client.query('ROLLBACK').catch(() => {});
+        console.error('PATCH /transactions/batch error:', e.message);
+        res.status(500).json({ error: e.message });
+    } finally {
+        client.release();
     }
 });
 }

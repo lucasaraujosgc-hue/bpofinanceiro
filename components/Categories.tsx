@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Category, CategoryType } from '../types';
 import { Plus, Trash2, ArrowUpCircle, ArrowDownCircle, Settings, X, Save, HelpCircle } from 'lucide-react';
+import { CategoryIcon, CATEGORY_ICON_NAMES, CATEGORY_COLORS } from './categoryIcons';
 
 interface CategoriesProps {
   categories: Category[];
@@ -43,6 +44,8 @@ const Categories: React.FC<CategoriesProps> = ({ categories, onAddCategory, onDe
   const [editing, setEditing] = useState<Category | null>(null);
   const [group, setGroup] = useState('');
   const [behavior, setBehavior] = useState('variavel');
+  const [icon, setIcon] = useState<string | null>(null);
+  const [color, setColor] = useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,11 +63,13 @@ const Categories: React.FC<CategoriesProps> = ({ categories, onAddCategory, onDe
     setEditing(cat);
     setGroup(cat.groupType || (cat.type === CategoryType.INCOME ? 'outras_receitas' : 'despesa_operacional'));
     setBehavior(cat.behaviorType === 'fixa' ? 'fixa' : 'variavel');
+    setIcon(cat.icon || null);
+    setColor(cat.color || null);
   };
 
   const saveConfig = () => {
     if (editing && onUpdateCategory) {
-      onUpdateCategory({ ...editing, groupType: group, behaviorType: behavior });
+      onUpdateCategory({ ...editing, groupType: group, behaviorType: behavior, icon, color });
       setEditing(null);
     }
   };
@@ -89,12 +94,20 @@ const Categories: React.FC<CategoriesProps> = ({ categories, onAddCategory, onDe
         <ul className="divide-y divide-line">
           {items.map(cat => (
             <li key={cat.id} className="px-5 py-3 flex justify-between items-center hover:bg-sunken/50 group transition-colors">
-              <div className="min-w-0">
-                <span className="text-ink font-medium block truncate">{cat.name}</span>
-                <span className="text-[10px] text-faint uppercase tracking-wide">
-                  {groupLabel(cat.groupType, type)}
-                  {cat.behaviorType === 'fixa' && <span className="ml-1.5 text-info">· fixa</span>}
+              <div className="min-w-0 flex items-center gap-2.5">
+                <span
+                  className="shrink-0 w-7 h-7 rounded-lg flex items-center justify-center border"
+                  style={cat.color ? { color: cat.color, backgroundColor: `${cat.color}22`, borderColor: `${cat.color}55` } : { borderColor: 'var(--color-line)' }}
+                >
+                  <CategoryIcon name={cat.icon} size={15} className={cat.color ? '' : 'text-faint'} />
                 </span>
+                <div className="min-w-0">
+                  <span className="text-ink font-medium block truncate">{cat.name}</span>
+                  <span className="text-[10px] text-faint uppercase tracking-wide">
+                    {groupLabel(cat.groupType, type)}
+                    {cat.behaviorType === 'fixa' && <span className="ml-1.5 text-info">· fixa</span>}
+                  </span>
+                </div>
               </div>
               <div className="flex gap-1 shrink-0">
                 <button onClick={() => openConfig(cat)} title="Configurar" className="p-1.5 text-faint hover:text-brand hover:bg-sunken rounded transition-colors">
@@ -183,9 +196,48 @@ const Categories: React.FC<CategoriesProps> = ({ categories, onAddCategory, onDe
             </div>
 
             <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <span
+                  className="shrink-0 w-11 h-11 rounded-xl flex items-center justify-center border"
+                  style={color ? { color, backgroundColor: `${color}22`, borderColor: `${color}55` } : { borderColor: 'var(--color-line)' }}
+                >
+                  <CategoryIcon name={icon} size={22} className={color ? '' : 'text-faint'} />
+                </span>
+                <div>
+                  <span className="text-[11px] font-semibold text-faint uppercase">Categoria</span>
+                  <p className="text-ink font-medium text-lg leading-tight">{editing.name}</p>
+                </div>
+              </div>
+
               <div>
-                <span className="text-[11px] font-semibold text-faint uppercase">Categoria</span>
-                <p className="text-ink font-medium text-lg">{editing.name}</p>
+                <label className="text-sm font-medium text-muted block mb-1.5">Ícone</label>
+                <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto custom-scroll p-1 bg-sunken/50 rounded-lg border border-line">
+                  <button type="button" onClick={() => setIcon(null)}
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center text-faint hover:bg-sunken ${!icon ? 'ring-2 ring-brand' : ''}`}
+                    title="Sem ícone">
+                    <X size={14} />
+                  </button>
+                  {CATEGORY_ICON_NAMES.map(n => (
+                    <button key={n} type="button" onClick={() => setIcon(n)}
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center text-muted hover:bg-sunken hover:text-ink ${icon === n ? 'ring-2 ring-brand text-ink' : ''}`}>
+                      <CategoryIcon name={n} size={15} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-muted block mb-1.5">Cor</label>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => setColor(null)}
+                    className={`w-7 h-7 rounded-full border border-line flex items-center justify-center text-faint ${!color ? 'ring-2 ring-brand ring-offset-2 ring-offset-surface' : ''}`}
+                    title="Sem cor"><X size={12} /></button>
+                  {CATEGORY_COLORS.map(c => (
+                    <button key={c} type="button" onClick={() => setColor(c)}
+                      className={`w-7 h-7 rounded-full ${color === c ? 'ring-2 ring-offset-2 ring-offset-surface' : ''}`}
+                      style={{ backgroundColor: c, ...(color === c ? { boxShadow: `0 0 0 2px ${c}` } : {}) }} />
+                  ))}
+                </div>
               </div>
 
               <div>

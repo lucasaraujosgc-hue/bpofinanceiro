@@ -31,6 +31,8 @@ export interface Category {
   affectsBalance?: boolean;
   costClassification?: string;
   behaviorType?: string;
+  icon?: string | null;   // nome de ícone Lucide em kebab-case
+  color?: string | null;  // hex '#rrggbb'
 }
 
 export interface KeywordRule {
@@ -39,6 +41,7 @@ export interface KeywordRule {
   type: TransactionType;
   categoryId: number;
   bankId?: number | null;
+  setDescription?: string | null; // se preenchido, renomeia o lançamento no import
 }
 
 export interface CreditCard {

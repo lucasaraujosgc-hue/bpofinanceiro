@@ -199,8 +199,11 @@ function App() {
       const tx = transactions.find(t => t.id === id);
       if(tx) { await apiFetch(`/api/transactions/${id}/reconcile`, { method: 'PATCH', body: JSON.stringify({reconciled: !tx.reconciled}) }); fetchTransactions(); }
   };
-  const handleBatchUpdateTransaction = async (ids: number[], catId: number) => {
-      await apiFetch('/api/transactions/batch-update', { method: 'PATCH', body: JSON.stringify({transactionIds: ids, categoryId: catId}) }); fetchTransactions();
+  const handleBatchTransactions = async (ids: number[], set: any) => {
+      const res = await apiFetch('/api/transactions/batch', { method: 'PATCH', body: JSON.stringify({ ids, set }) });
+      await Promise.all([fetchTransactions(), fetchBanks()]);
+      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || 'Erro na edição em lote'); }
+      return res.json().catch(() => ({}));
   };
   const handleUpdateBank = async (b: any) => {
       await apiFetch(`/api/banks/${b.id}`, { method: 'PUT', body: JSON.stringify(b) }); fetchBanks();
@@ -230,6 +233,12 @@ function App() {
   };
   const handleDeleteKeywordRule = async (id: number) => {
       await apiFetch(`/api/keyword-rules/${id}`, { method: 'DELETE' }); fetchKeywordRules();
+  };
+  const handleApplyKeywordRule = async (id: number) => {
+      const res = await apiFetch(`/api/keyword-rules/${id}/apply`, { method: 'POST' });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok) await fetchTransactions();
+      return res.ok ? { updated: j.updated ?? 0 } : undefined;
   };
 
   const handleLogout = () => {
@@ -342,9 +351,9 @@ function App() {
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard': return <Dashboard token={currentToken} userId={user.id} transactions={transactions} banks={activeBanks} forecasts={forecasts} categories={categories} onRefresh={fetchInitialData} />;
-      case 'transactions': return <Transactions userId={user.id} transactions={transactions} banks={activeBanks} creditCards={creditCards} categories={categories} onAddTransaction={handleAddTransaction} onEditTransaction={handleEditTransaction} onDeleteTransaction={handleDeleteTransaction} onReconcile={handleReconcile} onBatchUpdate={handleBatchUpdateTransaction} />;
+      case 'transactions': return <Transactions userId={user.id} transactions={transactions} banks={activeBanks} creditCards={creditCards} categories={categories} onAddTransaction={handleAddTransaction} onEditTransaction={handleEditTransaction} onDeleteTransaction={handleDeleteTransaction} onReconcile={handleReconcile} onBatch={handleBatchTransactions} />;
       case 'import': return <OFXImports token={currentToken} userId={user.id} banks={activeBanks} keywordRules={keywordRules} transactions={transactions} onTransactionsImported={fetchInitialData} />;
-      case 'rules': return <KeywordRules categories={categories} rules={keywordRules} banks={activeBanks} onAddRule={handleAddKeywordRule} onDeleteRule={handleDeleteKeywordRule} />;
+      case 'rules': return <KeywordRules categories={categories} rules={keywordRules} banks={activeBanks} onAddRule={handleAddKeywordRule} onDeleteRule={handleDeleteKeywordRule} onApplyRule={handleApplyKeywordRule} />;
       case 'banks': return <BankList banks={banksWithBalance} creditCards={creditCards} transactions={transactions} onUpdateBank={handleUpdateBank} onAddBank={handleAddBank} onDeleteBank={handleDeleteBank} onAddCreditCard={handleAddCreditCard} onUpdateCreditCard={handleUpdateCreditCard} onDeleteCreditCard={handleDeleteCreditCard} />;
       case 'categories': return <Categories categories={categories} onAddCategory={handleAddCategory} onDeleteCategory={handleDeleteCategory} onUpdateCategory={handleUpdateCategory} />;
       case 'integration': return <IntegrationConfig categories={categories} banks={activeBanks} />;

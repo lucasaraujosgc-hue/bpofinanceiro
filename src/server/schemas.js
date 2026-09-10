@@ -133,6 +133,12 @@ export const creditCardUpdateSchema = z.object({
 
 // --- categorias --------------------------------------------------------
 
+// Cor hex '#rrggbb' — '' / null / valor inválido → null (o handler faz `|| null`).
+const hexColor = z.preprocess(
+    (v) => (typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v.trim()) ? v.trim().toLowerCase() : null),
+    z.string().nullable(),
+);
+
 const categoryShape = {
     name: shortText.min(1, 'nome obrigatório'),
     type: z.enum(['receita', 'despesa']).optional(),
@@ -145,6 +151,8 @@ const categoryShape = {
     affectsBalance: boolish,
     costClassification: z.string().trim().max(60).nullish(),
     behaviorType: z.string().trim().max(30).nullish(),
+    icon: z.string().trim().max(40).nullish(),
+    color: hexColor,
 };
 export const categoryCreateSchema = z.object(categoryShape).loose();
 export const categoryUpdateSchema = z.object(categoryShape).loose();
@@ -190,9 +198,27 @@ export const forecastRealizeSchema = z.object({
     realizedDate: optionalIsoDate,
 }).loose();
 
-export const transactionBatchUpdateSchema = z.object({
-    transactionIds: z.array(z.coerce.number().int().positive()).max(5000),
-    categoryId: idRef,
+// Edição em lote: aplica `set` a todos os `ids` (independente de mês). Só os
+// campos presentes em `set` são alterados; `descriptionReplace` faz
+// localizar-e-substituir na descrição.
+export const transactionBatchSchema = z.object({
+    ids: z.array(z.coerce.number().int().positive()).min(1).max(5000),
+    set: z.object({
+        categoryId: idRef.optional(),
+        description: z.string().trim().max(500).optional(),
+        descriptionReplace: z.object({
+            from: z.string().min(1).max(200),
+            to: z.string().max(200),
+        }).optional(),
+        date: isoDate.optional(),
+        value: money.optional(),
+        type: txType.optional(),
+        reconciled: boolish,
+    }).loose().refine(
+        (s) => ['categoryId', 'description', 'descriptionReplace', 'date', 'value', 'type', 'reconciled']
+            .some((k) => s[k] !== undefined),
+        'informe ao menos um campo para alterar',
+    ),
 }).loose();
 
 // --- previsões -------------------------------------------------------
@@ -246,6 +272,10 @@ export const keywordRuleCreateSchema = z.object({
     type: txType,
     categoryId: idRef,
     bankId: idRef,
+    setDescription: z.preprocess(
+        (v) => (v === '' || v === null || v === undefined ? null : v),
+        z.string().trim().max(200).nullable(),
+    ),
 }).loose();
 
 // --- integração NFe -----------------------------------------------
